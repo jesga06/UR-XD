@@ -968,16 +968,21 @@ class App(ctk.CTk):
         # Configure columns and rows in remapping_scroll for expansion
         self.remapping_scroll.grid_columnconfigure(0, weight=1)
         self.remapping_scroll.grid_columnconfigure(1, weight=1)
-        self.remapping_scroll.grid_rowconfigure(0, weight=1)
-        self.remapping_scroll.grid_rowconfigure(1, weight=1)
 
-        # Create 4 quadrants using normal Frames to avoid resize lag
+        if not hasattr(self, 'selected_shift_layer_index'):
+            self.selected_shift_layer_index = 0
+
+        # Shift Header Frame (Multi-shift layer management)
+        self.shift_header_frame = ctk.CTkFrame(self.remapping_scroll, corner_radius=6)
+        self.shift_header_frame.grid(row=0, column=0, columnspan=2, padx=10, pady=(10, 5), sticky="ew")
+
+        # 4 Quadrants
         self.frame_face = ctk.CTkFrame(self.remapping_scroll, corner_radius=0)
         self.frame_dpad = ctk.CTkFrame(self.remapping_scroll, corner_radius=0)
         self.frame_sticks = ctk.CTkFrame(self.remapping_scroll, corner_radius=0)
         self.frame_system = ctk.CTkFrame(self.remapping_scroll, corner_radius=0)
 
-        # Labels for the frames since CTkFrame doesn't have label_text
+        # Labels for the frames
         for f, title in [(self.frame_face, "Face Buttons"), (self.frame_dpad, "D-Pad"),
                          (self.frame_sticks, "Shoulders & Sticks"), (self.frame_system, "System & Extras")]:
             lbl = ctk.CTkLabel(
@@ -985,18 +990,18 @@ class App(ctk.CTk):
                     size=14, weight="bold"))
             lbl.grid(row=0, column=0, columnspan=6, pady=(5, 5))
 
-        self.frame_face.grid(row=0, column=0, padx=10, pady=10, sticky="n")
-        self.frame_dpad.grid(row=1, column=0, padx=10, pady=10, sticky="n")
-        self.frame_sticks.grid(row=0, column=1, padx=10, pady=10, sticky="n")
-        self.frame_system.grid(row=1, column=1, padx=10, pady=10, sticky="n")
+        self.frame_face.grid(row=1, column=0, padx=10, pady=10, sticky="n")
+        self.frame_dpad.grid(row=2, column=0, padx=10, pady=10, sticky="n")
+        self.frame_sticks.grid(row=1, column=1, padx=10, pady=10, sticky="n")
+        self.frame_system.grid(row=2, column=1, padx=10, pady=10, sticky="n")
 
         # Info Guide
         info_frame = ctk.CTkFrame(self.remapping_scroll, fg_color="transparent")
-        info_frame.grid(row=2, column=0, columnspan=2, pady=(10, 20))
+        info_frame.grid(row=3, column=0, columnspan=2, pady=(10, 20))
         
         info_btn = ctk.CTkButton(info_frame, text="?  Remapping Guide", width=140, height=24, corner_radius=12, fg_color="#555555", hover_color="#666666", font=ctk.CTkFont(size=12), command=self.open_remapping_guide_modal)
         info_btn.pack(side="top")
-        ToolTip(info_btn, "Mapping: Enter a keyboard key (e.g. 'h'), mouse click (e.g. 'mouse:left'), or macro name (e.g. 'macro:MyMacro' or 'MyMacro').\n[Rec]: Click to record key combinations or macros interactively.\nBlock: Prevent the original controller button from being sent to the game.\nShift Map/S. Blk: Secondary mapping & block state when the Shift layer trigger is held.\nClick to view full guide window!")
+        ToolTip(info_btn, "Mapping: Enter a keyboard key (e.g. 'h'), mouse click (e.g. 'mouse:left'), or macro name (e.g. 'macro:MyMacro' or 'MyMacro').\n[Rec]: Click to record key combinations or macros interactively.\nBlock: Prevent the original controller button from being sent to the game.\nShift Map/S. Blk: Secondary mapping & block state when the active Shift layer is active.\nClick to view full guide window!")
 
         self.entries = {}
         self.label_widgets = {}
@@ -1063,10 +1068,11 @@ class App(ctk.CTk):
             if current_val == "":
                 cb.configure(state="disabled")
                 
-            # Shift Map
-            shift_val = ""
-            if self.config.has_option('shift_mappings', btn):
-                shift_val = self.config.get('shift_mappings', btn)
+            # Shift Map for selected shift layer
+            layers = self.config.get_shift_layers()
+            idx = getattr(self, 'selected_shift_layer_index', 0)
+            curr_layer = layers[idx] if (0 <= idx < len(layers)) else (layers[0] if layers else {})
+            shift_val = curr_layer.get('mappings', {}).get(btn, '')
 
             s_entry = ctk.CTkEntry(frame, width=90, corner_radius=0)
             s_entry.insert(0, shift_val)
@@ -1077,9 +1083,7 @@ class App(ctk.CTk):
             self.shift_entries[btn] = s_entry
             
             # Shift Block
-            is_s_blocked = True
-            if self.config.has_option('shift_block_xinput', btn):
-                is_s_blocked = self.config.get('shift_block_xinput', btn).lower() != 'false'
+            is_s_blocked = curr_layer.get('block_xinput', {}).get(btn, 'true').lower() != 'false'
 
             scb_var = ctk.BooleanVar(value=is_s_blocked)
             scb = ctk.CTkCheckBox(frame, text="", variable=scb_var, width=20, corner_radius=0,
@@ -1142,6 +1146,8 @@ class App(ctk.CTk):
         all_system_and_extras = system_buttons + existing_extras
         for i, btn in enumerate(all_system_and_extras):
             add_button_row(self.frame_system, btn, i + 2)
+
+        self.rebuild_shift_header_ui()
 
     def start_recording(self, btn):
         record_win = ctk.CTkToplevel(self)
@@ -1432,30 +1438,194 @@ class App(ctk.CTk):
             self.config.set('block_xinput', btn, 'false')
         self.save_config()
 
-    def on_shift_mapping_changed(self, btn):
-        val = self.shift_entries[btn].get().strip()
-        if val == "":
-            if self.config.has_option('shift_mappings', btn):
-                self.config.remove_option('shift_mappings', btn)
-            if self.config.has_option('shift_block_xinput', btn):
-                self.config.remove_option('shift_block_xinput', btn)
-            self.shift_block_vars[btn].set(True)
-            self.shift_block_checkboxes[btn].configure(state="disabled")
+    def rebuild_shift_header_ui(self):
+        if not hasattr(self, 'shift_header_frame'):
+            return
+        for child in self.shift_header_frame.winfo_children():
+            child.destroy()
+
+        layers = self.config.get_shift_layers()
+        if not hasattr(self, 'selected_shift_layer_index'):
+            self.selected_shift_layer_index = 0
+        if self.selected_shift_layer_index >= len(layers):
+            self.selected_shift_layer_index = max(0, len(layers) - 1)
+
+        # Tab selection bar
+        tabs_f = ctk.CTkFrame(self.shift_header_frame, fg_color="transparent")
+        tabs_f.pack(fill="x", padx=10, pady=(5, 5))
+
+        ctk.CTkLabel(tabs_f, text="Shift Layers:", font=ctk.CTkFont(size=12, weight="bold")).pack(side="left", padx=(0, 10))
+
+        for idx, l in enumerate(layers):
+            l_name = l.get('name') or f"Shift {idx + 1}"
+            trig = l.get('trigger_button', '').upper()
+            mod = l.get('modifier_button', '').upper()
+            chord_str = f" [{trig}+{mod}]" if (trig and mod) else (f" [{trig}]" if trig else "")
+            btn_text = f"{l_name}{chord_str}"
+
+            is_selected = (idx == self.selected_shift_layer_index)
+            fg = "#1f538d" if is_selected else "#3a3a3a"
+            hover = "#2980b9" if is_selected else "#4a4a4a"
+
+            t_btn = ctk.CTkButton(
+                tabs_f, text=btn_text, height=26, fg_color=fg, hover_color=hover,
+                command=lambda i=idx: self.select_shift_layer_tab(i)
+            )
+            t_btn.pack(side="left", padx=3)
+
+        add_btn = ctk.CTkButton(tabs_f, text="+ Add Layer", width=90, height=26, fg_color="#2e7d32", hover_color="#388e3c", command=self.add_new_shift_layer_ui)
+        add_btn.pack(side="left", padx=8)
+
+        # Properties edit bar for selected shift layer
+        curr_l = layers[self.selected_shift_layer_index]
+        props_f = ctk.CTkFrame(self.shift_header_frame, fg_color="transparent")
+        props_f.pack(fill="x", padx=10, pady=(0, 5))
+
+        ctk.CTkLabel(props_f, text="Name:").pack(side="left", padx=(0, 2))
+        self.shift_name_entry = ctk.CTkEntry(props_f, width=120, height=24)
+        self.shift_name_entry.insert(0, curr_l.get('name', ''))
+        self.shift_name_entry.pack(side="left", padx=(0, 10))
+        self.shift_name_entry.bind("<FocusOut>", lambda e: self.on_shift_layer_props_changed())
+        self.shift_name_entry.bind("<Return>", lambda e: self.on_shift_layer_props_changed())
+
+        available_keys = self.get_profile_mapped_keys()
+        if "" in available_keys:
+            available_keys.remove("")
+        keys_opt = ["none"] + [k for k in available_keys if k]
+
+        ctk.CTkLabel(props_f, text="Trigger Key:").pack(side="left", padx=(0, 2))
+        trig_val = curr_l.get('trigger_button', '') or 'none'
+        self.shift_trig_opt = ctk.CTkOptionMenu(props_f, values=keys_opt, width=90, height=24, command=lambda v: self.on_shift_layer_props_changed())
+        self.shift_trig_opt.set(trig_val)
+        self.shift_trig_opt.pack(side="left", padx=(0, 10))
+
+        ctk.CTkLabel(props_f, text="+ Modifier Key:").pack(side="left", padx=(0, 2))
+        mod_val = curr_l.get('modifier_button', '') or 'none'
+        self.shift_mod_opt = ctk.CTkOptionMenu(props_f, values=keys_opt, width=90, height=24, command=lambda v: self.on_shift_layer_props_changed())
+        self.shift_mod_opt.set(mod_val)
+        self.shift_mod_opt.pack(side="left", padx=(0, 10))
+
+        ctk.CTkLabel(props_f, text="Mode:").pack(side="left", padx=(0, 2))
+        mode_val = curr_l.get('mode', 'hold')
+        self.shift_mode_opt = ctk.CTkOptionMenu(props_f, values=['hold', 'toggle'], width=80, height=24, command=lambda v: self.on_shift_layer_props_changed())
+        self.shift_mode_opt.set(mode_val)
+        self.shift_mode_opt.pack(side="left", padx=(0, 10))
+
+        if len(layers) > 1:
+            del_btn = ctk.CTkButton(props_f, text="Delete Layer", width=90, height=24, fg_color="#c62828", hover_color="#d32f2f", command=self.delete_current_shift_layer_ui)
+            del_btn.pack(side="right")
+
+    def select_shift_layer_tab(self, idx):
+        self.selected_shift_layer_index = idx
+        self.rebuild_shift_header_ui()
+        self.update_shift_entries_from_config()
+
+    def update_shift_entries_from_config(self):
+        layers = self.config.get_shift_layers()
+        idx = getattr(self, 'selected_shift_layer_index', 0)
+        if 0 <= idx < len(layers):
+            layer = layers[idx]
         else:
-            self.config.set('shift_mappings', btn, val)
-            self.shift_block_checkboxes[btn].configure(state="normal")
+            layer = layers[0] if layers else {}
+
+        mappings = layer.get('mappings', {})
+        block = layer.get('block_xinput', {})
+
+        for btn, entry in self.shift_entries.items():
+            val = mappings.get(btn, '')
+            entry.delete(0, 'end')
+            entry.insert(0, val)
+
+            is_blocked = block.get(btn, 'true').lower() != 'false'
+            if btn in self.shift_block_vars:
+                self.shift_block_vars[btn].set(is_blocked)
+            if btn in self.shift_block_checkboxes:
+                if val == '':
+                    self.shift_block_checkboxes[btn].configure(state="disabled")
+                else:
+                    self.shift_block_checkboxes[btn].configure(state="normal")
+
+    def on_shift_layer_props_changed(self):
+        layers = self.config.get_shift_layers()
+        idx = getattr(self, 'selected_shift_layer_index', 0)
+        if 0 <= idx < len(layers):
+            layer = layers[idx]
+            if hasattr(self, 'shift_name_entry'):
+                layer['name'] = self.shift_name_entry.get().strip()
+            if hasattr(self, 'shift_trig_opt'):
+                trig = self.shift_trig_opt.get().strip().lower()
+                layer['trigger_button'] = '' if trig == 'none' else trig
+            if hasattr(self, 'shift_mod_opt'):
+                mod = self.shift_mod_opt.get().strip().lower()
+                layer['modifier_button'] = '' if mod == 'none' else mod
+            if hasattr(self, 'shift_mode_opt'):
+                layer['mode'] = self.shift_mode_opt.get().strip().lower()
+            self.config.set_shift_layers(layers)
+            self.save_config()
+            self.rebuild_shift_header_ui()
+
+    def add_new_shift_layer_ui(self):
+        layers = self.config.get_shift_layers()
+        new_layer = self.config.add_shift_layer(
+            name=f"Shift Layer {len(layers) + 1}",
+            trigger_button="lb",
+            modifier_button="",
+            mode="hold"
+        )
         self.save_config()
+        self.selected_shift_layer_index = len(self.config.get_shift_layers()) - 1
+        self.rebuild_shift_header_ui()
+        self.update_shift_entries_from_config()
+
+    def delete_current_shift_layer_ui(self):
+        layers = self.config.get_shift_layers()
+        if len(layers) <= 1:
+            return
+        idx = getattr(self, 'selected_shift_layer_index', 0)
+        if 0 <= idx < len(layers):
+            layer_id = layers[idx].get('id')
+            self.config.remove_shift_layer(layer_id)
+            self.save_config()
+            self.selected_shift_layer_index = max(0, idx - 1)
+            self.rebuild_shift_header_ui()
+            self.update_shift_entries_from_config()
+
+    def on_shift_mapping_changed(self, btn):
+        layers = self.config.get_shift_layers()
+        idx = getattr(self, 'selected_shift_layer_index', 0)
+        if 0 <= idx < len(layers):
+            layer = layers[idx]
+            val = self.shift_entries[btn].get().strip()
+            if 'mappings' not in layer:
+                layer['mappings'] = {}
+            if 'block_xinput' not in layer:
+                layer['block_xinput'] = {}
+
+            if val == "":
+                layer['mappings'].pop(btn, None)
+                layer['block_xinput'].pop(btn, None)
+                self.shift_block_vars[btn].set(True)
+                self.shift_block_checkboxes[btn].configure(state="disabled")
+            else:
+                layer['mappings'][btn] = val
+                self.shift_block_checkboxes[btn].configure(state="normal")
+            self.config.set_shift_layers(layers)
+            self.save_config()
 
     def on_shift_block_toggled(self, btn, var):
-        is_blocked = var.get()
-        if not self.config.has_section('shift_block_xinput'):
-            self.config.add_section('shift_block_xinput')
-        if is_blocked:
-            if self.config.has_option('shift_block_xinput', btn):
-                self.config.remove_option('shift_block_xinput', btn)
-        else:
-            self.config.set('shift_block_xinput', btn, 'false')
-        self.save_config()
+        layers = self.config.get_shift_layers()
+        idx = getattr(self, 'selected_shift_layer_index', 0)
+        if 0 <= idx < len(layers):
+            layer = layers[idx]
+            if 'block_xinput' not in layer:
+                layer['block_xinput'] = {}
+            is_blocked = var.get()
+            if is_blocked:
+                layer['block_xinput'].pop(btn, None)
+            else:
+                layer['block_xinput'][btn] = 'false'
+            self.config.set_shift_layers(layers)
+            self.save_config()
 
     def on_digital_trigger_toggled(self, btn, var):
         is_digital = var.get()

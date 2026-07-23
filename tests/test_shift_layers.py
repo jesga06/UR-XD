@@ -50,5 +50,70 @@ class TestShiftLayersConfig(unittest.TestCase):
         layers_after = cfg.get_shift_layers()
         self.assertEqual(len(layers_after), 1)
 
+from src.mapper import Mapper
+from src.decoder import ControllerState
+import time
+
+class TestMapperShiftLayers(unittest.TestCase):
+    def setUp(self):
+        self.cfg = ControllerConfig()
+        self.cfg.set_shift_layers([
+            {
+                "id": "shift_1",
+                "name": "Single Shift",
+                "trigger_button": "lb",
+                "modifier_button": "",
+                "mode": "hold",
+                "mappings": {"a": "keyboard:1"},
+                "block_xinput": {}
+            },
+            {
+                "id": "shift_2",
+                "name": "Chord Shift",
+                "trigger_button": "lb",
+                "modifier_button": "rb",
+                "mode": "hold",
+                "mappings": {"a": "keyboard:2"},
+                "block_xinput": {}
+            }
+        ])
+
+    def test_single_shift_activation(self):
+        mapper = Mapper(self.cfg)
+        st = ControllerState()
+        st.lb = 1.0
+        mapper.process(st)
+        self.assertEqual(mapper.active_layer, 'shift_1')
+
+    def test_strict_order_chord_activation(self):
+        mapper = Mapper(self.cfg)
+        st = ControllerState()
+        
+        # LB pressed first
+        st.lb = 1.0
+        mapper.process(st)
+        self.assertEqual(mapper.active_layer, 'shift_1')
+        
+        time.sleep(0.01)
+        # RB pressed second -> chord activates shift_2
+        st.rb = 1.0
+        mapper.process(st)
+        self.assertEqual(mapper.active_layer, 'shift_2')
+
+    def test_reverse_order_rejects_chord(self):
+        mapper = Mapper(self.cfg)
+        st = ControllerState()
+        
+        # RB pressed first
+        st.rb = 1.0
+        mapper.process(st)
+        self.assertEqual(mapper.active_layer, 'layer_base')
+        
+        time.sleep(0.01)
+        # LB pressed second -> t_lb > t_rb, chord shift_2 rejected, single shift_1 activated
+        st.lb = 1.0
+        mapper.process(st)
+        self.assertEqual(mapper.active_layer, 'shift_1')
+
 if __name__ == '__main__':
     unittest.main()

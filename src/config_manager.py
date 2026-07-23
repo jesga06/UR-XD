@@ -48,6 +48,17 @@ class ControllerConfig:
             },
             "shift_mappings": {},
             "shift_block_xinput": {},
+            "shift_layers": [
+                {
+                    "id": "shift_1",
+                    "name": "Shift Layer 1",
+                    "trigger_button": "",
+                    "modifier_button": "",
+                    "mode": "hold",
+                    "mappings": {},
+                    "block_xinput": {}
+                }
+            ],
             "chords": {},
             "hardware_chords": {},
             "backend": {
@@ -92,10 +103,76 @@ class ControllerConfig:
         try:
             with open(self.filepath, 'r', encoding='utf-8') as f:
                 self.data = json.load(f)
+            self._migrate_shift_layers()
         except Exception as e:
             print(f"Error loading {self.filepath}: {e}")
             logger.error(f"Error loading {self.filepath}: {e}", exc_info=True)
             self._init_defaults()
+
+    def _migrate_shift_layers(self) -> None:
+        if "shift_layers" not in self.data or not isinstance(self.data.get("shift_layers"), list):
+            trigger_button = self.get("shift_layer", "trigger_button", fallback="") or ""
+            mode = self.get("shift_layer", "mode", fallback="hold") or "hold"
+            mappings = self.data.get("shift_mappings", {})
+            block_xinput = self.data.get("shift_block_xinput", {})
+            self.data["shift_layers"] = [
+                {
+                    "id": "shift_1",
+                    "name": "Shift Layer 1",
+                    "trigger_button": trigger_button,
+                    "modifier_button": "",
+                    "mode": mode,
+                    "mappings": dict(mappings) if isinstance(mappings, dict) else {},
+                    "block_xinput": dict(block_xinput) if isinstance(block_xinput, dict) else {}
+                }
+            ]
+        self._sync_legacy_shift_fields()
+
+    def _sync_legacy_shift_fields(self) -> None:
+        layers = self.data.get("shift_layers", [])
+        if layers and isinstance(layers, list) and len(layers) > 0:
+            first = layers[0]
+            if isinstance(first, dict):
+                self.data["shift_layer"] = {
+                    "mode": first.get("mode", "hold"),
+                    "trigger_button": first.get("trigger_button", "")
+                }
+                self.data["shift_mappings"] = dict(first.get("mappings", {}))
+                self.data["shift_block_xinput"] = dict(first.get("block_xinput", {}))
+
+    def get_shift_layers(self) -> List[Dict[str, Any]]:
+        if "shift_layers" not in self.data or not isinstance(self.data.get("shift_layers"), list):
+            self._migrate_shift_layers()
+        return self.data["shift_layers"]
+
+    def set_shift_layers(self, layers: List[Dict[str, Any]]) -> None:
+        self.data["shift_layers"] = layers
+        self._sync_legacy_shift_fields()
+
+    def add_shift_layer(self, name: str = "", trigger_button: str = "", modifier_button: str = "", mode: str = "hold") -> Dict[str, Any]:
+        layers = self.get_shift_layers()
+        next_idx = len(layers) + 1
+        layer_id = f"shift_{next_idx}"
+        layer_name = name if name else f"Shift Layer {next_idx}"
+        new_layer = {
+            "id": layer_id,
+            "name": layer_name,
+            "trigger_button": trigger_button,
+            "modifier_button": modifier_button,
+            "mode": mode,
+            "mappings": {},
+            "block_xinput": {}
+        }
+        layers.append(new_layer)
+        self.set_shift_layers(layers)
+        return new_layer
+
+    def remove_shift_layer(self, layer_id: str) -> None:
+        layers = self.get_shift_layers()
+        if len(layers) <= 1:
+            return
+        layers = [l for l in layers if l.get("id") != layer_id]
+        self.set_shift_layers(layers)
 
     def save(self) -> None:
         if not self.filepath:

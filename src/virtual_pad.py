@@ -175,8 +175,6 @@ class VirtualPad:
         block_prefs = {}
         if config.has_section('block_xinput'):
             for key, val in config.items('block_xinput'):
-                # config values can be read as string, we check if it is
-                # explicitly false
                 block_prefs[key.lower()] = val.lower() != 'false'
 
         for section_name in ['layer_base', 'layer_shift', 'extra_buttons']:
@@ -187,13 +185,32 @@ class VirtualPad:
                     if key_lower == 'home':
                         self.home_mapping = val_lower
 
-                    # If a standard button/trigger is mapped, block it from being pressed on virtual pad
-                    # unless explicitly opted out in block_xinput
                     if key_lower in ['a', 'b', 'x', 'y', 'lb', 'rb', 'lt', 'rt', 'select',
                                      'start', 'l3', 'r3', 'dpad_up', 'dpad_down', 'dpad_left', 'dpad_right', 'ls', 'rs']:
                         should_block = block_prefs.get(key_lower, True)
                         if should_block:
                             self.blocked_buttons.add(key_lower)
+
+        # Check multi-shift layers block preferences
+        if hasattr(config, 'get_shift_layers'):
+            shift_layers_data = config.get_shift_layers()
+        elif hasattr(config, 'data') and 'shift_layers' in config.data:
+            shift_layers_data = config.data.get('shift_layers', [])
+        else:
+            shift_layers_data = []
+
+        for s_layer in shift_layers_data:
+            s_mappings = s_layer.get('mappings', {})
+            s_block = s_layer.get('block_xinput', {})
+            for key, val in s_mappings.items():
+                key_lower = key.lower()
+                if key_lower in ['a', 'b', 'x', 'y', 'lb', 'rb', 'lt', 'rt', 'select',
+                                 'start', 'l3', 'r3', 'dpad_up', 'dpad_down', 'dpad_left', 'dpad_right', 'ls', 'rs']:
+                    s_should_block = s_block.get(key_lower, True)
+                    if isinstance(s_should_block, str):
+                        s_should_block = s_should_block.lower() != 'false'
+                    if s_should_block:
+                        self.blocked_buttons.add(key_lower)
 
 
     def process(self, state: ControllerState):

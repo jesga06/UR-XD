@@ -44,6 +44,10 @@ Run the settings panel using `run_wrapper.bat` (and select "Open Config" in the 
   * **Mouse Clicks:** Captures clicks for Middle, Left, Right, Mouse4, and Mouse5. Left-clicks inside the recorder are ignored for UI protection.
   * **Mouse Scroll Wheel:** Records scroll direction.
   * **Target Layer Saving:** Explicit **"Save Standard"** and **"Save Shift Map"** buttons to cleanly redirect recorded inputs.
+* **Multiple Shift Remapping Layers:**
+  * **Layer Selector & Management:** Create, name, and switch between multiple custom shift layers (`Shift 1`, `Shift 2`, etc.) with tab-based navigation in the Remapping UI.
+  * **Activation Chords & Strict Order Logic:** Activate shift layers using a primary shift key or a primary shift key + modifier button combination (e.g. `LB + RB`). Requires strict press timing (primary shift key pressed before or simultaneously with modifier) and consumes inputs to prevent unintended base layer triggers.
+  * **Per-Layer Mappings & XInput Blocking:** Customize independent mappings, macro assignments, and XInput block preferences for each shift layer.
 * **Mouse Scroll Remapping Customization:**
   * **Oneshot Mode:** Triggers exactly $X$ scroll notches on button press.
   * **Continuous Mode:** Repeats $X$ scroll notches every $Y$ seconds as long as the button is held.

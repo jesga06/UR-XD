@@ -238,5 +238,16 @@ This release introduces major UI Customizations, Utilities, and Core Profile fea
 - **Comprehensive Diagnostic & Test Suite:** Added unit tests for `HardwareChordEngine`, modernized test suites with dynamic `hid` module mocking for DLL-independent test execution, and expanded verbose debug logging.
 - **Cross-Platform UTF-8 & Batch Script Fixes:** Standardized `encoding='utf-8'` across file persistence, macro execution, layout builder, and configuration operations. Standardized `%PYTHON_CMD%` quote escaping in batch scripts.
 
+## [2.3.0] - 2026-07-23
+### 🎮 User-Facing Changes
+- **Multiple Shift Remapping Layers:** Expanded the remapping engine and GUI to support creating, naming, and switching between multiple custom shift layers.
+- **Layer Activation Chords & Strict Order Logic:** Support chord activation for shift layers using a combination of a primary shift button and an optional modifier button (e.g., `LB + RB`). Enforces strict timing rules (primary shift button must be pressed before or simultaneously with the modifier button) and consumes inputs to prevent unintended base layer triggers.
+- **Multi-Shift Remapping GUI:** Revamped the Remapping tab in `gui.py` with an interactive shift layer tab bar, quick layer creation/deletion, layer property configuration (Name, Trigger, Modifier, Mode), and per-layer mapping and block preferences.
+
+### ⚙️ Under-the-Hood Changes
+- **Shift Layer Configuration Schema & Migration:** Updated `config_manager.py` to store shift layers under `shift_layers` array in JSON profile files, with automatic backward-compatibility migration for legacy single-shift configurations.
+- **Mapper Press Timestamp Tracking:** Enhanced `mapper.py` with fine-grained button press timestamp tracking (`button_press_times`) to enforce strict order evaluation during chord shift layer activation.
+- **Virtual Pad Multi-Shift Blocking:** Updated `virtual_pad.py` block logic to query all active shift layer block preferences and suppress virtual pad outputs for mapped shift buttons.
+
 
 

@@ -15,7 +15,8 @@ sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 from PySide6.QtWidgets import (
     QWidget, QVBoxLayout, QHBoxLayout, QLabel, QFrame, QPushButton, QCheckBox,
-    QLineEdit, QComboBox, QGridLayout, QScrollArea, QDialog, QRadioButton, QMessageBox, QInputDialog
+    QLineEdit, QComboBox, QGridLayout, QScrollArea, QDialog, QRadioButton, QMessageBox, QInputDialog,
+    QSpinBox, QDoubleSpinBox
 )
 from PySide6.QtCore import Qt
 

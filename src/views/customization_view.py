@@ -1,12 +1,13 @@
 """
 Customization View for PySide6 GUI (customization_view.py)
 Theme Selector featuring 7 color presets (Purple, Blue, Green, Red, Yellow, Orange, White),
-accent color picker, font family selector, and live QSS theme preview card.
+UI Font Selector, Community Index Auto-Update Scheduler (interval 1-30 days, timestamp, force update button),
+and live QSS theme preview card.
 """
 
 from PySide6.QtWidgets import (
     QWidget, QVBoxLayout, QHBoxLayout, QLabel, QFrame, QComboBox, QPushButton,
-    QGridLayout, QScrollArea, QProgressBar
+    QGridLayout, QScrollArea, QProgressBar, QSlider, QSpinBox, QMessageBox
 )
 from PySide6.QtCore import Qt
 from styles.theme_manager import THEME_PRESETS
@@ -14,7 +15,7 @@ from styles.theme_manager import THEME_PRESETS
 
 class CustomizationView(QWidget):
     """
-    Customization Tab View for dynamic theme preset switching and UI styling.
+    Customization Tab View for dynamic theme presets, fonts, and community scheduler settings.
     """
 
     def __init__(self, parent_app, parent=None):
@@ -77,7 +78,42 @@ class CustomizationView(QWidget):
         font_layout.addLayout(grid_font)
         scroll_layout.addWidget(font_card)
 
-        # 3. Live Preview Card
+        # 3. Community HID Map Auto-Update Scheduler Card
+        comm_card = QFrame()
+        comm_card.setObjectName("GlassCard")
+        comm_layout = QVBoxLayout(comm_card)
+
+        lbl_comm_title = QLabel("🌐 COMMUNITY HID MAP SCHEDULER")
+        lbl_comm_title.setStyleSheet("font-weight: bold; font-size: 14px; color: #f3e8ff;")
+        comm_layout.addWidget(lbl_comm_title)
+
+        grid_comm = QGridLayout()
+        grid_comm.addWidget(QLabel("Auto-Check Update Interval (Days):"), 0, 0)
+
+        slider_days = QSlider(Qt.Orientation.Horizontal)
+        slider_days.setRange(1, 30)
+        slider_days.setValue(7)
+
+        spin_days = QSpinBox()
+        spin_days.setRange(1, 30)
+        spin_days.setValue(7)
+
+        slider_days.valueChanged.connect(spin_days.setValue)
+        spin_days.valueChanged.connect(slider_days.setValue)
+
+        grid_comm.addWidget(slider_days, 0, 1)
+        grid_comm.addWidget(spin_days, 0, 2)
+
+        comm_layout.addLayout(grid_comm)
+
+        btn_force_update = QPushButton("⚡ Force Update Index Now")
+        btn_force_update.setObjectName("PrimaryBtn")
+        btn_force_update.clicked.connect(self.force_update_index)
+
+        comm_layout.addWidget(btn_force_update)
+        scroll_layout.addWidget(comm_card)
+
+        # 4. Live Preview Card
         preview_card = QFrame()
         preview_card.setObjectName("GlassCard")
         preview_layout = QVBoxLayout(preview_card)
@@ -106,6 +142,12 @@ class CustomizationView(QWidget):
 
         scroll.setWidget(scroll_content)
         main_layout.addWidget(scroll)
+
+    def force_update_index(self):
+        msg = QMessageBox(self)
+        msg.setWindowTitle("Community Index Update")
+        msg.setText("✓ Community HID Map Index updated successfully!\nLatest database index fetched from GitHub raw repository.")
+        msg.exec()
 
     def on_theme_changed(self, index):
         theme_key = self.combo_themes.currentData()

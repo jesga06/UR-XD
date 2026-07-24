@@ -159,26 +159,30 @@ class DashboardView(QWidget):
         trig_layout.addWidget(self.bar_rt)
         buttons_layout.addLayout(trig_layout)
 
-        # Digital Button State Indicators Grid
-        btn_grid = QGridLayout()
-        btn_grid.setSpacing(8)
+        # Digital Button State Indicators Grid Layout
+        self.btn_grid_layout = QGridLayout()
+        self.btn_grid_layout.setSpacing(8)
 
         self.btn_indicators = {}
-        button_names = ["A", "B", "X", "Y", "LB", "RB", "L3", "R3", "SELECT", "START", "HOME", "M1", "M2", "L4", "R4"]
-        for idx, bname in enumerate(button_names):
-            row = idx // 8
-            col = idx % 8
-            lbl_btn = QLabel(bname)
-            lbl_btn.setAlignment(Qt.AlignmentFlag.AlignCenter)
-            lbl_btn.setStyleSheet(
-                "background-color: rgba(255, 255, 255, 0.05); border: 1px solid rgba(168, 85, 247, 0.3); "
-                "border-radius: 6px; padding: 6px; font-weight: bold; font-size: 11px;"
-            )
-            btn_grid.addWidget(lbl_btn, row, col)
-            self.btn_indicators[bname] = lbl_btn
+        self.refresh_button_indicators()
 
-        buttons_layout.addLayout(btn_grid)
+        buttons_layout.addLayout(self.btn_grid_layout)
         main_layout.addWidget(buttons_card)
+
+        # 4. Hardware Chords Telemetry Status Card
+        chords_status_card = QFrame()
+        chords_status_card.setObjectName("GlassCard")
+        chords_status_layout = QVBoxLayout(chords_status_card)
+
+        lbl_chords_title = QLabel("⚡ ACTIVE HARDWARE CHORDS TELEMETRY")
+        lbl_chords_title.setStyleSheet("font-weight: bold; font-size: 13px; color: #f3e8ff;")
+        chords_status_layout.addWidget(lbl_chords_title)
+
+        self.lbl_chords_status = QLabel("No active hardware chord triggers pressed.")
+        self.lbl_chords_status.setStyleSheet("font-family: monospace; font-size: 11px; color: #00f5a0;")
+        chords_status_layout.addWidget(self.lbl_chords_status)
+
+        main_layout.addWidget(chords_status_card)
 
         # 4. Telemetry Bar Footer
         telemetry_card = QFrame()
@@ -191,6 +195,42 @@ class DashboardView(QWidget):
         telemetry_layout.addWidget(self.lbl_telemetry)
 
         main_layout.addWidget(telemetry_card)
+
+    def refresh_button_indicators(self):
+        while self.btn_grid_layout.count():
+            item = self.btn_grid_layout.takeAt(0)
+            if item.widget():
+                item.widget().deleteLater()
+        self.btn_indicators.clear()
+
+        base_buttons = [
+            "A", "B", "X", "Y", "LB", "RB", "LT", "RT",
+            "L3", "R3", "DPAD_UP", "DPAD_DOWN", "DPAD_LEFT", "DPAD_RIGHT",
+            "SELECT", "START", "HOME", "L4", "R4"
+        ]
+
+        config = getattr(self.app, 'controller_config', None)
+        extra_targets = []
+        if config:
+            chords = config.data.get("hardware_chords", [])
+            for c in chords:
+                t = c.get("action", "").strip()
+                if t and t not in base_buttons and t not in extra_targets:
+                    extra_targets.append(t)
+
+        all_buttons = base_buttons + extra_targets
+
+        for idx, bname in enumerate(all_buttons):
+            row = idx // 8
+            col = idx % 8
+            lbl_btn = QLabel(bname)
+            lbl_btn.setAlignment(Qt.AlignmentFlag.AlignCenter)
+            lbl_btn.setStyleSheet(
+                "background-color: rgba(255, 255, 255, 0.05); border: 1px solid rgba(168, 85, 247, 0.3); "
+                "border-radius: 6px; padding: 6px; font-weight: bold; font-size: 11px;"
+            )
+            self.btn_grid_layout.addWidget(lbl_btn, row, col)
+            self.btn_indicators[bname] = lbl_btn
 
     def rescan_controllers(self):
         devices = HIDReader.get_all_devices()

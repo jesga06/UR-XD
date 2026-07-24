@@ -6,7 +6,7 @@
 
 </div>
 
-UR-XD decouples hardware telemetry parsing from output generation by storing controller specifications in JSON format inside `profiles/`.
+UR-XD separates hardware button reading from virtual controller output by storing controller specifications in JSON format inside `profiles/`.
 
 ## Profile JSON Structure
 
@@ -40,13 +40,11 @@ To save users from manually calibrating popular gamepads, UR-XD features an **Au
 2. Missing or updated controller profiles are downloaded into `profiles/` seamlessly.
 3. If you create a profile using `calibrate.bat`, consider submitting your JSON file as a Pull Request to help out the community!
 
----
-
 ## Composite Endpoint Merging
 
-Certain hardware designs (like the **Machenike G5 Pro**) do not send all inputs inside a single HID report. Instead, they operate as a composite USB device with multiple interfaces:
+Certain hardware designs (like the **Machenike G5 Pro**) do not send all inputs inside a single signal packet. Instead, they operate as a composite USB device with multiple interfaces:
 
 - **Interface 0:** Transmits standard face buttons and thumbstick positions.
-- **Interface 1:** Transmits back paddle states and motion telemetry.
+- **Interface 1:** Transmits back paddle states and motion sensor data.
 
-UR-XD's multi-threaded backend concurrently listens to all declared interfaces in `"endpoints": [0, 1]`, merging raw byte frames into a unified state payload before passing data to the remapping pipeline.
+UR-XD's multi-threaded backend concurrently listens to all declared interfaces in `"endpoints": [0, 1]`, combining inputs into a single controller report before passing data to the remapping pipeline.

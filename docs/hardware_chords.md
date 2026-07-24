@@ -2,7 +2,7 @@
 
 <div align="center">
 
-[What Is It?](#what-is-it) • [Origin & Conception](#why-is-it-there--origin-story) • [How It Works](#how-does-it-work) • [Step-by-Step Setup](#how-to-set-it-up)
+[What Is It?](#what-is-it) • [Origin & Conception](#why-is-it-there) • [Step-by-Step Setup](#how-to-set-it-up)
 
 </div>
 
@@ -11,7 +11,7 @@
 
 ## What Is It?
 
-Hardware Chords is a feature built into UR-XD's processing pipeline that evaluates multi-button button combinations before standard button mapping occurs. It allows physical controller buttons to act as modifier chords—effectively synthesizing virtual extra buttons without requiring dedicated hardware drivers or voiding controller firmware.
+Hardware Chords is a feature built into UR-XD that evaluates multi-button combinations before standard button mapping occurs. It allows physical controller buttons to act as modifier combinations—effectively creating extra virtual button slots without needing special software from the manufacturer.
 
 ## Why Is It There?
 
@@ -19,7 +19,7 @@ In standard **XInput mode**, Windows gamepad protocols strictly recognize a fixe
 
 Furthermore, users who wanted to map shortcuts (like muting Discord or toggling Shift layers) using standard buttons (like `LB + RB` or `LB + Start`) ran into a major problem: pressing `LB + Start` would send the `LB` bumper click and `Start` pause menu press to the game first, causing accidental grenade throws or unwanted pause screens.
 
-To solve both problems, I simply took a look at the smart kid's homework (Steam and SteamInput), saw the "cleared by parent function", and had the idea to create the **Hardware Chords Engine**:
+To solve both problems, UR-XD evaluates chord combinations upstream:
 1. It creates synthetic input slots for extra buttons and combinations.
 2. It swallows the physical member button presses before they reach the game via **Input Suppression**, eliminating accidental double inputs entirely.
 

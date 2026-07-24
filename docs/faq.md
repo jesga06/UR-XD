@@ -18,26 +18,21 @@ Common questions and answers regarding **UR-XD**.
 ### Why did you create this project?
 *I was pissed because my controller artificially gate-kept a function I paid for.*
 
-
 > **Long and formal explanation:** The project was originally created out of frustration when the 8BitDo Ultimate 2C wireless controller reported triggers as digital on/off switches under Windows DInput mode despite physically having analog triggers.
 
 ### Does UR-XD require flashing custom firmware to my controller?
 **No!** UR-XD works entirely in software on Windows. Your controller warranty remains 100% intact.
 
----
-
 ## Hardware & Driver Questions
 
 ### Why doesn't rumble work in DInput mode?
-Because controller manufacturers firmware-gate rumble requests inside their microcontrollers. When set to DirectInput mode, most controllers ignores rumble commands entirely. Switch to XInput mode if force feedback is required.
+Because controller manufacturers turn off vibration features inside the controller when not in XInput mode. When set to DirectInput mode, most controllers ignore rumble commands entirely. Switch to XInput mode if force feedback is required.
 
 ### Can UR-XD remap hardware-locked buttons like "Turbo" or "Pairing"?
-**No.** Special buttons like hardware Turbo or Mode/Pairing switches are handled exclusively by the controller's internal microcontroller and are never sent over USB/Bluetooth reports to Windows, not even in DInput.
+**No.** Special buttons like hardware Turbo or Mode/Pairing switches are handled exclusively by the controller's internal hardware and are never sent over USB/Bluetooth reports to Windows, not even in DInput.
 
 ### Will UR-XD work with my generic HID gamepad?
-**Probably yes!** As long as Windows can see the HID device, running `.\calibrate.bat` allows you to create a custom profile map for virtually any gamepad. I wouldn't even be surprised if someone managed to map a steering wheel or fightstick. It's that *Universal™*.
-
----
+**Probably yes!** As long as Windows can see the device, running `.\calibrate.bat` allows you to create a custom profile map for virtually any gamepad. I wouldn't even be surprised if someone managed to map a steering wheel or fightstick. It's that *Universal™*.
 
 ## Licensing
 

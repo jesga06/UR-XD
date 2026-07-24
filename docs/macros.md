@@ -12,7 +12,7 @@ The UR-XD **Macros Studio** allows binding complex multi-action sequences (keybo
 
 ## Overview
 
-Macros are configured via the GUI or while stored in `macros.json`. They permit precise automation for combos, rapid-fire actions, or complex hotkey shortcuts.
+Macros are configured via the GUI or stored in `macros.json`. They permit precise automation for combos, rapid-fire actions, or complex hotkey shortcuts.
 
 [gif of macro recording][Recording a Key Macro in Real-Time]
 
@@ -21,8 +21,6 @@ Macros are configured via the GUI or while stored in `macros.json`. They permit 
 1. **Press & Release (One-Shot):** Triggers the macro sequence once when the button is pressed.
 2. **Hold to Repeat (Turbo):** Continuously repeats the macro loop while the physical button remains pressed.
 3. **Toggle Loop:** Pressing the button once starts the macro loop infinitely; pressing it a second time stops execution.
-
----
 
 ## Recording Sequences
 
@@ -56,6 +54,6 @@ Macros can be assigned by typing `macro:MyMacro` (or simply `MyMacro`) into any 
 
 A major flaw in input simulation utilities occurs when a macro is interrupted or the application closes while a simulated key is held down—leaving Windows believing `SHIFT` or `CTRL` is stuck down forever.
 
-UR-XD eliminates this using an **Active Key Tracking Matrix**:
+UR-XD eliminates this using an **active key tracker**:
 - Every simulated keypress is registered in an active key table (`macro_engine.py`).
-- If a macro loop terminates, a profile reloads, or the wrapper shuts down, UR-XD automatically broadcasts explicit `key_up` release events for all active keys.
+- If a macro loop terminates, a profile reloads, or the wrapper shuts down, UR-XD automatically releases all held keys.

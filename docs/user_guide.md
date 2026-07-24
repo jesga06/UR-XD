@@ -10,13 +10,12 @@ The UR-XD visual configuration utility features a modern interface for monitorin
 
 ## Dashboard Tab
 
-The **Dashboard** is your live telemetry control room. It visualizes both physical inputs coming from your controller and virtual outputs sent to the virtual Xbox 360 controller.
+The **Dashboard** is your live input control room. It visualizes both physical inputs coming from your controller and virtual outputs sent to the virtual Xbox 360 controller.
 
 [screenshot of Dashboard tab][Live Controller Visualizer and Output Monitor]
 
 - **Live Controller Model:** Displays real-time button highlights, thumbstick positions, and analog trigger depths as you move your hardware controls.
 - **Active Backend & Profile Status:** Shows current device profile (`profiles/*.json`), output mode (XInput/DInput), and connection state.
-
 
 ## Remapping Tab
 
@@ -33,7 +32,6 @@ The **Remapping** tab allows you to assign any physical controller button (stand
   - **Layer Management:** Create, name, and switch between multiple custom shift layers (`Shift 1`, `Shift 2`, etc.) with tab-based navigation.
   - **Activation Chords & Order Logic:** Activate shift layers using a primary shift key or a primary shift key + modifier button combination (e.g. `LB + RB`). Requires strict press timing to prevent accidental base layer triggers.
 
-
 ## Tuning Tab
 
 Because not all thumbsticks and triggers are created equal (and factory calibration can drift), the **Tuning** tab gives you precise control over analog behavior.
@@ -44,7 +42,6 @@ Because not all thumbsticks and triggers are created equal (and factory calibrat
 - **Response Curves:** Toggle between **Linear**, **Aggressive** (S-curve), **Instant Response**, or **Smooth Precision** for stick sensitivity.
 - **Trigger Trimming:** Fine-tune trigger min/max points so you reach 100% trigger pull effortlessly.
 
-
 ## Circularity Calibrator
 
 Analogs on third-party gamepads are notorious for squarish boundary caps that cause diagonal acceleration spikes.
@@ -52,8 +49,7 @@ Analogs on third-party gamepads are notorious for squarish boundary caps that ca
 [screenshot of Circularity Calibrator][Interactive Circularity Calibrator]
 
 - **Real-Time Sampling:** Rotate your analog sticks 360° inside the visual circle widget.
-- **Cardinal & Diagonal Smoothing:** Automatically calculates offset coefficients to map outer analog boundaries into a clean, smooth circle output.
-
+- **Cardinal & Diagonal Smoothing:** Automatically calculates math adjustments to map outer analog boundaries into a clean, smooth circle output.
 
 ## Macros Studio Tab
 
@@ -65,14 +61,13 @@ The **Macros Studio** enables recording complex automation sequences triggered b
 - **Hold & Loop Modes:** Set macros to execute **On Press**, **While Held**, or **Toggle Loop**.
 - **Anti-Stuck Safeguard:** Built-in emergency key-release logic guarantees keys are never left virtually "stuck down" if a macro execution is interrupted.
 
-
 ## Utilities & System Tray
 
 - **Diagnostic Wizard:** Launch diagnostic scans directly from the GUI.
-- **Live Reload:** Click **Save Settings** to write changes to `config.ini`. The background daemon picks up edits within 5 seconds without restarting!
+- **Live Reload:** Click **Save Settings** to write changes to `config.ini`. The background wrapper process picks up edits within 5 seconds without restarting!
 - **System Tray Menu:** Right-click the system tray icon to access:
   - **Open Config:** Opens the GUI configuration interface.
   - **Pause Interception:** Temporarily passes physical inputs directly through to the virtual gamepad without applying remappings or button blocks.
   - **Reload Configuration:** Forces an immediate re-read of `config.ini` and `profiles/`.
-  - **Show Console:** Brings the minimized daemon console window to the front.
+  - **Show Console:** Brings the minimized wrapper console window to the front.
   - **Exit:** Safely destroys the virtual gamepad and shuts down the wrapper.

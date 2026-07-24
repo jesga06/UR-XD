@@ -6,7 +6,9 @@
 
 </div>
 
-UR-XD uses custom JSON profile maps stored in `profiles/` to decode raw HID report packages into standardized virtual inputs. If you are using a new or unsupported controller, the interactive CLI calibration tool guides you through creating a profile in minutes.
+<br>
+
+UR-XD uses custom profile files stored in `profiles/` to translate raw controller signals into virtual gamepad inputs. If you are using a new or unsupported controller, the interactive CLI calibration tool guides you through creating a profile in minutes.
 
 ## Overview
 
@@ -26,10 +28,10 @@ When you start calibration, UR-XD initializes the input device scanner:
    - UR-XD scans all connected USB and Bluetooth input devices and displays a numbered list.
    - If only one controller is connected on your system, UR-XD automatically selects it and skips the manual menu.
 2. **API Mode Selection:**
-   - Choose between **DInput HID Mode** (for DirectInput controllers with broken descriptors or missing analog triggers) and **XInput Mode**.
+   - Choose between **DInput Mode** (for DirectInput controllers with broken descriptors or missing analog triggers) and **XInput Mode**.
 3. **Layout Template & Gyro Filter Prompts:**
    - Select your preferred button layout template (**Xbox**, **PlayStation**, or **Nintendo**). This layout is stored in the device profile to customize future visualizer prompts.
-   - Indicate whether your controller streams continuous gyroscope/motion telemetry. If enabled, UR-XD activates a sensor filter to prevent gyro drift from interfering with button calibration.
+   - Indicate whether your controller sends continuous motion sensor data (gyroscope). If enabled, UR-XD activates a sensor filter to prevent gyro drift from interfering with button calibration.
 
 ## Step-by-Step Button Baselining
 

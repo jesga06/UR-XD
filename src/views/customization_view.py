@@ -188,7 +188,11 @@ class CustomizationView(QWidget):
     def load_config_values(self):
         config = getattr(self.app, 'config', getattr(self.app, 'controller_config', None))
         if config and hasattr(config, 'get'):
-            days = config.getint("community", "db_update_interval_days", fallback=7)
+            try:
+                raw_val = config.get("community", "db_update_interval_days", fallback="7")
+                days = int(float(raw_val)) if raw_val else 7
+            except Exception:
+                days = 7
             self.slider_days.setValue(days)
             self.spin_days.setValue(days)
 

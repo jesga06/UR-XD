@@ -391,7 +391,8 @@ class RemappingView(QWidget):
 
     def refresh_shift_tabs(self):
         self.tab_bar.blockSignals(True)
-        self.tab_bar.clear()
+        while self.tab_bar.count() > 0:
+            self.tab_bar.removeTab(0)
         config = getattr(self.app, 'controller_config', None)
         if config:
             layers = config.get_shift_layers()

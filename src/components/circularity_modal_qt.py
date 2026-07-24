@@ -296,7 +296,7 @@ class CircularityCalibrationDialog(QDialog):
         self.btn_frame.show()
 
     def save_and_close(self):
-        config = getattr(self.parent_app, 'config', getattr(self.parent_app, 'daemon_config', None))
+        config = getattr(self.parent_app, 'config', getattr(self.parent_app, 'controller_config', None))
         if config:
             if not config.has_section(self.section):
                 config.add_section(self.section)

@@ -33,7 +33,7 @@ QApplication.setHighDpiScaleFactorRoundingPolicy(
 from single_instance import ensure_single_instance
 from styles.theme_manager import ThemeManager
 from decoder import ControllerState
-from daemon_config import DaemonConfig
+from config_manager import ControllerConfig
 from views.dashboard_view import DashboardView
 from views.remapping_view import RemappingView
 from views.tuning_view import TuningView
@@ -64,7 +64,7 @@ class MainWindow(QMainWindow):
         self.config_file = 'config.ini'
         self.load_config()
         profile_path = "profiles/user_profile.json" if os.path.exists("profiles") else "user_profile.json"
-        self.daemon_config = DaemonConfig(profile_path)
+        self.controller_config = ControllerConfig(profile_path)
 
         self.theme_manager = ThemeManager(self.config_file)
         self.current_state = ControllerState()
@@ -109,7 +109,7 @@ class MainWindow(QMainWindow):
         try:
             with open(self.config_file, 'w', encoding='utf-8') as f:
                 self.config.write(f)
-            self.daemon_config.save()
+            self.controller_config.save()
             self.is_dirty = False
         except Exception as e:
             print(f"Error saving config.ini: {e}")

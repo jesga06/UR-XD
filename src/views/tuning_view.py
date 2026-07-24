@@ -414,13 +414,13 @@ class TuningView(QWidget):
         self.save_opt("analog_right", "curve", curve_type.lower())
 
     def save_opt(self, section, option, val):
-        config = getattr(self.app, 'daemon_config', None)
+        config = getattr(self.app, 'controller_config', None)
         if config:
             config.set(section, option, str(val))
             self.app.save_config()
 
     def load_config_values(self):
-        config = getattr(self.app, 'daemon_config', None)
+        config = getattr(self.app, 'controller_config', None)
         if not config:
             return
 
@@ -464,7 +464,7 @@ class TuningView(QWidget):
         msg.exec()
 
     def reset_bounds(self, section):
-        config = getattr(self.app, 'daemon_config', None)
+        config = getattr(self.app, 'controller_config', None)
         if config:
             config.remove_option(section, "circularity_bounds")
             config.remove_option(section, "circularity_center_x")

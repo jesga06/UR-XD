@@ -186,14 +186,14 @@ class CustomizationView(QWidget):
         main_layout.addWidget(scroll)
 
     def load_config_values(self):
-        config = getattr(self.app, 'config', getattr(self.app, 'daemon_config', None))
+        config = getattr(self.app, 'config', getattr(self.app, 'controller_config', None))
         if config and hasattr(config, 'get'):
             days = config.getint("community", "db_update_interval_days", fallback=7)
             self.slider_days.setValue(days)
             self.spin_days.setValue(days)
 
     def on_interval_changed(self, days):
-        config = getattr(self.app, 'config', getattr(self.app, 'daemon_config', None))
+        config = getattr(self.app, 'config', getattr(self.app, 'controller_config', None))
         if config and hasattr(config, 'set'):
             config.set("community", "db_update_interval_days", str(days))
             if hasattr(self.app, 'save_config'):

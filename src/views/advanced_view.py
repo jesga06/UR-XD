@@ -244,7 +244,7 @@ class AdvancedView(QWidget):
                     "action": a_item.text(),
                     "suppress": chk_widget.isChecked() if chk_widget else True
                 })
-        config = getattr(self.app, 'daemon_config', None)
+        config = getattr(self.app, 'controller_config', None)
         if config:
             config.data["hardware_chords"] = chords_list
             self.app.save_config()
@@ -262,13 +262,13 @@ class AdvancedView(QWidget):
             QMessageBox.information(self, "Delete Macro", f"✓ Removed macro [{curr}].")
 
     def save_opt(self, section, option, val):
-        config = getattr(self.app, 'daemon_config', None)
+        config = getattr(self.app, 'controller_config', None)
         if config:
             config.set(section, option, str(val))
             self.app.save_config()
 
     def load_config_values(self):
-        config = getattr(self.app, 'daemon_config', None)
+        config = getattr(self.app, 'controller_config', None)
         if not config:
             return
 

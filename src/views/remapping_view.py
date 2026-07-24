@@ -392,7 +392,7 @@ class RemappingView(QWidget):
     def refresh_shift_tabs(self):
         self.tab_bar.blockSignals(True)
         self.tab_bar.clear()
-        config = getattr(self.app, 'daemon_config', None)
+        config = getattr(self.app, 'controller_config', None)
         if config:
             layers = config.get_shift_layers()
             for l in layers:
@@ -405,7 +405,7 @@ class RemappingView(QWidget):
         if index < 0:
             return
         self.active_layer_idx = index
-        config = getattr(self.app, 'daemon_config', None)
+        config = getattr(self.app, 'controller_config', None)
         if config:
             layers = config.get_shift_layers()
             if index < len(layers):
@@ -417,7 +417,7 @@ class RemappingView(QWidget):
                 self.radio_toggle.setChecked(l.get("mode", "hold") == "toggle")
 
     def save_active_layer_params(self):
-        config = getattr(self.app, 'daemon_config', None)
+        config = getattr(self.app, 'controller_config', None)
         if not config:
             return
         layers = config.get_shift_layers()
@@ -439,7 +439,7 @@ class RemappingView(QWidget):
             row_card.setVisible(query in bname.lower())
 
     def on_block_xinput_changed(self, button_name, state):
-        config = getattr(self.app, 'daemon_config', None)
+        config = getattr(self.app, 'controller_config', None)
         if config:
             val = (state == Qt.CheckState.Checked.value or state is True)
             config.set("block_xinput", button_name.lower(), str(val).lower())
@@ -448,7 +448,7 @@ class RemappingView(QWidget):
     def reset_row(self, button_name, lbl_std, lbl_shift):
         lbl_std.setText("Gamepad Default")
         lbl_shift.setText("Unmapped")
-        config = getattr(self.app, 'daemon_config', None)
+        config = getattr(self.app, 'controller_config', None)
         if config:
             config.remove_option("mappings", button_name.lower())
             layers = config.get_shift_layers()
@@ -458,7 +458,7 @@ class RemappingView(QWidget):
             self.app.save_config()
 
     def reset_all_remappings(self):
-        config = getattr(self.app, 'daemon_config', None)
+        config = getattr(self.app, 'controller_config', None)
         if config:
             config.data["mappings"] = {}
             config.save()
@@ -467,7 +467,7 @@ class RemappingView(QWidget):
                 lbl_shift.setText("Unmapped")
 
     def add_new_shift_layer(self):
-        config = getattr(self.app, 'daemon_config', None)
+        config = getattr(self.app, 'controller_config', None)
         if config:
             config.add_shift_layer(name=f"Shift Layer {self.tab_bar.count() + 1}")
             self.app.save_config()
@@ -476,7 +476,7 @@ class RemappingView(QWidget):
 
     def delete_current_shift_layer(self):
         if self.tab_bar.count() > 1:
-            config = getattr(self.app, 'daemon_config', None)
+            config = getattr(self.app, 'controller_config', None)
             if config:
                 layers = config.get_shift_layers()
                 if self.active_layer_idx < len(layers):
@@ -490,7 +490,7 @@ class RemappingView(QWidget):
     def open_recorder(self, button_name, lbl_std, lbl_shift):
         dlg = KeyRecorderDialog(button_name, self)
         if dlg.exec() == QDialog.DialogCode.Accepted and dlg.recorded_binding:
-            config = getattr(self.app, 'daemon_config', None)
+            config = getattr(self.app, 'controller_config', None)
             if dlg.target_layer == "Standard":
                 lbl_std.setText(f"[ {dlg.recorded_binding} ]")
                 if config:

@@ -63,7 +63,7 @@ def open_config(icon, item):
         logger.debug(f"[ENTER] open_config called with args: icon={icon}, item={item}")
     try:
         script_dir = os.path.dirname(os.path.abspath(__file__))
-        gui_path = os.path.join(script_dir, 'gui.py')
+        gui_path = os.path.join(script_dir, 'gui_qt.py')
         cmd = [sys.executable, gui_path, '--append-log']
         if is_debug_mode:
             cmd.append('--debug')

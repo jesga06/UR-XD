@@ -137,10 +137,15 @@ class AdvancedView(QWidget):
         row = self.table_chords.rowCount()
         self.table_chords.insertRow(row)
 
-        item_trig = QTableWidgetItem(trigger)
-        item_targ = QTableWidgetItem(target)
-        self.table_chords.setItem(row, 0, item_trig)
-        self.table_chords.setItem(row, 1, item_targ)
+        edit_trig = QLineEdit(trigger)
+        edit_trig.setObjectName("OutlinedEdit")
+        edit_trig.editingFinished.connect(self.save_hardware_chords)
+        self.table_chords.setCellWidget(row, 0, edit_trig)
+
+        edit_targ = QLineEdit(target)
+        edit_targ.setObjectName("OutlinedEdit")
+        edit_targ.editingFinished.connect(self.save_hardware_chords)
+        self.table_chords.setCellWidget(row, 1, edit_targ)
 
         chk = QCheckBox()
         chk.setChecked(suppress)
@@ -164,19 +169,23 @@ class AdvancedView(QWidget):
     def save_hardware_chords(self):
         chords_list = []
         for r in range(self.table_chords.rowCount()):
-            t_item = self.table_chords.item(r, 0)
-            a_item = self.table_chords.item(r, 1)
+            edit_t = self.table_chords.cellWidget(r, 0)
+            edit_a = self.table_chords.cellWidget(r, 1)
             chk_widget = self.table_chords.cellWidget(r, 2)
-            if t_item and a_item:
+            trig_text = edit_t.text() if edit_t else ""
+            act_text = edit_a.text() if edit_a else ""
+            if trig_text and act_text:
                 chords_list.append({
-                    "trigger": t_item.text(),
-                    "action": a_item.text(),
+                    "trigger": trig_text,
+                    "action": act_text,
                     "suppress": chk_widget.isChecked() if chk_widget else True
                 })
         config = getattr(self.app, 'controller_config', None)
         if config:
             config.data["hardware_chords"] = chords_list
             self.app.save_config()
+            if hasattr(self.app, 'view_dashboard') and self.app.view_dashboard:
+                self.app.view_dashboard.refresh_button_indicators()
 
     # ---------------------------------------------------------------------
     # Macro Builder Logic (Matching Screenshot 1:1)

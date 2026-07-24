@@ -182,33 +182,89 @@ class Mapper:
             else:
                 self.active_scrolls[mapping] = parsed
                 self._do_scroll_parsed(parsed)
+    def _press_key_sequence(self, keys):
+        currently_pressed = set()
+        for key_name in keys:
+            key_name = key_name.strip()
+            if not key_name:
+                continue
+            if key_name in currently_pressed:
+                try:
+                    if hasattr(Key, key_name):
+                        self.keyboard.release(getattr(Key, key_name))
+                    else:
+                        self.keyboard.release(KeyCode.from_char(key_name))
+                except Exception:
+                    pass
+                time.sleep(0.015)
+
+            try:
+                if hasattr(Key, key_name):
+                    self.keyboard.press(getattr(Key, key_name))
+                else:
+                    self.keyboard.press(KeyCode.from_char(key_name))
+                currently_pressed.add(key_name)
+            except Exception as e:
+                logger.error(f"Failed to press key {key_name}: {e}", exc_info=True)
+
+    def _release_key_sequence(self, keys):
+        released = set()
+        for key_name in reversed(keys):
+            key_name = key_name.strip()
+            if not key_name or key_name in released:
+                continue
+            try:
+                if hasattr(Key, key_name):
+                    self.keyboard.release(getattr(Key, key_name))
+                else:
+                    self.keyboard.release(KeyCode.from_char(key_name))
+                released.add(key_name)
+            except Exception as e:
+                logger.error(f"Failed to release key {key_name}: {e}", exc_info=True)
+
+    def _press(self, mapping):
+        if not mapping:
+            return
+
+        if mapping.startswith('macro:'):
+            self._execute_macro(mapping.split(':', 1)[1])
+            return
+        elif self.macro_executor and mapping in self.macro_executor.macros:
+            self._execute_macro(mapping)
+            return
+
+        if mapping.startswith('gamepad:'):
+            btn_name = mapping.split(':', 1)[1]
+            if hasattr(self, 'virtual_pad') and self.virtual_pad:
+                self.virtual_pad.press_gamepad_button(btn_name)
+            return
+        elif mapping in ['a', 'b', 'x', 'y', 'lb', 'rb', 'lt', 'rt', 'l3', 'r3', 'select', 'start', 'home', 'dpad_up', 'dpad_down', 'dpad_left', 'dpad_right']:
+            if hasattr(self, 'virtual_pad') and self.virtual_pad:
+                self.virtual_pad.press_gamepad_button(mapping)
+            return
+
+        if mapping == 'mouse4':
+            self.mouse.press(MouseButton.x1)
+        elif mapping == 'mouse5':
+            self.mouse.press(MouseButton.x2)
+        elif mapping.startswith('mouse:scroll_'):
+            parsed = self._parse_scroll_mapping(mapping)
+            if parsed['mode'] == 'oneshot':
+                self._do_scroll_parsed(parsed)
+            else:
+                self.active_scrolls[mapping] = parsed
+                self._do_scroll_parsed(parsed)
         elif mapping.startswith('mouse:'):
             btn_name = mapping.split(':', 1)[1]
             if hasattr(MouseButton, btn_name):
                 self.mouse.press(getattr(MouseButton, btn_name))
         elif mapping.startswith('keyboard:'):
             keys = mapping.split(':', 1)[1].split('+')
-            for key_name in keys:
-                key_name = key_name.strip()
-                try:
-                    if hasattr(Key, key_name):
-                        self.keyboard.press(getattr(Key, key_name))
-                    else:
-                        self.keyboard.press(KeyCode.from_char(key_name))
-                except Exception as e:
-                    logger.error(f"Failed to press key {key_name}: {e}", exc_info=True)
+            self._press_key_sequence(keys)
         else:
             # Fallback for plain key strings without explicit keyboard: prefix
             keys = mapping.split('+')
-            for key_name in keys:
-                key_name = key_name.strip()
-                try:
-                    if hasattr(Key, key_name):
-                        self.keyboard.press(getattr(Key, key_name))
-                    else:
-                        self.keyboard.press(KeyCode.from_char(key_name))
-                except Exception as e:
-                    logger.error(f"Failed to press key {key_name}: {e}", exc_info=True)
+            self._press_key_sequence(keys)
 
     def _release(self, mapping):
         if not mapping:
@@ -242,27 +298,11 @@ class Mapper:
                 self.mouse.release(getattr(MouseButton, btn_name))
         elif mapping.startswith('keyboard:'):
             keys = mapping.split(':', 1)[1].split('+')
-            for key_name in reversed(keys):
-                key_name = key_name.strip()
-                try:
-                    if hasattr(Key, key_name):
-                        self.keyboard.release(getattr(Key, key_name))
-                    else:
-                        self.keyboard.release(KeyCode.from_char(key_name))
-                except Exception as e:
-                    logger.error(f"Failed to release key {key_name}: {e}", exc_info=True)
+            self._release_key_sequence(keys)
         else:
             # Fallback for plain key strings without explicit keyboard: prefix
             keys = mapping.split('+')
-            for key_name in reversed(keys):
-                key_name = key_name.strip()
-                try:
-                    if hasattr(Key, key_name):
-                        self.keyboard.release(getattr(Key, key_name))
-                    else:
-                        self.keyboard.release(KeyCode.from_char(key_name))
-                except Exception as e:
-                    logger.error(f"Failed to release key {key_name}: {e}", exc_info=True)
+            self._release_key_sequence(keys)
 
     def _process_wasd(self, x, y, threshold=0.5):
         now = time.time()

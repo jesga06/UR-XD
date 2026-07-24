@@ -1,7 +1,6 @@
 """
 Advanced View for PySide6 GUI (advanced_view.py)
-ViGEmBus virtual XInput controller options, Hardware Chords Engine Table with config binding,
-Macro Sequence Builder & Recorder, Haptic Feedback Engine UI & Waveform Canvas, and test vibration runner.
+Hardware Chords Engine Table with full config binding and Standalone Macro Sequence Builder & Recorder.
 """
 
 import sys
@@ -10,18 +9,16 @@ import os
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 from PySide6.QtWidgets import (
-    QWidget, QVBoxLayout, QHBoxLayout, QLabel, QFrame, QCheckBox, QComboBox,
+    QWidget, QVBoxLayout, QHBoxLayout, QLabel, QFrame, QComboBox,
     QPushButton, QSpinBox, QGridLayout, QScrollArea, QTableWidget, QTableWidgetItem,
-    QHeaderView, QMessageBox, QLineEdit
+    QHeaderView, QMessageBox
 )
 from PySide6.QtCore import Qt
-from components.haptic_waveform_widget import HapticWaveformWidget
-import haptic_engine
 
 
 class AdvancedView(QWidget):
     """
-    Advanced Tab View handling hardware chords, macro manager, haptics, and ViGEmBus settings.
+    Advanced Tab View handling hardware chords engine and macro sequence builder.
     """
 
     def __init__(self, parent_app, parent=None):
@@ -64,8 +61,8 @@ class AdvancedView(QWidget):
         self.table_chords = QTableWidget(0, 4)
         self.table_chords.setHorizontalHeaderLabels(["Trigger Combo", "Target Action / Button", "Suppress Physical", "Actions"])
         self.table_chords.horizontalHeader().setSectionResizeMode(QHeaderView.ResizeMode.Stretch)
-        self.table_chords.setMinimumHeight(140)
-        self.table_chords.itemChanged.connect(self.save_hardware_chords)
+        self.table_chords.setMinimumHeight(180)
+        self.table_chords.itemChanged.connect(self.on_table_item_changed)
         chords_layout.addWidget(self.table_chords)
 
         scroll_layout.addWidget(chords_card)
@@ -112,110 +109,21 @@ class AdvancedView(QWidget):
 
         scroll_layout.addWidget(macro_card)
 
-        # 3. Haptic Layer Vibration Feedback & Waveform Builder Card
-        haptic_card = QFrame()
-        haptic_card.setObjectName("GlassCard")
-        haptic_layout = QVBoxLayout(haptic_card)
-
-        lbl_haptic_title = QLabel("📳 SHIFT LAYER HAPTIC FEEDBACK ENGINE")
-        lbl_haptic_title.setStyleSheet("font-weight: bold; font-size: 14px; color: #f3e8ff;")
-        haptic_layout.addWidget(lbl_haptic_title)
-
-        self.chk_haptic_enable = QCheckBox("Enable Asynchronous Shift Transition Vibration Feedback")
-        self.chk_haptic_enable.setChecked(True)
-        self.chk_haptic_enable.stateChanged.connect(lambda s: self.save_opt("haptics", "enabled", s == Qt.CheckState.Checked.value))
-        haptic_layout.addWidget(self.chk_haptic_enable)
-
-        # Vibration Waveform Preview Canvas Widget
-        lbl_wave = QLabel("Visual Vibration Waveform Timeline Preview:")
-        lbl_wave.setStyleSheet("font-weight: bold; color: #a992cb;")
-        haptic_layout.addWidget(lbl_wave)
-
-        self.waveform_widget = HapticWaveformWidget()
-        haptic_layout.addWidget(self.waveform_widget)
-
-        # Building Block Controls
-        hap_controls = QHBoxLayout()
-        hap_controls.addWidget(QLabel("Motor:"))
-        self.combo_motor = QComboBox()
-        self.combo_motor.addItems(["BOTH (Left Heavy + Right Soft)", "LM (Left Heavy)", "RM (Right Soft)"])
-        self.combo_motor.currentTextChanged.connect(self.on_haptic_params_changed)
-        hap_controls.addWidget(self.combo_motor)
-
-        hap_controls.addWidget(QLabel("Intensity (%):"))
-        self.spin_int = QSpinBox()
-        self.spin_int.setRange(0, 100)
-        self.spin_int.setValue(80)
-        self.spin_int.valueChanged.connect(self.on_haptic_params_changed)
-        hap_controls.addWidget(self.spin_int)
-
-        hap_controls.addWidget(QLabel("Duration (ms):"))
-        self.spin_dur = QSpinBox()
-        self.spin_dur.setRange(10, 2000)
-        self.spin_dur.setValue(150)
-        self.spin_dur.valueChanged.connect(self.on_haptic_params_changed)
-        hap_controls.addWidget(self.spin_dur)
-
-        btn_test_vib = QPushButton("📳 Test Vibration")
-        btn_test_vib.setObjectName("PrimaryBtn")
-        btn_test_vib.clicked.connect(self.test_vibration)
-
-        hap_controls.addWidget(btn_test_vib)
-        haptic_layout.addLayout(hap_controls)
-
-        scroll_layout.addWidget(haptic_card)
-
-        # 4. ViGEmBus Settings Card
-        vigem_card = QFrame()
-        vigem_card.setObjectName("GlassCard")
-        vigem_layout = QVBoxLayout(vigem_card)
-
-        lbl_vigem = QLabel("🎮 VIGEMBUS VIRTUAL CONTROLLER CONFIGURATION")
-        lbl_vigem.setStyleSheet("font-weight: bold; font-size: 14px; color: #f3e8ff;")
-        vigem_layout.addWidget(lbl_vigem)
-
-        grid_vigem = QGridLayout()
-        grid_vigem.addWidget(QLabel("Target Virtual Slot:"), 0, 0)
-        self.combo_target_slot = QComboBox()
-        self.combo_target_slot.addItems(["Slot 1 (Auto-Assign)", "Slot 2", "Slot 3", "Slot 4"])
-        self.combo_target_slot.currentTextChanged.connect(lambda t: self.save_opt("vigem", "slot", t))
-        grid_vigem.addWidget(self.combo_target_slot, 0, 1)
-
-        grid_vigem.addWidget(QLabel("Xbox Guide Button Remap Action:"), 1, 0)
-        self.combo_guide_action = QComboBox()
-        self.combo_guide_action.addItems(["Open Game Bar", "Take Screenshot", "Toggle Mute", "Disabled"])
-        self.combo_guide_action.currentTextChanged.connect(lambda t: self.save_opt("vigem", "guide_action", t))
-        grid_vigem.addWidget(self.combo_guide_action, 1, 1)
-
-        vigem_layout.addLayout(grid_vigem)
-
-        self.chk_rumble = QCheckBox("Enable Dual-Rumble Passthrough")
-        self.chk_rumble.setChecked(True)
-        self.chk_rumble.stateChanged.connect(lambda s: self.save_opt("vigem", "rumble_passthrough", s == Qt.CheckState.Checked.value))
-        vigem_layout.addWidget(self.chk_rumble)
-
-        scroll_layout.addWidget(vigem_card)
-
         scroll.setWidget(scroll_content)
         main_layout.addWidget(scroll)
 
-    def on_haptic_params_changed(self):
-        motor_str = self.combo_motor.currentText()
-        lm = 1.0 if "LM" in motor_str or "BOTH" in motor_str else 0.0
-        rm = 1.0 if "RM" in motor_str or "BOTH" in motor_str else 0.0
-        intensity = self.spin_int.value() / 100.0
-        duration = self.spin_dur.value()
-        self.waveform_widget.set_haptic_waveform(lm * intensity, rm * intensity, duration)
-        self.save_opt("haptics", "motor", motor_str)
-        self.save_opt("haptics", "intensity", str(intensity))
-        self.save_opt("haptics", "duration", str(duration))
+    def on_table_item_changed(self, item):
+        self.save_hardware_chords()
 
     def add_chord_row(self, trigger="LB + SELECT", target="Virtual Paddle M1", suppress=True):
+        self.table_chords.blockSignals(True)
         row = self.table_chords.rowCount()
         self.table_chords.insertRow(row)
 
-        self.table_chords.setItem(row, 0, QTableWidgetItem(trigger))
-        self.table_chords.setItem(row, 1, QTableWidgetItem(target))
+        item_trig = QTableWidgetItem(trigger)
+        item_targ = QTableWidgetItem(target)
+        self.table_chords.setItem(row, 0, item_trig)
+        self.table_chords.setItem(row, 1, item_targ)
 
         chk = QCheckBox()
         chk.setChecked(suppress)
@@ -226,10 +134,14 @@ class AdvancedView(QWidget):
         btn_del.setObjectName("SecondaryBtn")
         btn_del.clicked.connect(lambda ch=False, r=row: self.delete_chord_row(r))
         self.table_chords.setCellWidget(row, 3, btn_del)
+
+        self.table_chords.blockSignals(False)
         self.save_hardware_chords()
 
     def delete_chord_row(self, row):
+        self.table_chords.blockSignals(True)
         self.table_chords.removeRow(row)
+        self.table_chords.blockSignals(False)
         self.save_hardware_chords()
 
     def save_hardware_chords(self):
@@ -272,27 +184,13 @@ class AdvancedView(QWidget):
         if not config:
             return
 
-        self.chk_haptic_enable.setChecked(config.getboolean("haptics", "enabled", True))
-        self.chk_rumble.setChecked(config.getboolean("vigem", "rumble_passthrough", True))
-
         chords = config.data.get("hardware_chords", [])
-        if chords:
-            self.table_chords.setRowCount(0)
-            for c in chords:
-                self.add_chord_row(c.get("trigger", ""), c.get("action", ""), c.get("suppress", True))
+        if not chords:
+            chords = [{"trigger": "LB + START", "action": "Virtual Paddle M1", "suppress": True}]
 
-    def test_vibration(self):
-        lm = 1.0 if "LM" in self.combo_motor.currentText() or "BOTH" in self.combo_motor.currentText() else 0.0
-        rm = 1.0 if "RM" in self.combo_motor.currentText() or "BOTH" in self.combo_motor.currentText() else 0.0
-        intensity = self.spin_int.value() / 100.0
-        duration = self.spin_dur.value()
+        self.table_chords.blockSignals(True)
+        self.table_chords.setRowCount(0)
+        self.table_chords.blockSignals(False)
 
-        # Trigger real pattern if pad available
-        vpad = getattr(self.app, 'virtual_pad', None)
-        if vpad:
-            haptic_engine.play_pattern(vpad, [(lm * intensity, rm * intensity, duration)])
-
-        msg = QMessageBox(self)
-        msg.setWindowTitle("Haptic Test")
-        msg.setText(f"📳 Played Haptic Pulse: LM={lm*intensity:.2f}, RM={rm*intensity:.2f}, Duration={duration}ms")
-        msg.exec()
+        for c in chords:
+            self.add_chord_row(c.get("trigger", ""), c.get("action", ""), c.get("suppress", True))

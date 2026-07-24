@@ -300,12 +300,6 @@ class RemappingView(QWidget):
         act_row.addWidget(self.radio_hold)
         act_row.addWidget(self.radio_toggle)
 
-        act_row.addWidget(QLabel("Haptic Profile:"))
-        self.combo_haptic_prof = QComboBox()
-        self.combo_haptic_prof.addItems(["Default Rumble", "Soft Pulse", "Heavy Rumble", "Disabled"])
-        self.combo_haptic_prof.currentIndexChanged.connect(self.save_active_layer_params)
-        act_row.addWidget(self.combo_haptic_prof)
-
         self.chk_passthrough = QCheckBox("Pass-Through")
         self.chk_passthrough.stateChanged.connect(self.save_active_layer_params)
         act_row.addWidget(self.chk_passthrough)

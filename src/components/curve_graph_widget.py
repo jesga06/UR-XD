@@ -91,6 +91,12 @@ class CurveGraphWidget(QWidget):
         pts = [(pt.x(), pt.y()) for pt in self.control_points]
         return json.dumps(pts, indent=2)
 
+    def set_theme_colors(self, primary_hex="#7500ab", glow_hex="#a855f7", accent_green_hex="#00f5a0"):
+        """Dynamically update theme colors from ThemeManager."""
+        self.color_line = QColor(glow_hex)
+        self.color_dot = QColor(accent_green_hex)
+        self.update()
+
     def paintEvent(self, event):
         painter = QPainter(self)
         painter.setRenderHint(QPainter.RenderHint.Antialiasing, True)
@@ -102,12 +108,12 @@ class CurveGraphWidget(QWidget):
         h = height - (2 * margin)
 
         # Draw Graph Card Background
-        painter.setPen(QPen(QColor(168, 85, 247, 60), 1))
+        painter.setPen(QPen(QColor(self.color_line.red(), self.color_line.green(), self.color_line.blue(), 60), 1))
         painter.setBrush(QBrush(QColor(12, 9, 20, 240)))
         painter.drawRoundedRect(0, 0, width, height, 8, 8)
 
         # Title Header
-        painter.setPen(QColor(169, 146, 203))
+        painter.setPen(self.color_line)
         painter.drawText(margin, 20, self.title.upper())
 
         # Grid Lines & Diagonal Reference
@@ -140,7 +146,7 @@ class CurveGraphWidget(QWidget):
         painter.drawPath(path)
 
         # Draw Draggable Control Points (if Dotted / Custom)
-        if self.curve_preset in ["dotted", "custom"]:
+        if self.curve_preset in ["dotted", "dotted custom", "custom"]:
             for idx, pt in enumerate(self.control_points):
                 px = margin + (pt.x() * w)
                 py = (height - margin) - (pt.y() * h)
@@ -157,13 +163,14 @@ class CurveGraphWidget(QWidget):
         tracer_x = margin + (self.raw_val * w)
         tracer_y = (height - margin) - (self.mod_val * h)
         painter.setPen(QPen(QColor(255, 255, 255), 1.5))
-        painter.setBrush(QBrush(QColor(0, 245, 160)))
+        painter.setBrush(QBrush(self.color_dot))
         painter.drawEllipse(QPointF(tracer_x, tracer_y), 6, 6)
 
         painter.end()
 
     def mousePressEvent(self, event):
-        if self.curve_preset not in ["dotted", "custom"]:
+        if self.curve_preset not in ["dotted", "dotted custom", "custom"]:
+            return
             return
         margin = 30
         w = self.width() - (2 * margin)

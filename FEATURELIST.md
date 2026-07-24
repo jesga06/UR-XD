@@ -38,6 +38,7 @@ Run `tools_and_diagnostics.bat` for an interactive CLI menu covering developer u
 ## ⚙️ Advanced Remapping GUI (`src/gui.py`)
 Run the settings panel using `run_wrapper.bat` (and select "Open Config" in the system tray).
 * **Proportional Gamepad Test Dashboard:** Auto-scaling, responsive button layout mapping physical and extra paddles symmetrically or asymmetrically based on active controller resources.
+* **Dismissable Infobox Tooltips:** Contextual infobox help tooltips and widget hover text automatically dismiss when the window loses focus, is minimized, or when any widget button click occurs, preventing floating window artifacts on backgrounding.
 * **Interactive Button Layout Builder (`technical-stuff/interactive_layout_builder.py`):** Standalone drag-and-drop builder to visually customize gamepad button layouts with a configurable background grid slider (5px to 20px) and automatic snap-to-grid positioning.
 * **Interactive Recorder Modal:**
   * **Keyboard Combos:** Records complex multi-key combinations (e.g., `Ctrl + Shift + Alt + Z`) as you press them.

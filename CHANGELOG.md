@@ -242,6 +242,7 @@ This release introduces major UI Customizations, Utilities, and Core Profile fea
 ### 🎮 User-Facing Changes
 - **Multiple Shift Remapping Layers:** Expanded the remapping engine and GUI to support creating, naming, and switching between multiple custom shift layers activated via primary shift buttons or trigger + modifier chords (e.g. `LB + RB`) in hold or toggle mode.
 - **Unified Remapping UX Consolidation:** Consolidated 100% of shift layer controls (creating, editing name/trigger/modifier/mode, tab switching, shift mappings, block checkboxes) into a single unified panel inside the **Remapping** tab.
+- **ToolTip & Infobox Hover Text Dismissal Fix:** Fixed an issue where infobox hover text remained floating on screen when the window was minimized, lost focus, or was put to the background. Tooltips now automatically dismiss on window `FocusOut`, `Unmap`, or widget interaction.
 
 ### ⚙️ Under-the-Hood Changes
 - **Shift Layer Configuration Schema & Migration:** Updated `config_manager.py` to store shift layers under `shift_layers` array in JSON profile files, with automatic backward-compatibility migration for legacy single-shift configurations.

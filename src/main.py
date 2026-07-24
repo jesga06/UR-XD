@@ -353,6 +353,50 @@ def main():
 
     from utilities_backend import monitor
 
+    is_interception_paused = False
+
+    def toggle_pause_interception_action(icon, item):
+        nonlocal is_interception_paused
+        is_interception_paused = not is_interception_paused
+        if is_interception_paused:
+            mapper.reset()
+            logger.info("Interception PAUSED. Physical inputs passing through without remapping.")
+        else:
+            logger.info("Interception RESUMED. Remapping active.")
+
+    def reload_configuration_action(icon, item):
+        try:
+            nonlocal config
+            config = load_config(config_file)
+            controller_config.load()
+            mapper.reload_config(controller_config)
+            hardware_chord_engine.reload_config(controller_config)
+            virtual_pad.reload_config(controller_config)
+            macro_executor.load_macros()
+            logger.info("Configuration reloaded live from config.ini and profiles/.")
+        except Exception as e:
+            logger.error(f"Error reloading configuration: {e}", exc_info=True)
+
+    def quit_app(icon, item):
+        logger.info("Exiting application from system tray...")
+        try:
+            virtual_pad.destroy()
+        except Exception as e:
+            logger.error(f"Error destroying virtual pad: {e}")
+        try:
+            backend.shutdown()
+        except Exception as e:
+            logger.error(f"Error shutting down backend: {e}")
+        write_status("Disconnected")
+        for p in gui_processes:
+            try:
+                p.terminate()
+            except Exception:
+                pass
+        if icon:
+            icon.stop()
+        os._exit(0)
+
     def data_handler(state: ControllerState):
         start_t = monitor.record_poll()
         nonlocal last_log_time
@@ -362,11 +406,14 @@ def main():
             logger.debug(f"[DATA HANDLER] Throttle boundary reached. DECODED STATE: {state}")
             last_log_time = current_time
 
-        # Pipeline: Hardware Chords -> Mapper -> VirtualPad
-        hardware_chord_engine.record_poll_interval()
-        state = hardware_chord_engine.process(state)
-        mapper.process(state)
-        virtual_pad.process(state)
+        if is_interception_paused:
+            virtual_pad.process(state, paused=True)
+        else:
+            # Pipeline: Hardware Chords -> Mapper -> VirtualPad
+            hardware_chord_engine.record_poll_interval()
+            state = hardware_chord_engine.process(state)
+            mapper.process(state)
+            virtual_pad.process(state)
         
         monitor.record_process(start_t)
         monitor.broadcast_state(state)
@@ -411,8 +458,10 @@ def main():
     image = create_image()
     menu = pystray.Menu(
         pystray.MenuItem('Open Config', open_config),
+        pystray.MenuItem('Pause Interception', toggle_pause_interception_action, checked=lambda item: is_interception_paused),
+        pystray.MenuItem('Reload Configuration', reload_configuration_action),
         pystray.MenuItem('Show Console', show_console_action),
-        pystray.MenuItem('Quit', quit_app)
+        pystray.MenuItem('Exit', quit_app)
     )
     icon = pystray.Icon("ur-xd", image, "UR-XD Wrapper", menu)
 

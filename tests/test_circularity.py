@@ -6,11 +6,25 @@ from unittest.mock import MagicMock
 sys.modules['hid'] = MagicMock()
 
 class DummyToplevel:
-    pass
+    def __init__(self, *args, **kwargs):
+        pass
+    def wm_overrideredirect(self, *args):
+        pass
+    def wm_geometry(self, *args):
+        pass
+    def attributes(self, *args):
+        pass
 
+_real_ctk = sys.modules.get('customtkinter')
 mock_ctk = MagicMock()
 mock_ctk.CTkToplevel = DummyToplevel
 sys.modules['customtkinter'] = mock_ctk
+
+def tearDownModule():
+    if _real_ctk is not None:
+        sys.modules['customtkinter'] = _real_ctk
+    else:
+        sys.modules.pop('customtkinter', None)
 
 REPO_ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 sys.path.append(REPO_ROOT)

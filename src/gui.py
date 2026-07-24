@@ -36,12 +36,15 @@ if os.path.exists(theme_path):
     ctk.set_default_color_theme(theme_path)
 
 _app_font = _global_config.get('UI', 'font', fallback="Arial")
-_original_font_init = ctk.CTkFont.__init__
-def _new_font_init(self, family=None, *args, **kwargs):
-    if family is None:
-        family = _app_font
-    _original_font_init(self, family=family, *args, **kwargs)
-ctk.CTkFont.__init__ = _new_font_init
+try:
+    _original_font_init = ctk.CTkFont.__init__
+    def _new_font_init(self, family=None, *args, **kwargs):
+        if family is None:
+            family = _app_font
+        _original_font_init(self, family=family, *args, **kwargs)
+    ctk.CTkFont.__init__ = _new_font_init
+except Exception:
+    pass
 
 class ToolTip:
     def __init__(self, widget, text):
@@ -50,10 +53,31 @@ class ToolTip:
         self.tipwindow = None
         self.id = None
         self.x = self.y = 0
-        self.widget.bind("<Enter>", self.enter)
-        self.widget.bind("<Leave>", self.leave)
+        self._top_bound = False
+
+        self.widget.bind("<Enter>", self.enter, add="+")
+        self.widget.bind("<Leave>", self.leave, add="+")
+        self.widget.bind("<ButtonPress>", self.leave, add="+")
+        self.widget.bind("<Map>", self._bind_toplevel_events, add="+")
+        self._bind_toplevel_events()
+
+    def _bind_toplevel_events(self, event=None):
+        if self._top_bound:
+            return
+        try:
+            top = self.widget.winfo_toplevel()
+            if top and top != self.widget:
+                top.bind("<FocusOut>", self._on_top_focus_out, add="+")
+                top.bind("<Unmap>", self.leave, add="+")
+                self._top_bound = True
+        except Exception:
+            pass
+
+    def _on_top_focus_out(self, event=None):
+        self.leave()
 
     def enter(self, event=None):
+        self._bind_toplevel_events()
         self.schedule()
 
     def leave(self, event=None):
@@ -68,10 +92,30 @@ class ToolTip:
         id_ = self.id
         self.id = None
         if id_:
-            self.widget.after_cancel(id_)
+            try:
+                self.widget.after_cancel(id_)
+            except Exception:
+                pass
 
     def showtip(self, event=None):
-        x, y, cx, cy = self.widget.bbox("insert")
+        try:
+            top = self.widget.winfo_toplevel()
+            if not top or not top.winfo_viewable():
+                return
+            if top.focus_displayof() is None:
+                return
+        except Exception:
+            pass
+
+        try:
+            bbox = self.widget.bbox("insert")
+            if bbox:
+                x, y, cx, cy = bbox
+            else:
+                x = y = 0
+        except Exception:
+            x = y = 0
+
         x += self.widget.winfo_rootx() + 25
         y += self.widget.winfo_rooty() + 20
         self.tipwindow = tw = ctk.CTkToplevel(self.widget)
@@ -88,7 +132,10 @@ class ToolTip:
         tw = self.tipwindow
         self.tipwindow = None
         if tw:
-            tw.destroy()
+            try:
+                tw.destroy()
+            except Exception:
+                pass
 
 class LoadingSpinner(tk.Canvas):
     def __init__(self, master, size=30, width=3, color="#7500ab", **kwargs):

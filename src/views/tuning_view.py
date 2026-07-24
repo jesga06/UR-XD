@@ -1,14 +1,15 @@
 """
 Tuning View for PySide6 GUI (tuning_view.py)
 Dual-Stick & Dual-Trigger tuning cards (Left Stick, Right Stick, Left Trigger, Right Trigger).
-Includes inner rest deadzone, outer anti-deadzone, outer max threshold, sensitivity factors,
+Includes inner rest deadzone, outer anti-deadzone, outer max threshold, sensitivity sliders,
 axis inversion (Invert X/Y), circularity modes (disabled, before, after), info popup, bounds reset,
 interactive CurveGraphWidget for both sticks and triggers with live raw/mod tracer dots,
-embedded stick visualizer radars, and LaTeX/JSON export.
+embedded squared stick visualizer radars with growing deadzone rings, and LaTeX/JSON export.
 """
 
 import sys
 import os
+import math
 
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
@@ -21,6 +22,8 @@ from PySide6.QtCore import Qt
 from components.circularity_modal_qt import CircularityCalibrationDialog
 from components.curve_graph_widget import CurveGraphWidget
 from components.joystick_widget import JoystickVisualizerWidget
+import math_utils
+import curves
 
 
 ALL_CURVE_TYPES = [
@@ -94,6 +97,8 @@ class TuningView(QWidget):
         left_layout.addWidget(self.lbl_telemetry_left)
 
         grid_left = QGridLayout()
+
+        # Inner Rest Deadzone Slider + Growing Circle Sync
         grid_left.addWidget(QLabel("Inner Rest Deadzone (%):"), 0, 0)
         self.slider_l_dz = QSlider(Qt.Orientation.Horizontal)
         self.slider_l_dz.setRange(0, 50)
@@ -101,7 +106,7 @@ class TuningView(QWidget):
         self.spin_l_dz.setRange(0, 50)
         self.slider_l_dz.valueChanged.connect(self.spin_l_dz.setValue)
         self.spin_l_dz.valueChanged.connect(self.slider_l_dz.setValue)
-        self.spin_l_dz.valueChanged.connect(lambda v: self.save_opt("analog_left", "deadzone", v / 100.0))
+        self.spin_l_dz.valueChanged.connect(self.on_left_dz_changed)
         grid_left.addWidget(self.slider_l_dz, 0, 1)
         grid_left.addWidget(self.spin_l_dz, 0, 2)
 
@@ -123,13 +128,22 @@ class TuningView(QWidget):
         self.spin_l_max.valueChanged.connect(lambda v: self.save_opt("analog_left", "outer_max", v / 100.0))
         grid_left.addWidget(self.spin_l_max, 2, 1, 1, 2)
 
+        # Combined Slider + DoubleSpinBox for Left Curve Sensitivity Factor
         grid_left.addWidget(QLabel("Curve Sensitivity Factor:"), 3, 0)
+        self.slider_l_pow = QSlider(Qt.Orientation.Horizontal)
+        self.slider_l_pow.setRange(10, 50)  # 1.0 to 5.0
+        self.slider_l_pow.setValue(20)
         self.spin_l_pow = QDoubleSpinBox()
-        self.spin_l_pow.setRange(0.1, 5.0)
+        self.spin_l_pow.setRange(1.0, 5.0)
         self.spin_l_pow.setSingleStep(0.1)
         self.spin_l_pow.setValue(2.0)
-        self.spin_l_pow.valueChanged.connect(lambda v: self.save_opt("analog_left", "exp_factor", v))
-        grid_left.addWidget(self.spin_l_pow, 3, 1, 1, 2)
+
+        self.slider_l_pow.valueChanged.connect(lambda v: self.spin_l_pow.setValue(v / 10.0))
+        self.spin_l_pow.valueChanged.connect(lambda v: self.slider_l_pow.setValue(int(v * 10)))
+        self.spin_l_pow.valueChanged.connect(self.on_left_pow_changed)
+
+        grid_left.addWidget(self.slider_l_pow, 3, 1)
+        grid_left.addWidget(self.spin_l_pow, 3, 2)
 
         grid_left.addWidget(QLabel("Circularity Mode:"), 4, 0)
         self.combo_l_circ_mode = QComboBox()
@@ -160,7 +174,6 @@ class TuningView(QWidget):
 
         # Left Stick Curve Graph Editor
         self.curve_graph_left = CurveGraphWidget("Left Stick Curve")
-        self.spin_l_pow.valueChanged.connect(lambda v: self.curve_graph_left.set_curve_params(self.combo_l_curve.currentText(), v))
         left_layout.addWidget(self.curve_graph_left)
 
         math_l_box = QHBoxLayout()
@@ -216,6 +229,8 @@ class TuningView(QWidget):
         right_layout.addWidget(self.lbl_telemetry_right)
 
         grid_right = QGridLayout()
+
+        # Inner Rest Deadzone Slider + Growing Circle Sync
         grid_right.addWidget(QLabel("Inner Rest Deadzone (%):"), 0, 0)
         self.slider_r_dz = QSlider(Qt.Orientation.Horizontal)
         self.slider_r_dz.setRange(0, 50)
@@ -223,7 +238,7 @@ class TuningView(QWidget):
         self.spin_r_dz.setRange(0, 50)
         self.slider_r_dz.valueChanged.connect(self.spin_r_dz.setValue)
         self.spin_r_dz.valueChanged.connect(self.slider_r_dz.setValue)
-        self.spin_r_dz.valueChanged.connect(lambda v: self.save_opt("analog_right", "deadzone", v / 100.0))
+        self.spin_r_dz.valueChanged.connect(self.on_right_dz_changed)
         grid_right.addWidget(self.slider_r_dz, 0, 1)
         grid_right.addWidget(self.spin_r_dz, 0, 2)
 
@@ -245,13 +260,22 @@ class TuningView(QWidget):
         self.spin_r_max.valueChanged.connect(lambda v: self.save_opt("analog_right", "outer_max", v / 100.0))
         grid_right.addWidget(self.spin_r_max, 2, 1, 1, 2)
 
+        # Combined Slider + DoubleSpinBox for Right Curve Sensitivity Factor
         grid_right.addWidget(QLabel("Curve Sensitivity Factor:"), 3, 0)
+        self.slider_r_pow = QSlider(Qt.Orientation.Horizontal)
+        self.slider_r_pow.setRange(10, 50)  # 1.0 to 5.0
+        self.slider_r_pow.setValue(20)
         self.spin_r_pow = QDoubleSpinBox()
-        self.spin_r_pow.setRange(0.1, 5.0)
+        self.spin_r_pow.setRange(1.0, 5.0)
         self.spin_r_pow.setSingleStep(0.1)
         self.spin_r_pow.setValue(2.0)
-        self.spin_r_pow.valueChanged.connect(lambda v: self.save_opt("analog_right", "exp_factor", v))
-        grid_right.addWidget(self.spin_r_pow, 3, 1, 1, 2)
+
+        self.slider_r_pow.valueChanged.connect(lambda v: self.spin_r_pow.setValue(v / 10.0))
+        self.spin_r_pow.valueChanged.connect(lambda v: self.slider_r_pow.setValue(int(v * 10)))
+        self.spin_r_pow.valueChanged.connect(self.on_right_pow_changed)
+
+        grid_right.addWidget(self.slider_r_pow, 3, 1)
+        grid_right.addWidget(self.spin_r_pow, 3, 2)
 
         grid_right.addWidget(QLabel("Circularity Mode:"), 4, 0)
         self.combo_r_circ_mode = QComboBox()
@@ -282,7 +306,6 @@ class TuningView(QWidget):
 
         # Right Stick Curve Graph Editor
         self.curve_graph_right = CurveGraphWidget("Right Stick Curve")
-        self.spin_r_pow.valueChanged.connect(lambda v: self.curve_graph_right.set_curve_params(self.combo_r_curve.currentText(), v))
         right_layout.addWidget(self.curve_graph_right)
 
         math_r_box = QHBoxLayout()
@@ -405,6 +428,22 @@ class TuningView(QWidget):
         scroll.setWidget(scroll_content)
         main_layout.addWidget(scroll)
 
+    def on_left_dz_changed(self, v):
+        self.radar_left.set_deadzone(v)
+        self.save_opt("analog_left", "deadzone", v / 100.0)
+
+    def on_right_dz_changed(self, v):
+        self.radar_right.set_deadzone(v)
+        self.save_opt("analog_right", "deadzone", v / 100.0)
+
+    def on_left_pow_changed(self, v):
+        self.curve_graph_left.set_curve_params(self.combo_l_curve.currentText(), v, self.edit_l_custom_eq.text())
+        self.save_opt("analog_left", "exp_factor", v)
+
+    def on_right_pow_changed(self, v):
+        self.curve_graph_right.set_curve_params(self.combo_r_curve.currentText(), v, self.edit_r_custom_eq.text())
+        self.save_opt("analog_right", "exp_factor", v)
+
     def on_left_curve_changed(self, curve_type):
         self.curve_graph_left.set_curve_params(curve_type, self.spin_l_pow.value(), self.edit_l_custom_eq.text())
         self.save_opt("analog_left", "curve", curve_type.lower())
@@ -427,6 +466,12 @@ class TuningView(QWidget):
         dz_l = int(config.getfloat("analog_left", "deadzone", 0.05) * 100)
         self.slider_l_dz.setValue(dz_l)
         self.spin_l_dz.setValue(dz_l)
+        self.radar_left.set_deadzone(dz_l)
+
+        dz_r = int(config.getfloat("analog_right", "deadzone", 0.05) * 100)
+        self.slider_r_dz.setValue(dz_r)
+        self.spin_r_dz.setValue(dz_r)
+        self.radar_right.set_deadzone(dz_r)
 
         adz_l = int(config.getfloat("analog_left", "anti_deadzone", 0.0) * 100)
         self.slider_l_adz.setValue(adz_l)
@@ -437,6 +482,11 @@ class TuningView(QWidget):
 
         pow_l = config.getfloat("analog_left", "exp_factor", 2.0)
         self.spin_l_pow.setValue(pow_l)
+        self.slider_l_pow.setValue(int(pow_l * 10))
+
+        pow_r = config.getfloat("analog_right", "exp_factor", 2.0)
+        self.spin_r_pow.setValue(pow_r)
+        self.slider_r_pow.setValue(int(pow_r * 10))
 
         circ_l = config.get("analog_left", "circularity_mode", fallback="disabled").title()
         self.combo_l_circ_mode.setCurrentText(circ_l)
@@ -483,16 +533,50 @@ class TuningView(QWidget):
         lt = controller_state.lt or 0.0
         rt = controller_state.rt or 0.0
 
-        self.radar_left.set_stick_position(lx, ly)
-        self.lbl_telemetry_left.setText(f"Raw: ({lx:+.2f}, {ly:+.2f}) -> Tuned: ({lx:+.2f}, {ly:+.2f})")
-        self.curve_graph_left.set_live_input_output(lx, lx)
+        # Compute tuned output using math_utils
+        dz_l = self.spin_l_dz.value() / 100.0
+        adz_l = self.spin_l_adz.value() / 100.0
+        max_l = self.spin_l_max.value() / 100.0
+        curve_l = self.combo_l_curve.currentText().lower()
+        pow_l = self.spin_l_pow.value()
+        custom_l = self.edit_l_custom_eq.text()
 
-        self.radar_right.set_stick_position(rx, ry)
-        self.lbl_telemetry_right.setText(f"Raw: ({rx:+.2f}, {ry:+.2f}) -> Tuned: ({rx:+.2f}, {ry:+.2f})")
-        self.curve_graph_right.set_live_input_output(rx, rx)
+        mod_lx, mod_ly = math_utils.process_analog_stick(
+            lx, ly, dz_l, adz_l, max_l, curve_l, pow_l, custom_l
+        )
 
-        self.curve_graph_lt.set_live_input_output(lt, lt)
-        self.curve_graph_rt.set_live_input_output(rt, rt)
+        dz_r = self.spin_r_dz.value() / 100.0
+        adz_r = self.spin_r_adz.value() / 100.0
+        max_r = self.spin_r_max.value() / 100.0
+        curve_r = self.combo_r_curve.currentText().lower()
+        pow_r = self.spin_r_pow.value()
+        custom_r = self.edit_r_custom_eq.text()
+
+        mod_rx, mod_ry = math_utils.process_analog_stick(
+            rx, ry, dz_r, adz_r, max_r, curve_r, pow_r, custom_r
+        )
+
+        dz_lt = self.spin_lt_dz.value() / 100.0
+        max_lt = self.spin_lt_max.value() / 100.0
+        curve_lt = self.combo_lt_curve.currentText().lower()
+        mod_lt = math_utils.process_trigger(lt, dz_lt, max_lt, curve_lt)
+
+        dz_rt = self.spin_rt_dz.value() / 100.0
+        max_rt = self.spin_rt_max.value() / 100.0
+        curve_rt = self.combo_rt_curve.currentText().lower()
+        mod_rt = math_utils.process_trigger(rt, dz_rt, max_rt, curve_rt)
+
+        # Update stick showcases with BOTH raw input and tuned output
+        self.radar_left.set_stick_position(mod_lx, mod_ly, raw_x=lx, raw_y=ly)
+        self.lbl_telemetry_left.setText(f"Raw: ({lx:+.2f}, {ly:+.2f}) -> Tuned: ({mod_lx:+.2f}, {mod_ly:+.2f})")
+        self.curve_graph_left.set_live_input_output(math.hypot(lx, ly), math.hypot(mod_lx, mod_ly))
+
+        self.radar_right.set_stick_position(mod_rx, mod_ry, raw_x=rx, raw_y=ry)
+        self.lbl_telemetry_right.setText(f"Raw: ({rx:+.2f}, {ry:+.2f}) -> Tuned: ({mod_rx:+.2f}, {mod_ry:+.2f})")
+        self.curve_graph_right.set_live_input_output(math.hypot(rx, ry), math.hypot(mod_rx, mod_ry))
+
+        self.curve_graph_lt.set_live_input_output(lt, mod_lt)
+        self.curve_graph_rt.set_live_input_output(rt, mod_rt)
 
     def copy_to_clipboard(self, text, label):
         QApplication.clipboard().setText(text)

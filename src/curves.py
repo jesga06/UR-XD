@@ -47,7 +47,7 @@ def evaluate_curve(x: float, curve_type: str, power: float, custom_eq: str = "")
         p1 = 1.0 - (1.0 / power) if power >= 1.0 else power
         p2 = 1.0 / power if power >= 1.0 else 1.0 - power
         return 3 * ((1 - x) ** 2) * x * p1 + 3 * (1 - x) * (x ** 2) * p2 + (x ** 3)
-    elif curve == 'dotted':
+    elif curve in ['dotted', 'dotted custom']:
         try:
             dots = json.loads(custom_eq)
             if not isinstance(dots, list) or not dots:

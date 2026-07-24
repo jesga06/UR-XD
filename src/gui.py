@@ -2804,6 +2804,140 @@ class App(ctk.CTk):
 
         ctk.CTkButton(guide_win, text="Close", width=100, command=guide_win.destroy).pack(pady=(0, 10))
 
+    def draw_haptic_waveform(self):
+        if not hasattr(self, 'haptic_canvas') or not self.haptic_canvas.winfo_exists():
+            return
+        self.haptic_canvas.delete("all")
+        prof_str = self.global_haptic_entry.get().strip() if hasattr(self, 'global_haptic_entry') else ""
+        from haptic_engine import parse_haptic_profile
+        events = parse_haptic_profile(prof_str)
+
+        c_width = max(100, self.haptic_canvas.winfo_width() or 580)
+        c_height = 50
+
+        if not events:
+            self.haptic_canvas.create_text(c_width / 2, c_height / 2, text="No vibration blocks defined", fill="#888888", font=("Helvetica", 10, "italic"))
+            return
+
+        total_dur = max(e['end_s'] for e in events)
+        if total_dur <= 0:
+            total_dur = 0.5
+
+        for e in events:
+            x1 = (e['start_s'] / total_dur) * (c_width - 20) + 10
+            x2 = (e['end_s'] / total_dur) * (c_width - 20) + 10
+            intensity_h = e['intensity'] * (c_height - 18)
+            y1 = c_height - 6 - intensity_h
+            y2 = c_height - 6
+
+            color = "#00e676" if e['motor'] == 'RM' else "#ff9100"
+            label_text = f"{e['motor']} ({int(e['intensity']*100)}%)"
+
+            self.haptic_canvas.create_rectangle(x1, y1, x2, y2, fill=color, outline="#ffffff", width=1)
+            self.haptic_canvas.create_text((x1 + x2)/2, max(8, y1 - 4), text=label_text, fill="#ffffff", font=("Helvetica", 8))
+
+    def setup_haptic_feedback_section(self):
+        haptic_frame = ctk.CTkFrame(self.advanced_scroll)
+        haptic_frame.pack(fill="x", padx=20, pady=10)
+
+        hdr = ctk.CTkFrame(haptic_frame, fg_color="transparent")
+        hdr.pack(fill="x", padx=10, pady=5)
+        ctk.CTkLabel(hdr, text="Shift Layer Vibration Feedback (XInput Mode)", font=ctk.CTkFont(weight="bold", size=14)).pack(side="left")
+
+        # Global Enable & Default Profile Entry
+        ctrl_f = ctk.CTkFrame(haptic_frame, fg_color="transparent")
+        ctrl_f.pack(fill="x", padx=10, pady=5)
+
+        self.haptic_enabled_var = tk.BooleanVar(value=self.config.get_haptic_enabled())
+        def on_toggle_enabled():
+            self.config.set_haptic_enabled(self.haptic_enabled_var.get())
+            self.save_config()
+
+        chk_en = ctk.CTkCheckBox(ctrl_f, text="Enable Haptic Feedback", variable=self.haptic_enabled_var, command=on_toggle_enabled)
+        chk_en.pack(side="left", padx=(0, 15))
+
+        ctk.CTkLabel(ctrl_f, text="Global Default Profile:").pack(side="left", padx=(0, 5))
+        self.global_haptic_entry = ctk.CTkEntry(ctrl_f, width=260, placeholder_text="RM[30% @ 0ms, dur=1500ms]")
+        self.global_haptic_entry.insert(0, self.config.get_global_haptic_profile())
+        self.global_haptic_entry.pack(side="left", fill="x", expand=True, padx=(0, 10))
+
+        def save_global_haptic():
+            prof = self.global_haptic_entry.get().strip()
+            self.config.set_global_haptic_profile(prof)
+            self.save_config()
+            self.draw_haptic_waveform()
+
+        self.global_haptic_entry.bind("<FocusOut>", lambda e: save_global_haptic())
+        self.global_haptic_entry.bind("<Return>", lambda e: save_global_haptic())
+
+        def test_haptic_vibration():
+            prof = self.global_haptic_entry.get().strip()
+            from haptic_engine import HapticEngine
+            if hasattr(self, 'virtual_pad') and self.virtual_pad:
+                eng = HapticEngine(self.virtual_pad)
+                eng.play_profile(prof)
+
+        btn_test = ctk.CTkButton(ctrl_f, text="[Test Vibration]", width=120, command=test_haptic_vibration, fg_color="#1f538d")
+        btn_test.pack(side="right")
+
+        # Interactive Building Blocks Frame
+        builder_f = ctk.CTkFrame(haptic_frame, corner_radius=6)
+        builder_f.pack(fill="x", padx=10, pady=8)
+
+        ctk.CTkLabel(builder_f, text="Interactive Building Blocks:", font=ctk.CTkFont(size=12, weight="bold")).pack(anchor="w", padx=10, pady=(6, 2))
+
+        b_row = ctk.CTkFrame(builder_f, fg_color="transparent")
+        b_row.pack(fill="x", padx=10, pady=5)
+
+        ctk.CTkLabel(b_row, text="Motor:").pack(side="left", padx=(0, 2))
+        self.b_motor_opt = ctk.CTkOptionMenu(b_row, values=["RM", "LM", "BOTH"], width=75)
+        self.b_motor_opt.pack(side="left", padx=(0, 10))
+
+        ctk.CTkLabel(b_row, text="Intensity:").pack(side="left", padx=(0, 2))
+        self.b_int_lbl = ctk.CTkLabel(b_row, text="30%", width=35)
+        self.b_int_slider = ctk.CTkSlider(b_row, from_=5, to=100, number_of_steps=19, width=100, command=lambda v: self.b_int_lbl.configure(text=f"{int(v)}%"))
+        self.b_int_slider.set(30)
+        self.b_int_slider.pack(side="left", padx=(0, 2))
+        self.b_int_lbl.pack(side="left", padx=(0, 10))
+
+        ctk.CTkLabel(b_row, text="@ Start:").pack(side="left", padx=(0, 2))
+        self.b_start_ent = ctk.CTkEntry(b_row, width=45, placeholder_text="0")
+        self.b_start_ent.insert(0, "0")
+        self.b_start_ent.pack(side="left", padx=(0, 2))
+        ctk.CTkLabel(b_row, text="ms").pack(side="left", padx=(0, 8))
+
+        ctk.CTkLabel(b_row, text="dur=").pack(side="left", padx=(0, 2))
+        self.b_dur_ent = ctk.CTkEntry(b_row, width=50, placeholder_text="200")
+        self.b_dur_ent.insert(0, "200")
+        self.b_dur_ent.pack(side="left", padx=(0, 2))
+        ctk.CTkLabel(b_row, text="ms").pack(side="left", padx=(0, 8))
+
+        def add_vibration_block():
+            motor = self.b_motor_opt.get()
+            intensity = int(self.b_int_slider.get())
+            start_ms = self.b_start_ent.get().strip() or "0"
+            dur_ms = self.b_dur_ent.get().strip() or "200"
+
+            new_block = f"{motor}[{intensity}% @ {start_ms}ms, dur={dur_ms}ms]"
+            curr_str = self.global_haptic_entry.get().strip()
+            combined = f"{curr_str}, {new_block}" if curr_str else new_block
+
+            self.global_haptic_entry.delete(0, 'end')
+            self.global_haptic_entry.insert(0, combined)
+            save_global_haptic()
+
+        btn_add_blk = ctk.CTkButton(b_row, text="+ Add Vibration Block", command=add_vibration_block, fg_color="#2e7d32", hover_color="#1b5e20")
+        btn_add_blk.pack(side="right")
+
+        # Visual Waveform Canvas Preview
+        canvas_f = ctk.CTkFrame(haptic_frame, fg_color="transparent")
+        canvas_f.pack(fill="x", padx=10, pady=(4, 10))
+        ctk.CTkLabel(canvas_f, text="Visual Waveform Timeline Preview:", font=ctk.CTkFont(size=11)).pack(anchor="w", padx=2, pady=(0, 2))
+
+        self.haptic_canvas = tk.Canvas(canvas_f, height=50, bg="#1a1a1a", highlightthickness=1, highlightbackground="#444444")
+        self.haptic_canvas.pack(fill="x", expand=True)
+        self.after(200, self.draw_haptic_waveform)
+
     def setup_advanced(self):
         for child in self.tab_advanced.winfo_children():
             child.destroy()
@@ -2818,6 +2952,9 @@ class App(ctk.CTk):
         
         self.advanced_scroll = ctk.CTkScrollableFrame(self.tab_advanced, fg_color="transparent", corner_radius=0)
         self.advanced_scroll.pack(fill="both", expand=True)
+
+        # Shift Layer Feedback Section
+        self.setup_haptic_feedback_section()
 
         # Prominent Macros & Hardware Chords Guide Box
         guide_box = ctk.CTkFrame(self.advanced_scroll)

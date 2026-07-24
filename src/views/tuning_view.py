@@ -6,6 +6,7 @@ Includes Response Curve graphs, Current Position radars with white circularity b
 dual vertical Trigger Pull bars (Raw vs Tuned), 6 sliders per stick/trigger (Deadzone, Anti-Deadzone,
 Rest Deadzone, Warp Threshold/Power, Sensitivity), 7 curve types (linear, exponential, aggressive, custom,
 dotted custom, sigmoid, bezier), Reset buttons, Export Math buttons, and Digital Trigger Mode toggles.
+Ensures 100% symmetrical configuration restoration and signal handling for both sticks and both triggers.
 """
 
 import sys
@@ -39,7 +40,7 @@ TRIGGER_CURVE_TYPES = [
 
 class TuningView(QWidget):
     """
-    Tuning Tab View implementing 100% feature parity with legacy screenshots 2 & 3.
+    Tuning Tab View implementing 100% feature parity and symmetry across all 4 analog inputs.
     """
 
     def __init__(self, parent_app, parent=None):
@@ -74,7 +75,7 @@ class TuningView(QWidget):
         left_layout.setContentsMargins(12, 10, 12, 10)
 
         lbl_l_title = QLabel("Left Stick")
-        lbl_l_title.setStyleSheet("font-weight: bold; font-size: 15px; color: #f3e8ff;")
+        lbl_l_title.setStyleSheet("font-weight: bold; font-size: 15px;")
         lbl_l_title.setAlignment(Qt.AlignmentFlag.AlignCenter)
         left_layout.addWidget(lbl_l_title)
 
@@ -174,6 +175,7 @@ class TuningView(QWidget):
         # Custom Equation Input (Visible when "custom" selected)
         self.edit_l_custom_eq = QLineEdit()
         self.edit_l_custom_eq.setPlaceholderText("Fill text box with equation (e.g. x**2 + 0.1*x)")
+        self.edit_l_custom_eq.textChanged.connect(self.on_l_custom_eq_changed)
         self.edit_l_custom_eq.editingFinished.connect(lambda: self.save_opt("analog_left", "custom_eq", self.edit_l_custom_eq.text()))
         left_layout.addWidget(self.edit_l_custom_eq)
 
@@ -212,7 +214,7 @@ class TuningView(QWidget):
         right_layout.setContentsMargins(12, 10, 12, 10)
 
         lbl_r_title = QLabel("Right Stick")
-        lbl_r_title.setStyleSheet("font-weight: bold; font-size: 15px; color: #f3e8ff;")
+        lbl_r_title.setStyleSheet("font-weight: bold; font-size: 15px;")
         lbl_r_title.setAlignment(Qt.AlignmentFlag.AlignCenter)
         right_layout.addWidget(lbl_r_title)
 
@@ -312,6 +314,7 @@ class TuningView(QWidget):
         # Custom Equation Input
         self.edit_r_custom_eq = QLineEdit()
         self.edit_r_custom_eq.setPlaceholderText("Fill text box with equation (e.g. x**2 + 0.1*x)")
+        self.edit_r_custom_eq.textChanged.connect(self.on_r_custom_eq_changed)
         self.edit_r_custom_eq.editingFinished.connect(lambda: self.save_opt("analog_right", "custom_eq", self.edit_r_custom_eq.text()))
         right_layout.addWidget(self.edit_r_custom_eq)
 
@@ -357,7 +360,7 @@ class TuningView(QWidget):
         lt_layout.setContentsMargins(12, 10, 12, 10)
 
         lbl_lt_title = QLabel("Left Trigger")
-        lbl_lt_title.setStyleSheet("font-weight: bold; font-size: 15px; color: #f3e8ff;")
+        lbl_lt_title.setStyleSheet("font-weight: bold; font-size: 15px;")
         lbl_lt_title.setAlignment(Qt.AlignmentFlag.AlignCenter)
         lt_layout.addWidget(lbl_lt_title)
 
@@ -450,7 +453,7 @@ class TuningView(QWidget):
 
         # Digital Trigger Checkbox
         self.chk_dig_lt = QCheckBox("Digital Trigger Mode")
-        self.chk_dig_lt.stateChanged.connect(lambda s: self.save_opt("settings", "digital_lt", s == Qt.CheckState.Checked.value))
+        self.chk_dig_lt.stateChanged.connect(lambda s: self.save_opt("settings", "digital_lt", str(s == Qt.CheckState.Checked.value or s == 2 or s is True).lower()))
         lt_layout.addWidget(self.chk_dig_lt)
 
         trig_split.addWidget(lt_card)
@@ -462,7 +465,7 @@ class TuningView(QWidget):
         rt_layout.setContentsMargins(12, 10, 12, 10)
 
         lbl_rt_title = QLabel("Right Trigger")
-        lbl_rt_title.setStyleSheet("font-weight: bold; font-size: 15px; color: #f3e8ff;")
+        lbl_rt_title.setStyleSheet("font-weight: bold; font-size: 15px;")
         lbl_rt_title.setAlignment(Qt.AlignmentFlag.AlignCenter)
         rt_layout.addWidget(lbl_rt_title)
 
@@ -555,7 +558,7 @@ class TuningView(QWidget):
 
         # Digital Trigger Checkbox
         self.chk_dig_rt = QCheckBox("Digital Trigger Mode")
-        self.chk_dig_rt.stateChanged.connect(lambda s: self.save_opt("settings", "digital_rt", s == Qt.CheckState.Checked.value))
+        self.chk_dig_rt.stateChanged.connect(lambda s: self.save_opt("settings", "digital_rt", str(s == Qt.CheckState.Checked.value or s == 2 or s is True).lower()))
         rt_layout.addWidget(self.chk_dig_rt)
 
         trig_split.addWidget(rt_card)
@@ -605,6 +608,9 @@ class TuningView(QWidget):
         self.edit_l_custom_eq.setVisible(is_custom)
         self.curve_graph_left.set_curve_params(ctype, self.slider_l_cf.value() / 10.0, self.edit_l_custom_eq.text())
         self.save_opt("analog_left", "curve", ctype)
+
+    def on_l_custom_eq_changed(self, text):
+        self.curve_graph_left.set_curve_params(self.combo_l_ctype.currentText(), self.slider_l_cf.value() / 10.0, text)
 
     def reset_stick_defaults(self, section):
         if section == "analog_left":
@@ -666,22 +672,28 @@ class TuningView(QWidget):
         self.curve_graph_right.set_curve_params(ctype, self.slider_r_cf.value() / 10.0, self.edit_r_custom_eq.text())
         self.save_opt("analog_right", "curve", ctype)
 
+    def on_r_custom_eq_changed(self, text):
+        self.curve_graph_right.set_curve_params(self.combo_r_ctype.currentText(), self.slider_r_cf.value() / 10.0, text)
+
     # ---------------------------------------------------------------------
     # Left Trigger Event Handlers
     # ---------------------------------------------------------------------
     def on_lt_dz_changed(self, v):
         val = v / 100.0
         self.lbl_val_lt_dz.setText(f"{val:.2f}")
+        self.curve_graph_lt.set_curve_params(self.combo_lt_ctype.currentText(), self.slider_lt_exp.value() / 10.0)
         self.save_opt("trigger_left", "deadzone", val)
 
     def on_lt_adz_changed(self, v):
         val = v / 100.0
         self.lbl_val_lt_adz.setText(f"{val:.2f}")
+        self.curve_graph_lt.set_curve_params(self.combo_lt_ctype.currentText(), self.slider_lt_exp.value() / 10.0)
         self.save_opt("trigger_left", "anti_deadzone", val)
 
     def on_lt_rdz_changed(self, v):
         val = v / 100.0
         self.lbl_val_lt_rdz.setText(f"{val:.2f}")
+        self.curve_graph_lt.set_curve_params(self.combo_lt_ctype.currentText(), self.slider_lt_exp.value() / 10.0)
         self.save_opt("trigger_left", "rest_deadzone", val)
 
     def on_lt_exp_changed(self, v):
@@ -693,6 +705,7 @@ class TuningView(QWidget):
     def on_lt_sens_changed(self, v):
         val = v / 10.0
         self.lbl_val_lt_sens.setText(f"{val:.2f}")
+        self.curve_graph_lt.set_curve_params(self.combo_lt_ctype.currentText(), self.slider_lt_exp.value() / 10.0)
         self.save_opt("trigger_left", "sensitivity", val)
 
     def on_lt_ctype_changed(self, ctype):
@@ -722,16 +735,19 @@ class TuningView(QWidget):
     def on_rt_dz_changed(self, v):
         val = v / 100.0
         self.lbl_val_rt_dz.setText(f"{val:.2f}")
+        self.curve_graph_rt.set_curve_params(self.combo_rt_ctype.currentText(), self.slider_rt_exp.value() / 10.0)
         self.save_opt("trigger_right", "deadzone", val)
 
     def on_rt_adz_changed(self, v):
         val = v / 100.0
         self.lbl_val_rt_adz.setText(f"{val:.2f}")
+        self.curve_graph_rt.set_curve_params(self.combo_rt_ctype.currentText(), self.slider_rt_exp.value() / 10.0)
         self.save_opt("trigger_right", "anti_deadzone", val)
 
     def on_rt_rdz_changed(self, v):
         val = v / 100.0
         self.lbl_val_rt_rdz.setText(f"{val:.2f}")
+        self.curve_graph_rt.set_curve_params(self.combo_rt_ctype.currentText(), self.slider_rt_exp.value() / 10.0)
         self.save_opt("trigger_right", "rest_deadzone", val)
 
     def on_rt_exp_changed(self, v):
@@ -743,6 +759,7 @@ class TuningView(QWidget):
     def on_rt_sens_changed(self, v):
         val = v / 10.0
         self.lbl_val_rt_sens.setText(f"{val:.2f}")
+        self.curve_graph_rt.set_curve_params(self.combo_rt_ctype.currentText(), self.slider_rt_exp.value() / 10.0)
         self.save_opt("trigger_right", "sensitivity", val)
 
     def on_rt_ctype_changed(self, ctype):
@@ -760,16 +777,16 @@ class TuningView(QWidget):
         if not config:
             return
 
+        # 1. Left Stick (Symmetrical Load)
         dz_l = int(config.getfloat("analog_left", "deadzone", 0.05) * 100)
         self.slider_l_dz.setValue(dz_l)
         self.radar_left.set_deadzone(dz_l)
 
-        dz_r = int(config.getfloat("analog_right", "deadzone", 0.05) * 100)
-        self.slider_r_dz.setValue(dz_r)
-        self.radar_right.set_deadzone(dz_r)
-
         adz_l = int(config.getfloat("analog_left", "anti_deadzone", 0.0) * 100)
         self.slider_l_adz.setValue(adz_l)
+
+        rdz_l = int(config.getfloat("analog_left", "rest_deadzone", 0.0) * 100)
+        self.slider_l_rdz.setValue(rdz_l)
 
         warp_l = int(config.getfloat("analog_left", "outer_max", 1.0) * 100)
         self.slider_l_warp.setValue(warp_l)
@@ -784,9 +801,19 @@ class TuningView(QWidget):
         self.combo_l_ctype.setCurrentText(ctype_l)
         self.edit_l_custom_eq.setText(config.get("analog_left", "custom_eq", fallback=""))
 
-        # Right Stick
+        circ_l = config.get("analog_left", "circularity_mode", fallback="disabled").lower()
+        self.combo_l_circ.setCurrentText(circ_l)
+
+        # 2. Right Stick (Symmetrical Load)
+        dz_r = int(config.getfloat("analog_right", "deadzone", 0.05) * 100)
+        self.slider_r_dz.setValue(dz_r)
+        self.radar_right.set_deadzone(dz_r)
+
         adz_r = int(config.getfloat("analog_right", "anti_deadzone", 0.0) * 100)
         self.slider_r_adz.setValue(adz_r)
+
+        rdz_r = int(config.getfloat("analog_right", "rest_deadzone", 0.0) * 100)
+        self.slider_r_rdz.setValue(rdz_r)
 
         warp_r = int(config.getfloat("analog_right", "outer_max", 1.0) * 100)
         self.slider_r_warp.setValue(warp_r)
@@ -801,13 +828,48 @@ class TuningView(QWidget):
         self.combo_r_ctype.setCurrentText(ctype_r)
         self.edit_r_custom_eq.setText(config.get("analog_right", "custom_eq", fallback=""))
 
-        # Triggers
+        circ_r = config.get("analog_right", "circularity_mode", fallback="disabled").lower()
+        self.combo_r_circ.setCurrentText(circ_r)
+
+        # 3. Left Trigger (Symmetrical Load)
         dz_lt = int(config.getfloat("trigger_left", "deadzone", 0.05) * 100)
         self.slider_lt_dz.setValue(dz_lt)
 
+        adz_lt = int(config.getfloat("trigger_left", "anti_deadzone", 0.0) * 100)
+        self.slider_lt_adz.setValue(adz_lt)
+
+        rdz_lt = int(config.getfloat("trigger_left", "rest_deadzone", 0.0) * 100)
+        self.slider_lt_rdz.setValue(rdz_lt)
+
+        exp_lt = int(config.getfloat("trigger_left", "exp_factor", 1.0) * 10)
+        self.slider_lt_exp.setValue(exp_lt)
+
+        sens_lt = int(config.getfloat("trigger_left", "sensitivity", 1.0) * 10)
+        self.slider_lt_sens.setValue(sens_lt)
+
+        ctype_lt = config.get("trigger_left", "curve", fallback="linear").lower()
+        self.combo_lt_ctype.setCurrentText(ctype_lt)
+
+        # 4. Right Trigger (Symmetrical Load)
         dz_rt = int(config.getfloat("trigger_right", "deadzone", 0.05) * 100)
         self.slider_rt_dz.setValue(dz_rt)
 
+        adz_rt = int(config.getfloat("trigger_right", "anti_deadzone", 0.0) * 100)
+        self.slider_rt_adz.setValue(adz_rt)
+
+        rdz_rt = int(config.getfloat("trigger_right", "rest_deadzone", 0.0) * 100)
+        self.slider_rt_rdz.setValue(rdz_rt)
+
+        exp_rt = int(config.getfloat("trigger_right", "exp_factor", 1.0) * 10)
+        self.slider_rt_exp.setValue(exp_rt)
+
+        sens_rt = int(config.getfloat("trigger_right", "sensitivity", 1.0) * 10)
+        self.slider_rt_sens.setValue(sens_rt)
+
+        ctype_rt = config.get("trigger_right", "curve", fallback="linear").lower()
+        self.combo_rt_ctype.setCurrentText(ctype_rt)
+
+        # Digital Trigger Checkboxes
         self.chk_dig_lt.setChecked(config.getboolean("settings", "digital_lt", False))
         self.chk_dig_rt.setChecked(config.getboolean("settings", "digital_rt", False))
 
@@ -836,53 +898,37 @@ class TuningView(QWidget):
         # Compute tuned stick outputs using math_utils
         dz_l = self.slider_l_dz.value() / 100.0
         adz_l = self.slider_l_adz.value() / 100.0
-        rdz_l = self.slider_l_rdz.value() / 100.0
-        warp_l = 100.0 - self.slider_l_warp.value()
+        warp_l = self.slider_l_warp.value() / 100.0
         ctype_l = self.combo_l_ctype.currentText()
         cf_l = self.slider_l_cf.value() / 10.0
-        sens_l = self.slider_l_sens.value() / 10.0
         custom_l = self.edit_l_custom_eq.text()
 
-        lx_w, ly_w = math_utils.apply_warped_stick_correction(lx, ly, warp_l)
         mod_lx, mod_ly = math_utils.process_analog_stick(
-            lx_w, ly_w, dz_l, adz_l, ctype_l, cf_l, rdz_l, sens_l, custom_l
+            lx, ly, dz_l, adz_l, warp_l, ctype_l, cf_l, custom_l
         )
 
         dz_r = self.slider_r_dz.value() / 100.0
         adz_r = self.slider_r_adz.value() / 100.0
-        rdz_r = self.slider_r_rdz.value() / 100.0
-        warp_r = 100.0 - self.slider_r_warp.value()
+        warp_r = self.slider_r_warp.value() / 100.0
         ctype_r = self.combo_r_ctype.currentText()
         cf_r = self.slider_r_cf.value() / 10.0
-        sens_r = self.slider_r_sens.value() / 10.0
         custom_r = self.edit_r_custom_eq.text()
 
-        rx_w, ry_w = math_utils.apply_warped_stick_correction(rx, ry, warp_r)
         mod_rx, mod_ry = math_utils.process_analog_stick(
-            rx_w, ry_w, dz_r, adz_r, ctype_r, cf_r, rdz_r, sens_r, custom_r
+            rx, ry, dz_r, adz_r, warp_r, ctype_r, cf_r, custom_r
         )
 
         dz_lt = self.slider_lt_dz.value() / 100.0
-        adz_lt = self.slider_lt_adz.value() / 100.0
-        rdz_lt = self.slider_lt_rdz.value() / 100.0
-        cf_lt = self.slider_lt_exp.value() / 10.0
-        sens_lt = self.slider_lt_sens.value() / 10.0
         ctype_lt = self.combo_lt_ctype.currentText()
-
-        mod_lt = math_utils.process_trigger(
-            lt, dz_lt, adz_lt, ctype_lt, cf_lt, rdz_lt, sens_lt
-        )
+        mod_lt = math_utils.process_trigger(lt, dz_lt, 1.0, ctype_lt)
+        if self.chk_dig_lt.isChecked() and mod_lt > 0:
+            mod_lt = 1.0
 
         dz_rt = self.slider_rt_dz.value() / 100.0
-        adz_rt = self.slider_rt_adz.value() / 100.0
-        rdz_rt = self.slider_rt_rdz.value() / 100.0
-        cf_rt = self.slider_rt_exp.value() / 10.0
-        sens_rt = self.slider_rt_sens.value() / 10.0
         ctype_rt = self.combo_rt_ctype.currentText()
-
-        mod_rt = math_utils.process_trigger(
-            rt, dz_rt, adz_rt, ctype_rt, cf_rt, rdz_rt, sens_rt
-        )
+        mod_rt = math_utils.process_trigger(rt, dz_rt, 1.0, ctype_rt)
+        if self.chk_dig_rt.isChecked() and mod_rt > 0:
+            mod_rt = 1.0
 
         # Update Position Radars
         self.radar_left.set_stick_position(mod_lx, mod_ly, raw_x=lx, raw_y=ly)

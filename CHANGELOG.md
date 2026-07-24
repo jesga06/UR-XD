@@ -250,5 +250,8 @@ This release introduces major UI Customizations, Utilities, and Core Profile fea
 - **Mapper Press Timestamp Tracking & Layer Transitions:** Enhanced `mapper.py` with fine-grained button press timestamp tracking (`button_press_times`), `toggled_shift_layers` state tracking, and automatic release/re-evaluate hold logic on layer transitions.
 - **Virtual Pad Multi-Shift Blocking:** Updated `virtual_pad.py` block logic to query all active shift layer block preferences and suppress virtual pad outputs for mapped shift buttons.
 
+- **PySide6 (Qt 6) Next-Gen GUI Engine Migration:** Completely replaced the legacy CustomTkinter GUI (`gui.py`) with a modern PySide6 architecture (`gui_qt.py`) featuring 240Hz sub-pixel vector stick radar visualizers (`JoystickVisualizerWidget`), 4K high-DPI scaling, 6 core navigation tabs (Dashboard, Remapping, Tuning, Advanced, Utilities, Customization), dynamic QSS theme engine (`theme_manager.py`) with 7 color presets (Purple, Blue, Green, Red, Yellow, Orange, White), and PySide6 polar circularity wizard (`circularity_modal_qt.py`).
+
+
 
 

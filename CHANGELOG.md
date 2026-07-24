@@ -269,6 +269,14 @@ This release introduces major UI Customizations, Utilities, and Core Profile fea
 - **Joystick Visualizer Timestamp Trail Decay & Unit Clamping:** `JoystickVisualizerWidget` now clamps stick vectors strictly within unit circle radius ($\sqrt{X^2+Y^2} \le 1.0$), implements a timestamp-based alpha decay queue for stick motion trails, and renders an inner deadzone circular ring overlay.
 - **Theme Manager RGBA Glow & System Contrast Detection:** `ThemeManager` now calculates dynamic RGBA glow strings, wraps font family names in double quotes in QSS templates, and auto-detects OS dark/light contrast modes.
 
+## [2.3.2] - 2026-07-24
+### 🎮 User-Facing Changes
+- **Joystick Showcase Visualizer Redesign:** Updated `JoystickVisualizerWidget` with a squared outer boundary glass container while preserving the inner circular radar crosshairs, removed trailing motion dots, added a dynamic growing inner deadzone ring overlay that resizes in real-time as deadzone sliders move, and added dual position dots for raw input vs tuned output.
+- **Sleek Thin Widget Outlines & Text Box Fixes:** Enhanced `ThemeManager` global QSS styling to apply sleek 1px thin outlines (`border: 1px solid {card_border}`) and glowing hover/focus borders (`border: 1px solid {card_hover_border}`) across EVERY single button, dropdown menu (`QComboBox`), mutable text box (`QLineEdit`, `QPlainTextEdit`), spinbox (`QSpinBox`, `QDoubleSpinBox`), and table widget. Fixed text box ghosting and text focus selection styling.
+- **Tuning Tab Curve Sensitivity Sliders & Active Math Processing:** Converted curve sensitivity factor to a combined `QSlider` (1.0 to 5.0) and `QDoubleSpinBox`, connected inner rest deadzone controls directly to growing radar deadzone rings, and updated live 60Hz telemetry evaluation to process and render both raw stick coordinates and tuned output.
+- **Hardware Chords Engine Fix:** Restored full editable table row management, deletion, and config persistence for hardware chords in the Advanced tab.
+- **UI Simplification:** Removed unneeded shift layer rumble feedback and ViGEmBus configuration panels per design requirements.
+
 
 
 

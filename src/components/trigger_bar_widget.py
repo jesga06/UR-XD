@@ -28,6 +28,14 @@ class TriggerPullWidget(QWidget):
         self.color_raw = QColor(74, 222, 128)   # Green for raw input
         self.color_mod = QColor(168, 85, 247)   # Purple for tuned output
 
+    def set_theme_colors(self, primary_hex="#7500ab", glow_hex="#a855f7", accent_green_hex="#00f5a0"):
+        """Dynamically update theme colors from ThemeManager."""
+        self.color_border = QColor(glow_hex)
+        self.color_border.setAlpha(80)
+        self.color_mod = QColor(glow_hex)
+        self.color_raw = QColor(accent_green_hex)
+        self.update()
+
     def set_values(self, raw_val: float, mod_val: float):
         """Set normalized trigger values (0.0 to 1.0) and update canvas."""
         self.raw_val = max(0.0, min(1.0, float(raw_val)))

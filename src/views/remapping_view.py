@@ -1,14 +1,14 @@
 """
 Remapping View for PySide6 GUI (remapping_view.py)
-Multiple Shift Remapping Layer tabs manager, Shift Layer activation chord configurator,
+Multiple Shift Remapping Layer QTabBar manager, Shift Layer activation chord configurator,
 Block XInput opt-out checkboxes, interactive Key Combo Recorder with target layer saving,
 multi-key combo capture, and Advanced Mouse Scroll Wheel Remap options.
 """
 
 from PySide6.QtWidgets import (
     QWidget, QVBoxLayout, QHBoxLayout, QLabel, QFrame, QPushButton, QScrollArea,
-    QComboBox, QDialog, QCheckBox, QSpinBox, QRadioButton, QButtonGroup,
-    QMessageBox, QLineEdit
+    QComboBox, QDialog, QCheckBox, QRadioButton, QButtonGroup,
+    QMessageBox, QLineEdit, QTabBar
 )
 from PySide6.QtCore import Qt
 import pynput.keyboard
@@ -20,6 +20,30 @@ ALL_GAMEPAD_BUTTONS = [
     "SELECT", "START", "HOME", "DPAD_UP", "DPAD_DOWN", "DPAD_LEFT", "DPAD_RIGHT",
     "M1", "M2", "L4", "R4"
 ]
+
+SPECIAL_KEY_TRANSLATIONS = {
+    "MEDIA_PLAY_PAUSE": "MEDIA_PLAY",
+    "PRINT_SCREEN": "PRINT_SCREEN",
+    "CAPS_LOCK": "CAPS_LOCK",
+    "PAGE_UP": "PAGE_UP",
+    "PAGE_DOWN": "PAGE_DOWN"
+}
+
+
+class ScrollTesterWidget(QFrame):
+    """Interactive mouse wheel notch tester widget capturing wheelEvent."""
+
+    def __init__(self, on_scroll_cb, parent=None):
+        super().__init__(parent)
+        self.on_scroll_cb = on_scroll_cb
+        self.setObjectName("GlassCard")
+        self.setMinimumHeight(60)
+
+    def wheelEvent(self, event):
+        angle = event.angleDelta().y()
+        if angle != 0:
+            direction = "SCROLL_UP" if angle > 0 else "SCROLL_DOWN"
+            self.on_scroll_cb(direction)
 
 
 class KeyRecorderDialog(QDialog):
@@ -34,9 +58,10 @@ class KeyRecorderDialog(QDialog):
         self.target_layer = "Standard"
         self.pressed_keys = set()
         self.notch_count = 1
+        self.scroll_direction = "SCROLL_UP"
 
         self.setWindowTitle(f"Record Binding: {button_name}")
-        self.setFixedSize(460, 320)
+        self.setFixedSize(460, 360)
         self.setWindowFlags(self.windowFlags() | Qt.WindowType.WindowStaysOnTopHint)
 
         layout = QVBoxLayout(self)
@@ -54,8 +79,7 @@ class KeyRecorderDialog(QDialog):
         layout.addWidget(self.lbl_key)
 
         # Mouse Scroll Customization Frame (Shown when scroll is detected)
-        self.scroll_frame = QFrame()
-        self.scroll_frame.setObjectName("GlassCard")
+        self.scroll_frame = ScrollTesterWidget(self.on_widget_scroll, self)
         scroll_layout = QVBoxLayout(self.scroll_frame)
         scroll_layout.setContentsMargins(10, 10, 10, 10)
 
@@ -66,7 +90,7 @@ class KeyRecorderDialog(QDialog):
         s_box = QHBoxLayout()
         self.radio_continuous = QRadioButton("Continuous (Hold)")
         self.radio_oneshot = QRadioButton("Oneshot")
-        self.radio_continuous.setChecked(True)
+        self.radio_oneshot.setChecked(True)
 
         s_box.addWidget(self.radio_continuous)
         s_box.addWidget(self.radio_oneshot)
@@ -117,6 +141,20 @@ class KeyRecorderDialog(QDialog):
     def reset_notches(self):
         self.notch_count = 1
         self.lbl_notch_val.setText("1 Notch")
+        self.update_scroll_binding()
+
+    def on_widget_scroll(self, direction):
+        self.scroll_direction = direction
+        self.notch_count += 1
+        self.lbl_notch_val.setText(f"{self.notch_count} Notches")
+        self.update_scroll_binding()
+
+    def update_scroll_binding(self):
+        mode = "oneshot" if self.radio_oneshot.isChecked() else "continuous"
+        self.recorded_binding = f"{self.scroll_direction.lower()}:{self.notch_count}:{mode}:0.05"
+        self.lbl_key.setText(f"[ {self.recorded_binding} ]")
+        self.btn_save_std.setEnabled(True)
+        self.btn_save_shift.setEnabled(True)
 
     def save_target(self, target_layer):
         self.target_layer = target_layer
@@ -124,7 +162,12 @@ class KeyRecorderDialog(QDialog):
 
     def on_kb_press(self, key):
         try:
-            k_name = key.char.upper() if hasattr(key, 'char') and key.char else key.name.upper()
+            if hasattr(key, 'char') and key.char:
+                k_name = key.char.upper()
+            else:
+                k_name = key.name.upper() if hasattr(key, 'name') else str(key).upper()
+
+            k_name = SPECIAL_KEY_TRANSLATIONS.get(k_name, k_name)
             self.pressed_keys.add(k_name)
             combo_str = " + ".join(sorted(self.pressed_keys))
             self.recorded_binding = combo_str
@@ -135,25 +178,32 @@ class KeyRecorderDialog(QDialog):
             pass
 
     def on_kb_release(self, key):
-        pass
+        try:
+            k_name = key.char.upper() if hasattr(key, 'char') and key.char else key.name.upper()
+            if k_name in self.pressed_keys:
+                self.pressed_keys.remove(k_name)
+        except Exception:
+            pass
 
     def on_mouse_click(self, x, y, button, pressed):
         if pressed and button != pynput.mouse.Button.left:
             b_name = f"MOUSE_{button.name.upper()}"
+            if button == pynput.mouse.Button.x1:
+                b_name = "MOUSE_XBUTTON1"
+            elif button == pynput.mouse.Button.x2:
+                b_name = "MOUSE_XBUTTON2"
+            elif button == pynput.mouse.Button.middle:
+                b_name = "MOUSE_MIDDLE"
+
             self.recorded_binding = b_name
             self.lbl_key.setText(f"[ {b_name} ]")
             self.btn_save_std.setEnabled(True)
             self.btn_save_shift.setEnabled(True)
 
     def on_mouse_scroll(self, x, y, dx, dy):
-        direction = "SCROLL_UP" if dy > 0 else "SCROLL_DOWN"
-        self.notch_count += 1
-        self.recorded_binding = f"{direction} ({self.notch_count} notches)"
-        self.lbl_key.setText(f"[ {self.recorded_binding} ]")
-        self.lbl_notch_val.setText(f"{self.notch_count} Notches")
+        self.scroll_direction = "SCROLL_UP" if dy > 0 else "SCROLL_DOWN"
         self.scroll_frame.show()
-        self.btn_save_std.setEnabled(True)
-        self.btn_save_shift.setEnabled(True)
+        self.update_scroll_binding()
 
     def closeEvent(self, event):
         if self.kb_listener.running:
@@ -166,12 +216,14 @@ class KeyRecorderDialog(QDialog):
 class RemappingView(QWidget):
     """
     Remapping Tab View displaying clean button names, side-by-side standard & shift maps,
-    dynamic extra buttons, shift key selectors, and shift layer deletion.
+    QTabBar shift layer management, search filter, and config persistence.
     """
 
     def __init__(self, parent_app, parent=None):
         super().__init__(parent)
         self.app = parent_app
+        self.active_layer_idx = 0
+        self.remap_row_widgets = {}
         self.setup_ui()
 
     def setup_ui(self):
@@ -179,7 +231,7 @@ class RemappingView(QWidget):
         main_layout.setContentsMargins(16, 16, 16, 16)
         main_layout.setSpacing(16)
 
-        # 1. Multiple Shift Layers Navigation Header
+        # 1. Multiple Shift Layers QTabBar Navigation Header
         shift_header_card = QFrame()
         shift_header_card.setObjectName("GlassCard")
         shift_header_layout = QVBoxLayout(shift_header_card)
@@ -188,44 +240,75 @@ class RemappingView(QWidget):
         lbl_shift_title = QLabel("⚡ SHIFT LAYER CONFIGURATOR")
         lbl_shift_title.setStyleSheet("font-weight: bold; font-size: 14px; color: #f3e8ff;")
 
+        self.edit_filter = QLineEdit()
+        self.edit_filter.setPlaceholderText("🔍 Filter buttons...")
+        self.edit_filter.setFixedWidth(160)
+        self.edit_filter.textChanged.connect(self.filter_buttons)
+
         btn_add_shift = QPushButton("+ Add Shift Layer")
         btn_add_shift.setObjectName("PrimaryBtn")
         btn_add_shift.clicked.connect(self.add_new_shift_layer)
 
-        btn_del_shift = QPushButton("- Delete Shift Layer")
+        btn_del_shift = QPushButton("- Delete Layer")
         btn_del_shift.setObjectName("SecondaryBtn")
         btn_del_shift.clicked.connect(self.delete_current_shift_layer)
 
+        btn_reset_all = QPushButton("❌ Reset All")
+        btn_reset_all.setObjectName("SecondaryBtn")
+        btn_reset_all.clicked.connect(self.reset_all_remappings)
+
         top_shift_row.addWidget(lbl_shift_title)
         top_shift_row.addStretch()
+        top_shift_row.addWidget(self.edit_filter)
         top_shift_row.addWidget(btn_add_shift)
         top_shift_row.addWidget(btn_del_shift)
+        top_shift_row.addWidget(btn_reset_all)
         shift_header_layout.addLayout(top_shift_row)
 
-        # Shift Layer Configuration Parameters
+        # TabBar Navigation Bar
+        self.tab_bar = QTabBar()
+        self.tab_bar.setExpanding(False)
+        self.tab_bar.currentChanged.connect(self.on_shift_tab_changed)
+        shift_header_layout.addWidget(self.tab_bar)
+
+        # Shift Layer Configuration Parameters Row
         act_row = QHBoxLayout()
-        act_row.addWidget(QLabel("Active Layer:"))
-        self.combo_shift_layers = QComboBox()
-        self.combo_shift_layers.addItems(["Shift Layer 1"])
-        act_row.addWidget(self.combo_shift_layers)
+        act_row.addWidget(QLabel("Layer Name:"))
+        self.edit_layer_name = QLineEdit("Shift Layer 1")
+        self.edit_layer_name.setFixedWidth(120)
+        self.edit_layer_name.editingFinished.connect(self.save_active_layer_params)
+        act_row.addWidget(self.edit_layer_name)
 
         act_row.addWidget(QLabel("Shift Key:"))
         self.combo_shift_key = QComboBox()
         self.combo_shift_key.addItems(ALL_GAMEPAD_BUTTONS)
+        self.combo_shift_key.currentIndexChanged.connect(self.save_active_layer_params)
         act_row.addWidget(self.combo_shift_key)
 
         act_row.addWidget(QLabel("Modifier Key:"))
         self.combo_shift_mod = QComboBox()
         self.combo_shift_mod.addItem("None")
         self.combo_shift_mod.addItems(ALL_GAMEPAD_BUTTONS)
+        self.combo_shift_mod.currentIndexChanged.connect(self.save_active_layer_params)
         act_row.addWidget(self.combo_shift_mod)
 
-        self.radio_hold = QRadioButton("Hold Mode")
-        self.radio_toggle = QRadioButton("Toggle Mode")
+        self.radio_hold = QRadioButton("Hold")
+        self.radio_toggle = QRadioButton("Toggle")
         self.radio_hold.setChecked(True)
+        self.radio_hold.toggled.connect(self.save_active_layer_params)
 
         act_row.addWidget(self.radio_hold)
         act_row.addWidget(self.radio_toggle)
+
+        act_row.addWidget(QLabel("Haptic Profile:"))
+        self.combo_haptic_prof = QComboBox()
+        self.combo_haptic_prof.addItems(["Default Rumble", "Soft Pulse", "Heavy Rumble", "Disabled"])
+        self.combo_haptic_prof.currentIndexChanged.connect(self.save_active_layer_params)
+        act_row.addWidget(self.combo_haptic_prof)
+
+        self.chk_passthrough = QCheckBox("Pass-Through")
+        self.chk_passthrough.stateChanged.connect(self.save_active_layer_params)
+        act_row.addWidget(self.chk_passthrough)
 
         shift_header_layout.addLayout(act_row)
         main_layout.addWidget(shift_header_card)
@@ -261,8 +344,6 @@ class RemappingView(QWidget):
         leg_layout.addStretch()
         scroll_layout.addWidget(leg_card)
 
-        self.remap_rows = {}
-        # Dynamic button list (Standard + Extra paddles)
         button_list = ["A", "B", "X", "Y", "LB", "RB", "L3", "R3", "SELECT", "START", "HOME", "M1", "M2", "L4", "R4"]
 
         for bname in button_list:
@@ -282,6 +363,7 @@ class RemappingView(QWidget):
 
             chk_block = QCheckBox()
             chk_block.setChecked(True)
+            chk_block.stateChanged.connect(lambda state, name=bname: self.on_block_xinput_changed(name, state))
 
             btn_remap = QPushButton("🖊️ Record")
             btn_remap.setObjectName("PrimaryBtn")
@@ -289,7 +371,7 @@ class RemappingView(QWidget):
 
             btn_clear = QPushButton("❌ Reset")
             btn_clear.setObjectName("SecondaryBtn")
-            btn_clear.clicked.connect(lambda ch=False, l1=lbl_std, l2=lbl_shift: self.reset_row(l1, l2))
+            btn_clear.clicked.connect(lambda ch=False, name=bname, l1=lbl_std, l2=lbl_shift: self.reset_row(name, l1, l2))
 
             row_layout.addWidget(lbl_btn)
             row_layout.addWidget(lbl_std)
@@ -300,31 +382,125 @@ class RemappingView(QWidget):
             row_layout.addWidget(btn_clear)
 
             scroll_layout.addWidget(row_card)
-            self.remap_rows[bname] = (lbl_std, lbl_shift)
+            self.remap_row_widgets[bname] = (row_card, lbl_std, lbl_shift, chk_block)
 
         scroll.setWidget(scroll_content)
         main_layout.addWidget(scroll)
 
-    def reset_row(self, lbl_std, lbl_shift):
+        self.refresh_shift_tabs()
+
+    def refresh_shift_tabs(self):
+        self.tab_bar.blockSignals(True)
+        self.tab_bar.clear()
+        config = getattr(self.app, 'daemon_config', None)
+        if config:
+            layers = config.get_shift_layers()
+            for l in layers:
+                self.tab_bar.addTab(l.get("name", "Shift Layer"))
+        else:
+            self.tab_bar.addTab("Shift Layer 1")
+        self.tab_bar.blockSignals(False)
+
+    def on_shift_tab_changed(self, index):
+        if index < 0:
+            return
+        self.active_layer_idx = index
+        config = getattr(self.app, 'daemon_config', None)
+        if config:
+            layers = config.get_shift_layers()
+            if index < len(layers):
+                l = layers[index]
+                self.edit_layer_name.setText(l.get("name", ""))
+                self.combo_shift_key.setCurrentText(l.get("trigger_button", "A").upper())
+                self.combo_shift_mod.setCurrentText(l.get("modifier_button", "None").upper())
+                self.radio_hold.setChecked(l.get("mode", "hold") == "hold")
+                self.radio_toggle.setChecked(l.get("mode", "hold") == "toggle")
+
+    def save_active_layer_params(self):
+        config = getattr(self.app, 'daemon_config', None)
+        if not config:
+            return
+        layers = config.get_shift_layers()
+        if self.active_layer_idx < len(layers):
+            l = layers[self.active_layer_idx]
+            l["name"] = self.edit_layer_name.text()
+            l["trigger_button"] = self.combo_shift_key.currentText().lower()
+            l["modifier_button"] = self.combo_shift_mod.currentText().lower()
+            l["mode"] = "hold" if self.radio_hold.isChecked() else "toggle"
+            l["haptic_profile"] = self.combo_haptic_prof.currentText()
+            l["passthrough"] = self.chk_passthrough.isChecked()
+            config.set_shift_layers(layers)
+            self.app.save_config()
+            self.refresh_shift_tabs()
+
+    def filter_buttons(self, text):
+        query = text.lower().strip()
+        for bname, (row_card, _, _, _) in self.remap_row_widgets.items():
+            row_card.setVisible(query in bname.lower())
+
+    def on_block_xinput_changed(self, button_name, state):
+        config = getattr(self.app, 'daemon_config', None)
+        if config:
+            val = (state == Qt.CheckState.Checked.value or state is True)
+            config.set("block_xinput", button_name.lower(), str(val).lower())
+            self.app.save_config()
+
+    def reset_row(self, button_name, lbl_std, lbl_shift):
         lbl_std.setText("Gamepad Default")
         lbl_shift.setText("Unmapped")
+        config = getattr(self.app, 'daemon_config', None)
+        if config:
+            config.remove_option("mappings", button_name.lower())
+            layers = config.get_shift_layers()
+            if self.active_layer_idx < len(layers):
+                layers[self.active_layer_idx].get("mappings", {}).pop(button_name.lower(), None)
+                config.set_shift_layers(layers)
+            self.app.save_config()
+
+    def reset_all_remappings(self):
+        config = getattr(self.app, 'daemon_config', None)
+        if config:
+            config.data["mappings"] = {}
+            config.save()
+            for _, (_, lbl_std, lbl_shift, _) in self.remap_row_widgets.items():
+                lbl_std.setText("Gamepad Default")
+                lbl_shift.setText("Unmapped")
 
     def add_new_shift_layer(self):
-        new_name = f"Shift Layer {self.combo_shift_layers.count() + 1}"
-        self.combo_shift_layers.addItem(new_name)
-        self.combo_shift_layers.setCurrentText(new_name)
+        config = getattr(self.app, 'daemon_config', None)
+        if config:
+            config.add_shift_layer(name=f"Shift Layer {self.tab_bar.count() + 1}")
+            self.app.save_config()
+            self.refresh_shift_tabs()
+            self.tab_bar.setCurrentIndex(self.tab_bar.count() - 1)
 
     def delete_current_shift_layer(self):
-        if self.combo_shift_layers.count() > 1:
-            curr_idx = self.combo_shift_layers.currentIndex()
-            self.combo_shift_layers.removeItem(curr_idx)
+        if self.tab_bar.count() > 1:
+            config = getattr(self.app, 'daemon_config', None)
+            if config:
+                layers = config.get_shift_layers()
+                if self.active_layer_idx < len(layers):
+                    layer_id = layers[self.active_layer_idx].get("id", "")
+                    config.remove_shift_layer(layer_id)
+                    self.app.save_config()
+                    self.refresh_shift_tabs()
         else:
             QMessageBox.information(self, "Shift Layers", "Cannot delete the default Shift Layer.")
 
     def open_recorder(self, button_name, lbl_std, lbl_shift):
         dlg = KeyRecorderDialog(button_name, self)
         if dlg.exec() == QDialog.DialogCode.Accepted and dlg.recorded_binding:
+            config = getattr(self.app, 'daemon_config', None)
             if dlg.target_layer == "Standard":
                 lbl_std.setText(f"[ {dlg.recorded_binding} ]")
+                if config:
+                    config.set("mappings", button_name.lower(), dlg.recorded_binding)
+                    self.app.save_config()
             else:
                 lbl_shift.setText(f"[ {dlg.recorded_binding} ]")
+                if config:
+                    layers = config.get_shift_layers()
+                    if self.active_layer_idx < len(layers):
+                        layers[self.active_layer_idx].setdefault("mappings", {})[button_name.lower()] = dlg.recorded_binding
+                        config.set_shift_layers(layers)
+                        self.app.save_config()

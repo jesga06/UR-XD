@@ -235,6 +235,7 @@ class RemappingView(QWidget):
         self.active_layer_idx = 0
         self.row_widgets = {}  # btn_name -> (edit_std, btn_rec_std, chk_block, edit_shift, btn_rec_shift, chk_sblock)
         self.setup_ui()
+        self.refresh_shift_layer_combobox()
         self.load_config_values()
 
     def setup_ui(self):
@@ -397,8 +398,9 @@ class RemappingView(QWidget):
             lbl_btn = QLabel(bname)
             lbl_btn.setStyleSheet("font-weight: bold; font-size: 12px; min-width: 50px;")
 
-            # Standard Mapping QLineEdit with Sleek Outline
+            # Standard Mapping QLineEdit with Sleek High-Contrast Outline
             edit_std = QLineEdit()
+            edit_std.setObjectName("OutlinedEdit")
             edit_std.setPlaceholderText("Gamepad Default")
             edit_std.editingFinished.connect(lambda name=bname, edit=edit_std: self.on_std_mapping_edited(name, edit.text()))
 
@@ -413,8 +415,9 @@ class RemappingView(QWidget):
             chk_block.setChecked(True)
             chk_block.stateChanged.connect(lambda state, name=bname: self.on_block_xinput_changed(name, state))
 
-            # Shift Mapping QLineEdit with Sleek Outline
+            # Shift Mapping QLineEdit with Sleek High-Contrast Outline
             edit_shift = QLineEdit()
+            edit_shift.setObjectName("OutlinedEdit")
             edit_shift.setPlaceholderText("Unmapped")
             edit_shift.editingFinished.connect(lambda name=bname, edit=edit_shift: self.on_shift_mapping_edited(name, edit.text()))
 
@@ -555,7 +558,6 @@ class RemappingView(QWidget):
             self.load_config_values()
 
     def load_config_values(self):
-        self.refresh_shift_layer_combobox()
         config = getattr(self.app, 'controller_config', None)
         if not config:
             return

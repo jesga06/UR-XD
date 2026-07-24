@@ -258,10 +258,10 @@ class ThemeManager:
             outline: none;
         }}
 
-        /* Mutable Text Boxes (QLineEdit, QPlainTextEdit) with Thin Outlines and Clean Focus */
-        QLineEdit, QPlainTextEdit {{
+        /* Mandatory 1.5px Outlines Across EVERY Typable Text Box in the GUI */
+        QLineEdit, QPlainTextEdit, QSpinBox, QDoubleSpinBox {{
             background-color: rgba(10, 7, 18, 0.95);
-            border: 1px solid {theme['card_border']};
+            border: 1.5px solid {theme['card_hover_border']};
             border-radius: 6px;
             padding: 6px 10px;
             color: {theme['text_main']};
@@ -279,30 +279,50 @@ class ThemeManager:
             selection-color: #ffffff;
         }}
 
+        QLineEdit:focus, QLineEdit:hover, QPlainTextEdit:focus, QPlainTextEdit:hover,
+        QSpinBox:focus, QSpinBox:hover, QDoubleSpinBox:focus, QDoubleSpinBox:hover,
         QLineEdit#OutlinedEdit:focus, QLineEdit#OutlinedEdit:hover {{
             border: 1.5px solid {theme['glow']};
             background-color: rgba(0, 0, 0, 0.75);
         }}
 
-        QLineEdit:hover, QLineEdit:focus, QPlainTextEdit:hover, QPlainTextEdit:focus {{
-            border: 1px solid {theme['card_hover_border']};
-            background-color: rgba(14, 10, 24, 0.95);
-        }}
-
-        /* SpinBoxes (QSpinBox, QDoubleSpinBox) with Thin Outlines */
-        QSpinBox, QDoubleSpinBox {{
-            background-color: rgba(10, 7, 18, 0.95);
-            border: 1px solid {theme['card_border']};
-            border-radius: 6px;
-            padding: 5px 8px;
+        /* Table Cells and Cell Editors High-Contrast Outlines */
+        QTableWidget QLineEdit {{
+            background-color: rgba(12, 9, 20, 0.98);
             color: {theme['text_main']};
-            font-weight: 600;
+            border: 1.5px solid {theme['card_hover_border']};
             selection-background-color: {theme['primary']};
             selection-color: #ffffff;
         }}
 
-        QSpinBox:hover, QSpinBox:focus, QDoubleSpinBox:hover, QDoubleSpinBox:focus {{
-            border: 1px solid {theme['card_hover_border']};
+        QTableWidget::item {{
+            background-color: transparent;
+            color: {theme['text_main']};
+            selection-background-color: {theme['primary']};
+            selection-color: #ffffff;
+        }}
+
+        /* Dynamic Theme QLabel Semantic Classes */
+        QLabel#CardHeader {{
+            font-weight: bold;
+            font-size: 14px;
+            color: {theme['text_main']};
+        }}
+
+        QLabel#AccentLabel {{
+            font-weight: bold;
+            color: {theme['glow']};
+        }}
+
+        QLabel#MutedLabel {{
+            font-weight: 600;
+            color: {theme['text_muted']};
+        }}
+
+        QLabel#SectionHeader {{
+            font-weight: bold;
+            font-size: 16px;
+            color: {theme['text_main']};
         }}
 
         /* Sidebar Navigation List Items */

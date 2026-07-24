@@ -836,33 +836,53 @@ class TuningView(QWidget):
         # Compute tuned stick outputs using math_utils
         dz_l = self.slider_l_dz.value() / 100.0
         adz_l = self.slider_l_adz.value() / 100.0
-        warp_l = self.slider_l_warp.value() / 100.0
+        rdz_l = self.slider_l_rdz.value() / 100.0
+        warp_l = 100.0 - self.slider_l_warp.value()
         ctype_l = self.combo_l_ctype.currentText()
         cf_l = self.slider_l_cf.value() / 10.0
+        sens_l = self.slider_l_sens.value() / 10.0
         custom_l = self.edit_l_custom_eq.text()
 
+        lx_w, ly_w = math_utils.apply_warped_stick_correction(lx, ly, warp_l)
         mod_lx, mod_ly = math_utils.process_analog_stick(
-            lx, ly, dz_l, adz_l, warp_l, ctype_l, cf_l, custom_l
+            lx_w, ly_w, dz_l, adz_l, ctype_l, cf_l, rdz_l, sens_l, custom_l
         )
 
         dz_r = self.slider_r_dz.value() / 100.0
         adz_r = self.slider_r_adz.value() / 100.0
-        warp_r = self.slider_r_warp.value() / 100.0
+        rdz_r = self.slider_r_rdz.value() / 100.0
+        warp_r = 100.0 - self.slider_r_warp.value()
         ctype_r = self.combo_r_ctype.currentText()
         cf_r = self.slider_r_cf.value() / 10.0
+        sens_r = self.slider_r_sens.value() / 10.0
         custom_r = self.edit_r_custom_eq.text()
 
+        rx_w, ry_w = math_utils.apply_warped_stick_correction(rx, ry, warp_r)
         mod_rx, mod_ry = math_utils.process_analog_stick(
-            rx, ry, dz_r, adz_r, warp_r, ctype_r, cf_r, custom_r
+            rx_w, ry_w, dz_r, adz_r, ctype_r, cf_r, rdz_r, sens_r, custom_r
         )
 
         dz_lt = self.slider_lt_dz.value() / 100.0
+        adz_lt = self.slider_lt_adz.value() / 100.0
+        rdz_lt = self.slider_lt_rdz.value() / 100.0
+        cf_lt = self.slider_lt_exp.value() / 10.0
+        sens_lt = self.slider_lt_sens.value() / 10.0
         ctype_lt = self.combo_lt_ctype.currentText()
-        mod_lt = math_utils.process_trigger(lt, dz_lt, 1.0, ctype_lt)
+
+        mod_lt = math_utils.process_trigger(
+            lt, dz_lt, adz_lt, ctype_lt, cf_lt, rdz_lt, sens_lt
+        )
 
         dz_rt = self.slider_rt_dz.value() / 100.0
+        adz_rt = self.slider_rt_adz.value() / 100.0
+        rdz_rt = self.slider_rt_rdz.value() / 100.0
+        cf_rt = self.slider_rt_exp.value() / 10.0
+        sens_rt = self.slider_rt_sens.value() / 10.0
         ctype_rt = self.combo_rt_ctype.currentText()
-        mod_rt = math_utils.process_trigger(rt, dz_rt, 1.0, ctype_rt)
+
+        mod_rt = math_utils.process_trigger(
+            rt, dz_rt, adz_rt, ctype_rt, cf_rt, rdz_rt, sens_rt
+        )
 
         # Update Position Radars
         self.radar_left.set_stick_position(mod_lx, mod_ly, raw_x=lx, raw_y=ly)

@@ -259,24 +259,19 @@ class ThemeManager:
         }}
 
         /* Mandatory 1.5px Outlines Across EVERY Typable Text Box in the GUI */
-        QLineEdit, QPlainTextEdit, QSpinBox, QDoubleSpinBox {{
-            background-color: rgba(10, 7, 18, 0.95);
-            border: 1.5px solid {theme['card_hover_border']};
+        QLineEdit, QPlainTextEdit, QSpinBox, QDoubleSpinBox, QLineEdit#OutlinedEdit {{
+            background-color: rgba(10, 7, 18, 0.95) !important;
+            border: 1.5px solid {theme['glow']} !important;
             border-radius: 6px;
             padding: 6px 10px;
-            color: {theme['text_main']};
+            color: {theme['text_main']} !important;
             selection-background-color: {theme['primary']};
             selection-color: #ffffff;
         }}
 
-        QLineEdit#OutlinedEdit {{
-            background-color: rgba(0, 0, 0, 0.55);
-            border: 1.5px solid {theme['card_hover_border']};
-            border-radius: 6px;
-            padding: 5px 8px;
-            color: {theme['text_main']};
-            selection-background-color: {theme['primary']};
-            selection-color: #ffffff;
+        QLineEdit:hover, QLineEdit:focus, QLineEdit#OutlinedEdit:focus {{
+            border: 1.5px solid {theme['glow']} !important;
+            background-color: rgba(0, 0, 0, 0.85) !important;
         }}
 
         QLineEdit:focus, QLineEdit:hover, QPlainTextEdit:focus, QPlainTextEdit:hover,

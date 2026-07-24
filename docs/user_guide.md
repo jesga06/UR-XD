@@ -8,7 +8,7 @@
 
 <br>
 
-The UR-XD visual configuration utility features a modern dark-mode interface for monitoring physical controller inputs, configuring button remapping, fine-tuning analog deadzones/curves, and recording macros—all applying instantly in real-time.
+The UR-XD visual configuration utility features a modern interface for monitoring physical controller inputs, configuring button remapping, fine-tuning analog deadzones/curves, and recording macros—all applying instantly in real-time.
 
 ---
 
@@ -78,3 +78,9 @@ The **Macros Studio** enables recording complex automation sequences triggered b
 
 - **Diagnostic Wizard:** Launch diagnostic scans directly from the GUI.
 - **Live Reload:** Click **Save Settings** to write changes to `config.ini`. The background daemon picks up edits within 5 seconds without restarting!
+- **System Tray Menu:** Right-click the system tray icon to access:
+  - **Open Config:** Opens the GUI configuration interface.
+  - **Pause Interception:** Temporarily passes physical inputs directly through to the virtual gamepad without applying remappings or button blocks.
+  - **Reload Configuration:** Forces an immediate re-read of `config.ini` and `profiles/`.
+  - **Show Console:** Brings the minimized daemon console window to the front.
+  - **Exit:** Safely destroys the virtual gamepad and shuts down the background daemon.

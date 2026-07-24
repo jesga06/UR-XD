@@ -87,7 +87,7 @@ Run the settings panel using `run_wrapper.bat` (and select "Open Config" in the 
 
 ## 🖥️ Daemon Background Wrapper Process (`src/main.py`)
 * **XInput First Dual-Backend Emulation:** Utilizes a native `ctypes` backend to poll gamepads in XInput mode (unlocking physical vibration and avoiding generic generic HID limits) while maintaining a fallback DInput backend. Outputs to `vgamepad` virtual Xbox 360 controller.
-* **Tray Icon Application:** Runs quietly in the system tray, keeping your desktop clean.
+* **Tray Icon Application & Context Menu:** Runs quietly in the system tray with right-click context menu options: **Open Config** (launches GUI), **Pause Interception** (temporarily passes physical inputs through without remapping), **Reload Configuration** (forces immediate re-read of `config.ini` and `profiles/`), **Show Console**, and **Exit** (safely destroys virtual gamepad and closes daemon).
 * **Auto-Reloading Config:** A background thread polls `config.ini` every 5 seconds and updates the active mappings on-the-fly without needing a restart.
 * **Tray Restore Utility:** The "Show Console" action uses native Windows API calls (`SW_RESTORE` + `SetForegroundWindow`) to bring the minimized CLI window back to the front immediately.
 * **Smart Reconnection Loop:** If the physical controller is disconnected, the daemon enters a connection recovery loop, scanning for a connected device with the exact same name for up to 20 seconds. It will restore the connection automatically if found, or gracefully terminate all processes (including the GUI) if the timeout expires.

@@ -252,6 +252,24 @@ This release introduces major UI Customizations, Utilities, and Core Profile fea
 
 - **PySide6 (Qt 6) Next-Gen GUI Engine Migration:** Completely replaced the legacy CustomTkinter GUI (`gui.py`) with a modern PySide6 architecture (`gui_qt.py`) featuring 240Hz sub-pixel vector stick radar visualizers (`JoystickVisualizerWidget`), 4K high-DPI scaling, 6 core navigation tabs (Dashboard, Remapping, Tuning, Advanced, Utilities, Customization), dynamic QSS theme engine (`theme_manager.py`) with 7 color presets (Purple, Blue, Green, Red, Yellow, Orange, White), and PySide6 polar circularity wizard (`circularity_modal_qt.py`).
 
+## [2.3.1] - 2026-07-24
+### 🎮 User-Facing Changes
+- **Complete PySide6 GUI Bug Remediation (101 Defects Fixed):** Conducted an exhaustive static analysis audit and resolved all 101 registered GUI defects across all 6 core navigation tabs with 100% two-way configuration persistence (`save_config()`).
+- **Dashboard Telemetry & Digital Input Highlighting:** Dashboard now features real-time digital button highlighting (`btn_indicators`), floating-point trigger percentage labels (`LT: 74.2%`), real-time UDP report rate counter (Hz), status badge packet timeouts, and integrated HID map descriptor validator.
+- **Dynamic Shift Layer QTabBar & Key Combo Recorder:** Remapping tab now features dynamic `QTabBar` navigation for multiple shift layers, inline layer renaming, per-layer haptic profile selection, search filter (`Filter buttons...`), multi-key combo recording, mouse scroll wheel notch tester (`scroll_up:count:mode:interval`), extra mouse button bindings (`MOUSE_XBUTTON1`, `x2`), and global remapping reset.
+- **Tuning Tab Dual Radars, Trigger Curves & Custom Math Entry:** Tuning tab now embeds mini `JoystickVisualizerWidget` stick radars with live raw vs tuned telemetry, Left & Right Trigger response curve graph editors, sensitivity factor spinboxes, custom mathematical equation text input (`custom_eq`), `[❓ Circularity Info]` popup, `[Reset Bounds]` action, and `[JSON Points 📋]` exporter.
+- **Advanced Tab Standalone Macro Manager & Hardware Chords Table:** Advanced tab now features a complete Macro Sequence Builder & Recorder (`MacroManagerCard`), editable Hardware Chords table (`table_chords`) wired to `config.ini`, live test vibration pattern execution on physical controller motors, and ViGEmBus target slot / dual-rumble passthrough controls.
+- **Customization Tab Theme Export/Import & Swatches:** Customization tab now renders color pixmap swatches for theme presets, font point size override spinbox (8–18pt), theme export/import JSON dialogs, `[Reset Default Theme]` action, and expanded live preview card with progress bars and sliders.
+- **Utilities Tab Matplotlib Oscilloscope & Log Console Tools:** Utilities tab now features `[📈 Open Oscilloscope Graph]` button launching `matplotlib.pyplot`, log console severity level and text search filtering, `[Export Logs]` action, real timing loop performance benchmark, fixed `.bat` path resolution, tooltips, and syntax reference guide modal.
+- **Application Shell Persistence, System Tray & Keyboard Shortcuts:** Main window now saves window geometry and active tab index to `config.ini`, restores single-instance socket lock on port `48125`, adds `QSystemTrayIcon` minimize-to-tray integration, prompts unsaved changes confirmation dialog on exit, registers `Alt+1` .. `Alt+6` keyboard shortcuts, and listens for single-instance pings to elevate window focus.
+
+### ⚙️ Under-the-Hood Changes
+- **Interactive Curve Graph Monotonic Clamping & Math Export:** `CurveGraphWidget` now clamps control points strictly in monotonic order ($X_{i-1} \le X_i \le X_{i+1}$), supports right-click control point insertion/deletion, and exports LaTeX piecewise Desmos formulas.
+- **Circularity Calibration Wizard Speed Warning & Vector Overlays:** `CircularityCalibrationDialog` now displays angular velocity rotation warnings ("⚠️ ROTATE FASTER") and renders color-coded error vector lines (Green $<1\%$, Yellow $<5\%$, Red $>5\%$).
+- **Joystick Visualizer Timestamp Trail Decay & Unit Clamping:** `JoystickVisualizerWidget` now clamps stick vectors strictly within unit circle radius ($\sqrt{X^2+Y^2} \le 1.0$), implements a timestamp-based alpha decay queue for stick motion trails, and renders an inner deadzone circular ring overlay.
+- **Theme Manager RGBA Glow & System Contrast Detection:** `ThemeManager` now calculates dynamic RGBA glow strings, wraps font family names in double quotes in QSS templates, and auto-detects OS dark/light contrast modes.
+
+
 
 
 

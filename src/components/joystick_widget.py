@@ -36,47 +36,44 @@ class JoystickVisualizerWidget(QWidget):
         self.color_raw_dot = QColor(251, 146, 60, 180)  # Orange for raw input
         self.color_mod_dot = QColor(0, 245, 160)       # Green for tuned output
         self.color_trail = QColor(168, 85, 247, 180)
+        self.circularity_mode = "disabled"
+        self.show_circularity_bounds = True
 
-    def set_stick_position(self, norm_x: float, norm_y: float, raw_x: float = 0.0, raw_y: float = 0.0):
-        """Update stick position with strict unit clamping and raw/mod coordinates."""
-        mag = math.hypot(norm_x, norm_y)
-        if mag > 1.0 and mag > 0:
-            self.norm_x = norm_x / mag
-            self.norm_y = norm_y / mag
-        else:
-            self.norm_x = norm_x
-            self.norm_y = norm_y
+    def set_circularity_mode(self, mode: str):
+        """Set circularity compensation mode ('disabled', 'before', 'after')."""
+        self.circularity_mode = mode.lower()
+        self.update()
 
-        self.raw_x = max(-1.0, min(1.0, raw_x))
-        self.raw_y = max(-1.0, min(1.0, raw_y))
+    def set_stick_position(self, x: float, y: float, raw_x: float = None, raw_y: float = None):
+        """Set normalized stick position (-1.0 to 1.0) and update canvas."""
+        self.norm_x = max(-1.0, min(1.0, float(x)))
+        self.norm_y = max(-1.0, min(1.0, float(y)))
+        self.raw_x = max(-1.0, min(1.0, float(raw_x if raw_x is not None else x)))
+        self.raw_y = max(-1.0, min(1.0, float(raw_y if raw_y is not None else y)))
         self.update()
 
     def set_deadzone(self, deadzone_pct: float):
-        """Update deadzone percentage (0.0 to 50.0) and trigger immediate repaint."""
-        self.deadzone_pct = max(0.0, min(50.0, float(deadzone_pct)))
+        """Set deadzone percentage [0, 100] to scale inner deadzone ring overlay."""
+        self.deadzone_pct = deadzone_pct
         self.update()
 
     def set_theme_colors(self, primary_hex="#7500ab", glow_hex="#a855f7", accent_green_hex="#00f5a0"):
         """Dynamically update theme colors from ThemeManager."""
         self.color_border = QColor(glow_hex)
-        self.color_border.setAlpha(100)
-        self.color_deadzone = QColor(primary_hex)
-        self.color_deadzone.setAlpha(70)
+        self.color_border.setAlpha(80)
         self.color_mod_dot = QColor(accent_green_hex)
         self.color_trail = QColor(glow_hex)
-        self.color_trail.setAlpha(180)
         self.update()
 
     def paintEvent(self, event):
         """High-performance vector paint event with squared boundary and dual raw/mod dots."""
         painter = QPainter(self)
         painter.setRenderHint(QPainter.RenderHint.Antialiasing, True)
-        painter.setRenderHint(QPainter.RenderHint.SmoothPixmapTransform, True)
 
         width = self.width()
         height = self.height()
-        margin = 14
-        size = min(width, height) - (2 * margin)
+        size = min(width, height) - 20
+
         cx = width / 2.0
         cy = height / 2.0
         radius = size / 2.0
@@ -87,9 +84,13 @@ class JoystickVisualizerWidget(QWidget):
         painter.setBrush(QBrush(self.color_bg))
         painter.drawRoundedRect(box_rect, 12, 12)
 
-        # 2. Draw Inner Circular Radar Ring & Crosshair Axes
-        painter.setPen(QPen(QColor(168, 85, 247, 50), 1, Qt.PenStyle.SolidLine))
-        painter.drawEllipse(QPointF(cx, cy), radius, radius)
+        # 2. Draw Inner Circular Radar Ring & Crosshairs with White Circularity Bounds Circle (if enabled)
+        if getattr(self, 'circularity_mode', 'disabled') != 'disabled' and getattr(self, 'show_circularity_bounds', True):
+            painter.setPen(QPen(QColor(255, 255, 255, 220), 2, Qt.PenStyle.SolidLine))
+            painter.drawEllipse(QPointF(cx, cy), radius, radius)
+        else:
+            painter.setPen(QPen(QColor(255, 255, 255, 40), 1, Qt.PenStyle.DashLine))
+            painter.drawEllipse(QPointF(cx, cy), radius, radius)
 
         pen_grid = QPen(self.color_grid, 1, Qt.PenStyle.DashLine)
         painter.setPen(pen_grid)

@@ -190,7 +190,7 @@ class TuningView(QWidget):
         circ_l_box = QHBoxLayout()
         self.combo_l_circ = QComboBox()
         self.combo_l_circ.addItems(["before", "after", "disabled"])
-        self.combo_l_circ.currentTextChanged.connect(lambda t: self.save_opt("analog_left", "circularity_mode", t))
+        self.combo_l_circ.currentTextChanged.connect(self.on_l_circ_changed)
 
         btn_circ_l = QPushButton("Calibrate Circularity")
         btn_circ_l.setObjectName("SecondaryBtn")
@@ -330,7 +330,7 @@ class TuningView(QWidget):
         circ_r_box = QHBoxLayout()
         self.combo_r_circ = QComboBox()
         self.combo_r_circ.addItems(["disabled", "before", "after"])
-        self.combo_r_circ.currentTextChanged.connect(lambda t: self.save_opt("analog_right", "circularity_mode", t))
+        self.combo_r_circ.currentTextChanged.connect(self.on_r_circ_changed)
 
         btn_circ_r = QPushButton("Calibrate Circularity")
         btn_circ_r.setObjectName("SecondaryBtn")
@@ -614,6 +614,14 @@ class TuningView(QWidget):
     def on_l_custom_eq_changed(self, text):
         self.curve_graph_left.set_curve_params(self.combo_l_ctype.currentText(), self.slider_l_cf.value() / 10.0, text)
 
+    def on_l_circ_changed(self, mode):
+        self.radar_left.set_circularity_mode(mode)
+        self.save_opt("analog_left", "circularity_mode", mode)
+
+    def on_r_circ_changed(self, mode):
+        self.radar_right.set_circularity_mode(mode)
+        self.save_opt("analog_right", "circularity_mode", mode)
+
     def reset_stick_defaults(self, section):
         if section == "analog_left":
             self.slider_l_dz.setValue(5)
@@ -805,6 +813,7 @@ class TuningView(QWidget):
 
         circ_l = config.get("analog_left", "circularity_mode", fallback="disabled").lower()
         self.combo_l_circ.setCurrentText(circ_l)
+        self.radar_left.set_circularity_mode(circ_l)
 
         # 2. Right Stick (Symmetrical Load)
         dz_r = int(config.getfloat("analog_right", "deadzone", 0.05) * 100)
@@ -832,6 +841,7 @@ class TuningView(QWidget):
 
         circ_r = config.get("analog_right", "circularity_mode", fallback="disabled").lower()
         self.combo_r_circ.setCurrentText(circ_r)
+        self.radar_right.set_circularity_mode(circ_r)
 
         # 3. Left Trigger (Symmetrical Load)
         dz_lt = int(config.getfloat("trigger_left", "deadzone", 0.05) * 100)

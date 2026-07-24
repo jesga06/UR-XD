@@ -145,8 +145,8 @@ class CurveGraphWidget(QWidget):
         painter.setBrush(Qt.BrushStyle.NoBrush)
         painter.drawPath(path)
 
-        # Draw Draggable Control Points (if Dotted / Custom)
-        if self.curve_preset in ["dotted", "dotted custom", "custom"]:
+        # Draw Draggable Control Points (ONLY if Dotted Custom)
+        if self.curve_preset in ["dotted", "dotted custom"]:
             for idx, pt in enumerate(self.control_points):
                 px = margin + (pt.x() * w)
                 py = (height - margin) - (pt.y() * h)
@@ -169,8 +169,7 @@ class CurveGraphWidget(QWidget):
         painter.end()
 
     def mousePressEvent(self, event):
-        if self.curve_preset not in ["dotted", "dotted custom", "custom"]:
-            return
+        if self.curve_preset not in ["dotted", "dotted custom"]:
             return
         margin = 30
         w = self.width() - (2 * margin)

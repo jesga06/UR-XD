@@ -7,14 +7,18 @@ LT/RT trigger progress gauges with percentage decimals, digital button state gri
 
 import time
 import os
+import sys
 import glob
+
+sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+
 from PySide6.QtWidgets import (
     QWidget, QVBoxLayout, QHBoxLayout, QLabel, QFrame,
     QProgressBar, QGridLayout, QComboBox, QPushButton, QMessageBox
 )
 from PySide6.QtCore import Qt
 from components.joystick_widget import JoystickVisualizerWidget
-import validate_hid_map
+from profile_tools import validate_hid_map
 from hid_reader import HIDReader
 
 
@@ -206,14 +210,11 @@ class DashboardView(QWidget):
     def on_validate_hid_map(self):
         profiles = glob.glob("profiles/*.json") + glob.glob("profiles/community/*.json")
         target_path = profiles[0] if profiles else "profiles/2DC8_3106.json"
-        
-        errs = validate_hid_map.validate_hid_map(target_path) if os.path.exists(target_path) else []
+
+        res = validate_hid_map(target_path) if os.path.exists(target_path) else f"HID Map file not found: {target_path}"
         msg = QMessageBox(self)
         msg.setWindowTitle("HID Map Descriptor Validation")
-        if not errs:
-            msg.setText(f"✓ Profile [{os.path.basename(target_path)}]\nStatus: PASSED (100% Validated Descriptor)")
-        else:
-            msg.setText(f"⚠️ Validation Warnings for [{os.path.basename(target_path)}]:\n\n" + "\n".join(errs))
+        msg.setText(res)
         msg.exec()
 
     def update_state(self, controller_state):

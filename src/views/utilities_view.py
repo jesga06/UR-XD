@@ -10,6 +10,8 @@ import os
 import sys
 import time
 import platform
+
+sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 from PySide6.QtWidgets import (
     QWidget, QVBoxLayout, QHBoxLayout, QLabel, QFrame, QPushButton, QPlainTextEdit,
     QLineEdit, QComboBox, QProgressBar, QMessageBox, QFileDialog, QDialog

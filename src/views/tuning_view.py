@@ -7,6 +7,11 @@ interactive CurveGraphWidget for both sticks and triggers with live raw/mod trac
 embedded stick visualizer radars, and LaTeX/JSON export.
 """
 
+import sys
+import os
+
+sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+
 from PySide6.QtWidgets import (
     QWidget, QVBoxLayout, QHBoxLayout, QLabel, QFrame, QSlider, QSpinBox,
     QComboBox, QPushButton, QGridLayout, QScrollArea, QCheckBox, QMessageBox,

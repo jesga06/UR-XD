@@ -4,6 +4,11 @@ ViGEmBus virtual XInput controller options, Hardware Chords Engine Table with co
 Macro Sequence Builder & Recorder, Haptic Feedback Engine UI & Waveform Canvas, and test vibration runner.
 """
 
+import sys
+import os
+
+sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+
 from PySide6.QtWidgets import (
     QWidget, QVBoxLayout, QHBoxLayout, QLabel, QFrame, QCheckBox, QComboBox,
     QPushButton, QSpinBox, QGridLayout, QScrollArea, QTableWidget, QTableWidgetItem,

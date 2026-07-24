@@ -15,6 +15,8 @@ import configparser
 import threading
 import time
 
+sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+
 from PySide6.QtWidgets import (
     QApplication, QMainWindow, QWidget, QHBoxLayout, QVBoxLayout, QListWidget,
     QStackedWidget, QLabel, QFrame, QSizePolicy, QSystemTrayIcon, QMenu,
@@ -61,7 +63,8 @@ class MainWindow(QMainWindow):
         self.config = configparser.ConfigParser()
         self.config_file = 'config.ini'
         self.load_config()
-        self.daemon_config = DaemonConfig()
+        profile_path = "profiles/user_profile.json" if os.path.exists("profiles") else "user_profile.json"
+        self.daemon_config = DaemonConfig(profile_path)
 
         self.theme_manager = ThemeManager(self.config_file)
         self.current_state = ControllerState()

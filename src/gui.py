@@ -1638,6 +1638,17 @@ class App(ctk.CTk):
                 layer['modifier_button'] = '' if mod == 'none' else mod
             if hasattr(self, 'shift_mode_opt'):
                 layer['mode'] = self.shift_mode_opt.get().strip().lower()
+
+            trig_val = layer.get('trigger_button', '').strip().lower()
+            mode_val = layer.get('mode', '').strip().lower()
+            if trig_val in ['home', 'guide'] and mode_val == 'hold':
+                import tkinter.messagebox
+                tkinter.messagebox.showwarning(
+                    "Recommended Setting Notice",
+                    "Holding the Home button for several seconds may force turn off your controller or trigger OS shortcuts.\n\n"
+                    "It is strongly recommended to set the Shift Mode to 'toggle' instead of 'hold' when using the Home button as your Shift Key."
+                )
+
             self.config.set_shift_layers(layers)
             self.save_config()
             self.rebuild_shift_header_ui()

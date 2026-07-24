@@ -976,6 +976,37 @@ class App(ctk.CTk):
         self.shift_header_frame = ctk.CTkFrame(self.remapping_scroll, corner_radius=6)
         self.shift_header_frame.grid(row=0, column=0, columnspan=2, padx=10, pady=(10, 5), sticky="ew")
 
+        # Shift Layer Infobox Banner
+        shift_info_box = ctk.CTkFrame(self.remapping_scroll, fg_color=("#e6f2ff", "#1c2836"), corner_radius=6)
+        shift_info_box.grid(row=1, column=0, columnspan=2, padx=10, pady=(0, 10), sticky="ew")
+
+        shift_info_text = ctk.CTkLabel(
+            shift_info_box,
+            text=(
+                "💡 SHIFT LAYERS GUIDE: Use the tab bar above to create (+ Add Layer) and configure secondary remapping profiles.\n"
+                "• Trigger & Modifier Keys: Set 1 activation key (e.g. LB) or a 2-button chord (e.g. LB + RB).\n"
+                "• Hold vs Toggle Mode: 'hold' activates while buttons are down; 'toggle' switches layer ON/OFF per press.\n"
+                "• S. Blk (Shift Block): Prevents original native controller button press while this Shift layer is active."
+            ),
+            font=ctk.CTkFont(size=12),
+            justify="left",
+            anchor="w"
+        )
+        shift_info_text.pack(side="left", padx=12, pady=8, fill="x", expand=True)
+
+        btn_shift_guide = ctk.CTkButton(
+            shift_info_box,
+            text="? Remapping Guide",
+            width=140,
+            height=26,
+            corner_radius=13,
+            fg_color="#1f538d",
+            hover_color="#14375e",
+            font=ctk.CTkFont(size=12, weight="bold"),
+            command=self.open_remapping_guide_modal
+        )
+        btn_shift_guide.pack(side="right", padx=10, pady=8)
+
         # 4 Quadrants
         self.frame_face = ctk.CTkFrame(self.remapping_scroll, corner_radius=0)
         self.frame_dpad = ctk.CTkFrame(self.remapping_scroll, corner_radius=0)
@@ -990,16 +1021,16 @@ class App(ctk.CTk):
                     size=14, weight="bold"))
             lbl.grid(row=0, column=0, columnspan=6, pady=(5, 5))
 
-        self.frame_face.grid(row=1, column=0, padx=10, pady=10, sticky="n")
-        self.frame_dpad.grid(row=2, column=0, padx=10, pady=10, sticky="n")
-        self.frame_sticks.grid(row=1, column=1, padx=10, pady=10, sticky="n")
-        self.frame_system.grid(row=2, column=1, padx=10, pady=10, sticky="n")
+        self.frame_face.grid(row=2, column=0, padx=10, pady=10, sticky="n")
+        self.frame_dpad.grid(row=3, column=0, padx=10, pady=10, sticky="n")
+        self.frame_sticks.grid(row=2, column=1, padx=10, pady=10, sticky="n")
+        self.frame_system.grid(row=3, column=1, padx=10, pady=10, sticky="n")
 
         # Info Guide
         info_frame = ctk.CTkFrame(self.remapping_scroll, fg_color="transparent")
-        info_frame.grid(row=3, column=0, columnspan=2, pady=(10, 20))
+        info_frame.grid(row=4, column=0, columnspan=2, pady=(10, 20))
         
-        info_btn = ctk.CTkButton(info_frame, text="?  Remapping Guide", width=140, height=24, corner_radius=12, fg_color="#555555", hover_color="#666666", font=ctk.CTkFont(size=12), command=self.open_remapping_guide_modal)
+        info_btn = ctk.CTkButton(info_frame, text="?  Remapping & Shift Layers Guide", width=220, height=26, corner_radius=13, fg_color="#555555", hover_color="#666666", font=ctk.CTkFont(size=12, weight="bold"), command=self.open_remapping_guide_modal)
         info_btn.pack(side="top")
         ToolTip(info_btn, "Mapping: Enter a keyboard key (e.g. 'h'), mouse click (e.g. 'mouse:left'), or macro name (e.g. 'macro:MyMacro' or 'MyMacro').\n[Rec]: Click to record key combinations or macros interactively.\nBlock: Prevent the original controller button from being sent to the game.\nShift Map/S. Blk: Secondary mapping & block state when the active Shift layer is active.\nClick to view full guide window!")
 
@@ -2637,28 +2668,26 @@ class App(ctk.CTk):
                     "=== MACROS STUDIO TUTORIAL ===\n\n"
                     + save_warning +
                     "1. WHAT ARE MACROS?\n"
-                    "Macros let you trigger keyboard keys, mouse clicks, or multi-step macro sequences by pressing button combinations on your controller.\n\n"
+                    "Macros let you trigger automated keyboard keys, mouse clicks, or multi-step action sequences from any controller button.\n\n"
                     "2. STEP-BY-STEP SETUP GUIDE:\n"
                     "* Step 1: Under 'Macros', click '+ Add Macro'.\n"
-                    "* Step 2: 'Name:' - Enter a short name for your macro (example: macro1).\n"
-                    "* Step 3: 'Inputs:' - Enter the controller buttons pressed together (example: dpad_down, rb or dpad_up, lb). You can also click '[GP]' to record controller button presses automatically.\n"
-                    "* Step 4: 'Outputs:' - Enter the keys or clicks to trigger (example: keyboard:h, wait:50, mouse:left). You can also click '[KBM]' to record keys, mouse clicks, or wheel scrolls.\n"
-                    "* Step 5: Scroll down and click 'Save Settings' at the bottom of the section to apply your macros!"
+                    "* Step 2: 'Name:' - Enter a short, unique name for your macro (example: fire_combo).\n"
+                    "* Step 3: 'Outputs:' - Enter the keys, clicks, or delays to trigger (example: keyboard:h, wait:50, mouse:left). You can also click '[Rec]' to record steps interactively.\n"
+                    "* Step 4: Scroll down and click 'Save Settings' at the bottom of the section to save your macro.\n"
+                    "* Step 5: Switch to the Remapping tab and assign the macro to any controller button by entering 'macro:fire_combo' or 'fire_combo'!"
                 )
             else:  # Overview / Both
                 content = (
-                    "=== MACROS  & HARDWARE CHORDS OVERVIEW ===\n\n"
+                    "=== MACROS & HARDWARE CHORDS OVERVIEW ===\n\n"
                     + save_warning +
-                    "Both features let you press button combinations on your controller, but they serve different purposes:\n\n"
+                    "Both features enhance your controller remapping capabilities:\n\n"
                     "1. HARDWARE CHORDS (INPUT SUPPRESSION)\n"
-                    "* Purpose: Turn button combinations (like dpad_up + lb) into a new extra button (like M1), while BLOCKING the original buttons so they don't trigger in your game.\n"
+                    "* Purpose: Turn physical button combinations (like dpad_up + lb) into a new extra button (like M1), while BLOCKING original buttons from reaching the game.\n"
                     "* Example: Back paddles mapped to dpad_up + lb will send M1 cleanly without pressing D-Pad Up or LB in-game.\n"
                     "* Requirements: Requires XInput backend mode.\n\n"
                     "2. MACROS STUDIO\n"
-                    "* Purpose: Map gamepad combinations (like dpad_down + rb) to automated keyboard keys, mouse clicks, or timed macro sequences.\n"
-                    "* Example: Pressing dpad_down + rb can press 'H', wait 50ms, and click left mouse button.\n\n"
-                    "3. SHIFT LAYER SETTINGS\n"
-                    "* Purpose: Holding or toggling a chosen Trigger Button switches all your other buttons to a secondary set of mappings."
+                    "* Purpose: Create named multi-step macro sequences (keyboard keys, mouse clicks, delays) that can be mapped directly to any button in the Remapping tab.\n"
+                    "* Example: Map 'macro:fire_combo' to the B button to trigger 'H', wait 50ms, and left-click."
                 )
 
             txt.insert("0.0", content)
@@ -2677,32 +2706,39 @@ class App(ctk.CTk):
 
     def open_remapping_guide_modal(self):
         guide_win = ctk.CTkToplevel(self)
-        guide_win.title("Remapping Guide & Macro Usage")
-        guide_win.geometry("640x520")
+        guide_win.title("Remapping & Shift Layers Master Guide")
+        guide_win.geometry("680x580")
         guide_win.attributes("-topmost", True)
         guide_win.focus()
 
-        lbl_title = ctk.CTkLabel(guide_win, text="🎮 Remapping & Macro Usage Guide", font=ctk.CTkFont(size=16, weight="bold"))
+        lbl_title = ctk.CTkLabel(guide_win, text="🎮 Remapping & Shift Layers Master Guide", font=ctk.CTkFont(size=16, weight="bold"))
         lbl_title.pack(pady=(10, 5))
 
         txt = ctk.CTkTextbox(guide_win, font=ctk.CTkFont(size=12), wrap="word")
         txt.pack(fill="both", expand=True, padx=15, pady=10)
 
         content = (
-            "=== REMAPPING & MACRO USAGE GUIDE ===\n\n"
+            "=== REMAPPING & SHIFT LAYERS MASTER GUIDE ===\n\n"
             "1. KEYBOARD & MOUSE MAPPING:\n"
             "* Plain Keyboard Key: Type the key directly (example: 'h', 'space', 'e', 'f1').\n"
             "* Explicit Keyboard Prefix: Type 'keyboard:key_name' (example: 'keyboard:space', 'keyboard:left_shift').\n"
             "* Mouse Clicks: Type 'mouse:left', 'mouse:right', 'mouse:middle', 'mouse4', or 'mouse5'.\n"
             "* Mouse Scroll: Type 'mouse:scroll_up' or 'mouse:scroll_down'.\n\n"
-            "2. REFERENCING MACROS BY NAME (macro:MyMacro):\n"
-            "* You can trigger any macro created in the Advanced tab directly when pressing a controller button!\n"
-            "* Usage: Enter 'macro:MacroName' or simply 'MacroName' into the button's text box (example: 'macro:FireCombo' or 'FireCombo').\n"
-            "* Note: Macros do not require chord trigger inputs in the Advanced tab if you map them directly to a button here.\n\n"
-            "3. BUTTON BLOCKING (Block / S. Blk):\n"
+            "2. MULTIPLE SHIFT LAYERS (SECONDARY REMAPPING PROFILES):\n"
+            "* Shift Layers allow your controller buttons to perform a completely different set of actions when a designated activation key is held or toggled.\n"
+            "* Adding Layers: Click '+ Add Layer' in the Shift Tab Bar at the top of the Remapping tab to create additional shift layers (e.g. Shift 1, Shift 2).\n"
+            "* Trigger Button & Modifier Key: Set a primary activation button (e.g. 'lb') or a 2-button chord (e.g. Trigger 'lb' + Modifier 'rb').\n"
+            "* Hold Mode vs Toggle Mode:\n"
+            "  - Hold: The Shift Layer is active strictly while holding down the activation button(s).\n"
+            "  - Toggle: Pressing the activation button(s) once toggles the Shift Layer ON or OFF permanently until pressed again.\n"
+            "* Shift Block (S. Blk): Check 'S. Blk' next to any button to block its native controller signal ONLY while that Shift layer is active.\n\n"
+            "3. REFERENCING MACROS BY NAME (macro:MyMacro):\n"
+            "* You can map any macro created in the Advanced tab directly to any button in the Remapping tab!\n"
+            "* Usage: Enter 'macro:MacroName' or simply 'MacroName' into the button's mapping entry (example: 'macro:FireCombo' or 'FireCombo').\n\n"
+            "4. BUTTON BLOCKING (Block vs S. Blk):\n"
             "* Check 'Block' to prevent the controller's original native button press from reaching the game (useful when remapping to keyboard/mouse or macros).\n"
-            "* Check 'S. Blk' to block the original button only while holding the Shift key.\n\n"
-            "4. INTERACTIVE RECORDING ([Rec]):\n"
+            "* Check 'S. Blk' to block the original native button press only when the selected Shift layer is active.\n\n"
+            "5. INTERACTIVE RECORDING ([Rec]):\n"
             "* Click the '[Rec]' button next to any remapping entry to interactively record key combinations or macro steps."
         )
         txt.insert("0.0", content)

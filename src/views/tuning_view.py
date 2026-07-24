@@ -641,6 +641,87 @@ class TuningView(QWidget):
             self.combo_r_ctype.setCurrentText("linear")
         QMessageBox.information(self, "Reset Defaults", f"✓ Stick parameters reset to defaults for {section}.")
 
+    # ---------------------------------------------------------------------
+    # Right Stick Event Handlers
+    # ---------------------------------------------------------------------
+    def on_r_dz_changed(self, v):
+        val = v / 100.0
+        self.lbl_val_r_dz.setText(f"{val:.2f}")
+        self.radar_right.set_deadzone(v)
+        self.save_opt("analog_right", "deadzone", val)
+
+    def on_r_adz_changed(self, v):
+        val = v / 100.0
+        self.lbl_val_r_adz.setText(f"{val:.2f}")
+        self.save_opt("analog_right", "anti_deadzone", val)
+
+    def on_r_rdz_changed(self, v):
+        val = v / 100.0
+        self.lbl_val_r_rdz.setText(f"{val:.2f}")
+        self.save_opt("analog_right", "rest_deadzone", val)
+
+    def on_r_warp_changed(self, v):
+        val = v / 100.0
+        self.lbl_val_r_warp.setText(f"{val:.2f}")
+        self.save_opt("analog_right", "outer_max", val)
+
+    def on_r_cf_changed(self, v):
+        val = v / 10.0
+        self.lbl_val_r_cf.setText(f"{val:.2f}")
+        self.curve_graph_right.set_curve_params(self.combo_r_ctype.currentText(), val, self.edit_r_custom_eq.text())
+        self.save_opt("analog_right", "exp_factor", val)
+
+    def on_r_sens_changed(self, v):
+        val = v / 10.0
+        self.lbl_val_r_sens.setText(f"{val:.2f}")
+        self.save_opt("analog_right", "sensitivity", val)
+
+    def on_r_ctype_changed(self, ctype):
+        is_custom = (ctype == "custom")
+        self.edit_r_custom_eq.setVisible(is_custom)
+        self.curve_graph_right.set_curve_params(ctype, self.slider_r_cf.value() / 10.0, self.edit_r_custom_eq.text())
+        self.save_opt("analog_right", "curve", ctype)
+
+    def on_r_custom_eq_changed(self, text):
+        self.curve_graph_right.set_curve_params(self.combo_r_ctype.currentText(), self.slider_r_cf.value() / 10.0, text)
+
+    # ---------------------------------------------------------------------
+    # Left Trigger Event Handlers
+    # ---------------------------------------------------------------------
+    def on_lt_dz_changed(self, v):
+        val = v / 100.0
+        self.lbl_val_lt_dz.setText(f"{val:.2f}")
+        self.curve_graph_lt.set_curve_params(self.combo_lt_ctype.currentText(), self.slider_lt_exp.value() / 10.0)
+        self.save_opt("trigger_left", "deadzone", val)
+
+    def on_lt_adz_changed(self, v):
+        val = v / 100.0
+        self.lbl_val_lt_adz.setText(f"{val:.2f}")
+        self.curve_graph_lt.set_curve_params(self.combo_lt_ctype.currentText(), self.slider_lt_exp.value() / 10.0)
+        self.save_opt("trigger_left", "anti_deadzone", val)
+
+    def on_lt_rdz_changed(self, v):
+        val = v / 100.0
+        self.lbl_val_lt_rdz.setText(f"{val:.2f}")
+        self.curve_graph_lt.set_curve_params(self.combo_lt_ctype.currentText(), self.slider_lt_exp.value() / 10.0)
+        self.save_opt("trigger_left", "rest_deadzone", val)
+
+    def on_lt_exp_changed(self, v):
+        val = v / 10.0
+        self.lbl_val_lt_exp.setText(f"{val:.2f}")
+        self.curve_graph_lt.set_curve_params(self.combo_lt_ctype.currentText(), val)
+        self.save_opt("trigger_left", "exp_factor", val)
+
+    def on_lt_sens_changed(self, v):
+        val = v / 10.0
+        self.lbl_val_lt_sens.setText(f"{val:.2f}")
+        self.curve_graph_lt.set_curve_params(self.combo_lt_ctype.currentText(), self.slider_lt_exp.value() / 10.0)
+        self.save_opt("trigger_left", "sensitivity", val)
+
+    def on_lt_ctype_changed(self, ctype):
+        self.curve_graph_lt.set_curve_params(ctype, self.slider_lt_exp.value() / 10.0)
+        self.save_opt("trigger_left", "curve", ctype)
+
     def reset_trigger_defaults(self, section):
         if section == "trigger_left":
             self.slider_lt_dz.setValue(0)

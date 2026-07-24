@@ -278,6 +278,10 @@ This release introduces major UI Customizations, Utilities, and Core Profile fea
 - **Hardware Chords Engine Fix:** Restored full editable table row management, deletion, and config persistence for hardware chords in the Advanced tab.
 - **UI Simplification:** Removed unneeded shift layer rumble feedback and ViGEmBus configuration panels per design requirements.
 
+### ⚙️ Under-the-Hood Changes
+- **Tuning View Math Utility Call Alignment:** Fixed a `TypeError` in `TuningView.update_state()` by correcting the argument signature and order passed to `math_utils.process_trigger()` and `math_utils.process_analog_stick()`, passing anti-deadzone, curve factor, rest deadzone, and sensitivity parameters properly.
+
+
 
 
 

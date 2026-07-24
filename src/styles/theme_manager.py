@@ -269,6 +269,21 @@ class ThemeManager:
             selection-color: #ffffff;
         }}
 
+        QLineEdit#OutlinedEdit {{
+            background-color: rgba(0, 0, 0, 0.55);
+            border: 1.5px solid {theme['card_hover_border']};
+            border-radius: 6px;
+            padding: 5px 8px;
+            color: {theme['text_main']};
+            selection-background-color: {theme['primary']};
+            selection-color: #ffffff;
+        }}
+
+        QLineEdit#OutlinedEdit:focus, QLineEdit#OutlinedEdit:hover {{
+            border: 1.5px solid {theme['glow']};
+            background-color: rgba(0, 0, 0, 0.75);
+        }}
+
         QLineEdit:hover, QLineEdit:focus, QPlainTextEdit:hover, QPlainTextEdit:focus {{
             border: 1px solid {theme['card_hover_border']};
             background-color: rgba(14, 10, 24, 0.95);

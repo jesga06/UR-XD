@@ -241,6 +241,7 @@ This release introduces major UI Customizations, Utilities, and Core Profile fea
 ## [2.3.0] - 2026-07-23
 ### 🎮 User-Facing Changes
 - **Multiple Shift Remapping Layers:** Expanded the remapping engine and GUI to support creating, naming, and switching between multiple custom shift layers activated via primary shift buttons or trigger + modifier chords (e.g. `LB + RB`) in hold or toggle mode.
+- **Shift Layer Vibration Feedback (XInput Mode):** Integrated an asynchronous non-blocking haptic engine (`haptic_engine.py`) for tactile feedback on Shift Layer transitions. Supports keyword timeline profiles (`RM[30% @ 0ms, dur=1500ms]`), automatic in-game rumble un-hijacking, an interactive building-block UI in the Advanced tab, per-layer profile overrides, and a visual waveform preview canvas. *(Note: Testers required for hardware controller feedback across different XInput gamepad models).*
 - **Unified Remapping UX Consolidation:** Consolidated 100% of shift layer controls (creating, editing name/trigger/modifier/mode, tab switching, shift mappings, block checkboxes) into a single unified panel inside the **Remapping** tab.
 - **ToolTip & Infobox Hover Text Dismissal Fix:** Fixed an issue where infobox hover text remained floating on screen when the window was minimized, lost focus, or was put to the background. Tooltips now automatically dismiss on window `FocusOut`, `Unmap`, or widget interaction.
 

@@ -48,6 +48,10 @@ Run the settings panel using `run_wrapper.bat` (and select "Open Config" in the 
 * **Multiple Shift Remapping Layers:**
   * **Layer Selector & Management:** Create, name, and switch between multiple custom shift layers (`Shift 1`, `Shift 2`, etc.) with tab-based navigation in the Remapping UI.
   * **Activation Chords & Strict Order Logic:** Activate shift layers using a primary shift key or a primary shift key + modifier button combination (e.g. `LB + RB`). Requires strict press timing (primary shift key pressed before or simultaneously with modifier) and consumes inputs to prevent unintended base layer triggers.
+* **Shift Layer Vibration Feedback (XInput Mode):**
+  * **Asynchronous Haptic Engine:** Plays non-blocking keyword vibration profiles (`RM[30% @ 0ms, dur=1500ms]`) on high-resolution hardware timers during Shift Layer transitions.
+  * **Game Rumble Un-Hijacking:** Temporarily overrides controller rumble during shift transitions, then automatically un-hijacks and passes control back to in-game rumble streams.
+  * **Interactive Building-Block UI & Visual Waveform:** Advanced tab controls to build vibration patterns with motor selectors (`LM`, `RM`, `BOTH`), intensity sliders, timing entries, a live visual waveform canvas preview, and a `[Test Vibration]` preview button.
   * **Per-Layer Mappings & XInput Blocking:** Customize independent mappings, macro assignments, and XInput block preferences for each shift layer.
 * **Mouse Scroll Remapping Customization:**
   * **Oneshot Mode:** Triggers exactly $X$ scroll notches on button press.

@@ -566,3 +566,24 @@ class Mapper:
             self.mouse.scroll(dx, dy)
         except Exception:
             pass
+
+    def reset(self):
+        """Release all active holds, mouse movement, and reset WASD state."""
+        for b_held, m_held in list(self.active_holds.items()):
+            try:
+                self._release(m_held)
+            except Exception:
+                pass
+        self.active_holds.clear()
+        self.active_scrolls.clear()
+        self.pending_inputs.clear()
+        with self.mouse_lock:
+            self.mouse_dx = 0.0
+            self.mouse_dy = 0.0
+        for key in list(self.wasd_state.keys()):
+            if self.wasd_state[key]:
+                try:
+                    self.keyboard.release(KeyCode.from_char(key))
+                except Exception:
+                    pass
+                self.wasd_state[key] = False

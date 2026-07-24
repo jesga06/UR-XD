@@ -252,7 +252,7 @@ def main():
         if test_xinput.initialize():
             logger.info(f"XInput controller detected on slot {test_xinput.connected_slot} (no DInput HID map required).")
             device_name = "XInput Gamepad"
-            hid_map_path = "profiles/default_xinput.json"
+            hid_map_path = None
         else:
             logger.warning("No connected devices with a saved HID map or XInput slot found.")
             logger.info("Please run calibration.py to generate a HID map for your controller.")
@@ -260,7 +260,7 @@ def main():
             time.sleep(5)
             sys.exit(1)
 
-    logger.info(f"Found matching HID map: {hid_map_path} ({device_name})")
+    logger.info(f"Connected device: {device_name} (HID map: {hid_map_path or 'None (XInput)'})")
 
     # Initialize user profile — named after the device
     # The user profile ({device_name}.json) holds remaps, deadzones, curves, etc.
@@ -273,23 +273,24 @@ def main():
         config.add_section('controller')
     config.set('controller', 'last_device', device_name)
     # 'last_profile' key retained for backwards compatibility; now stores the HID map path
-    config.set('controller', 'last_profile', hid_map_path)
+    config.set('controller', 'last_profile', hid_map_path or "")
     with open(config_file, 'w', encoding='utf-8') as f:
         config.write(f)
 
     # Load HID map to check for interface restriction
     req_ifaces = []
-    try:
-        with open(hid_map_path, 'r', encoding='utf-8') as f:
-            profile_data = json.load(f)
-            if "interfaces" in profile_data:
-                req_ifaces = profile_data["interfaces"]
-            else:
-                req_iface = profile_data.get('interface_number', -1)
-                if req_iface != -1:
-                    req_ifaces.append(req_iface)
-    except Exception as e:
-        logger.error(f"Failed to parse profile to check interface: {e}", exc_info=True)
+    if hid_map_path and os.path.exists(hid_map_path):
+        try:
+            with open(hid_map_path, 'r', encoding='utf-8') as f:
+                profile_data = json.load(f)
+                if "interfaces" in profile_data:
+                    req_ifaces = profile_data["interfaces"]
+                else:
+                    req_iface = profile_data.get('interface_number', -1)
+                    if req_iface != -1:
+                        req_ifaces.append(req_iface)
+        except Exception as e:
+            logger.error(f"Failed to parse profile to check interface: {e}", exc_info=True)
 
     # Determine Backend Mode
     backend_mode = controller_config.data.get('backend', {}).get('mode', 'auto')

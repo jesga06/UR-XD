@@ -66,18 +66,20 @@ class ScrollTesterWidget(QFrame):
 
 
 class KeyRecorderDialog(QDialog):
-    """Modal dialog to capture keyboard press, mouse click, or scroll wheel notch count."""
+    """
+    Modal dialog to capture keyboard press/combo, mouse buttons, or scroll wheel notch settings.
+    Uses native Qt key events for rock-solid combo recording (no modifier loss / last input bug)
+    and explicit mouse action buttons (no accidental mouse_left captures when clicking UI).
+    Restores complete Notch Amount UI from legacy GUI.
+    """
 
     def __init__(self, button_name, parent=None):
         super().__init__(parent)
         self.button_name = button_name
         self.recorded_binding = ""
-        self.pressed_modifiers = set()
-        self.notch_count = 1
-        self.scroll_direction = "scroll_up"
 
         self.setWindowTitle(f"Record Input for [{button_name}]")
-        self.resize(420, 260)
+        self.resize(460, 340)
         self.setModal(True)
 
         layout = QVBoxLayout(self)
@@ -87,45 +89,94 @@ class KeyRecorderDialog(QDialog):
         lbl_title.setStyleSheet("font-weight: bold; font-size: 13px; color: #f3e8ff;")
         layout.addWidget(lbl_title)
 
-        self.lbl_key = QLabel("⚡ Listening for input... Press any key or scroll mouse wheel")
+        self.lbl_key = QLabel("⚡ Press key / combo or use Notch UI below")
         self.lbl_key.setStyleSheet(
-            "font-size: 13px; font-weight: bold; color: #00f5a0; "
-            "background: rgba(0,0,0,0.5); padding: 12px; border-radius: 8px; border: 1px solid #a855f7;"
+            "font-size: 14px; font-weight: bold; color: #00f5a0; "
+            "background: rgba(0,0,0,0.6); padding: 12px; border-radius: 8px; border: 1.5px solid #a855f7;"
         )
         self.lbl_key.setAlignment(Qt.AlignmentFlag.AlignCenter)
         layout.addWidget(self.lbl_key)
 
-        self.scroll_frame = ScrollTesterWidget(self.on_widget_scroll, self)
-        scroll_layout = QVBoxLayout(self.scroll_frame)
-        scroll_layout.setContentsMargins(10, 10, 10, 10)
+        # ---------------------------------------------------------------------
+        # Mouse Actions Section (Explicit Buttons to prevent accidental capture)
+        # ---------------------------------------------------------------------
+        mouse_box = QFrame()
+        mouse_box.setStyleSheet("background: rgba(0,0,0,0.3); border: 1px solid rgba(255,255,255,0.1); border-radius: 6px; padding: 6px;")
+        m_layout = QVBoxLayout(mouse_box)
+        m_layout.setSpacing(6)
 
-        lbl_scroll = QLabel("🖱️ Interactive Mouse Scroll Tester (Scroll inside box to set notches):")
-        lbl_scroll.setStyleSheet("font-weight: bold; font-size: 11px; color: #a992cb;")
-        scroll_layout.addWidget(lbl_scroll)
+        lbl_mouse = QLabel("🖱️ Quick Mouse Buttons:")
+        lbl_mouse.setStyleSheet("font-weight: bold; font-size: 11px; color: #a992cb;")
+        m_layout.addWidget(lbl_mouse)
 
-        s_box = QHBoxLayout()
-        self.radio_continuous = QRadioButton("Continuous (Hold)")
+        m_btn_row = QHBoxLayout()
+        for btext, bcode in [("+ Left Click", "mouse_left"), ("+ Right Click", "mouse_right"), ("+ Middle", "mouse_middle"), ("+ X1", "mouse_x1"), ("+ X2", "mouse_x2")]:
+            btn = QPushButton(btext)
+            btn.setObjectName("SecondaryBtn")
+            btn.clicked.connect(lambda ch=False, code=bcode: self.set_direct_binding(code))
+            m_btn_row.addWidget(btn)
+        m_layout.addLayout(m_btn_row)
+        layout.addWidget(mouse_box)
+
+        # ---------------------------------------------------------------------
+        # Scroll Wheel Notch Amount UI (Matching Legacy GUI 1:1)
+        # ---------------------------------------------------------------------
+        scroll_box = QFrame()
+        scroll_box.setStyleSheet("background: rgba(0,0,0,0.3); border: 1px solid rgba(255,255,255,0.1); border-radius: 6px; padding: 6px;")
+        s_layout = QVBoxLayout(scroll_box)
+        s_layout.setSpacing(6)
+
+        lbl_scroll_hdr = QLabel("📜 Scroll Wheel Notch Settings:")
+        lbl_scroll_hdr.setStyleSheet("font-weight: bold; font-size: 11px; color: #a992cb;")
+        s_layout.addWidget(lbl_scroll_hdr)
+
+        grid_notch = QGridLayout()
+        grid_notch.setSpacing(8)
+
+        grid_notch.addWidget(QLabel("Direction:"), 0, 0)
+        self.combo_scroll_dir = QComboBox()
+        self.combo_scroll_dir.addItems(["Scroll Up", "Scroll Down"])
+        self.combo_scroll_dir.currentIndexChanged.connect(self.update_scroll_binding)
+        grid_notch.addWidget(self.combo_scroll_dir, 0, 1)
+
+        grid_notch.addWidget(QLabel("Notches:"), 0, 2)
+        self.spin_notches = QSpinBox()
+        self.spin_notches.setRange(1, 50)
+        self.spin_notches.setValue(1)
+        self.spin_notches.valueChanged.connect(self.update_scroll_binding)
+        grid_notch.addWidget(self.spin_notches, 0, 3)
+
+        grid_notch.addWidget(QLabel("Mode:"), 1, 0)
+        mode_box = QHBoxLayout()
         self.radio_oneshot = QRadioButton("Oneshot")
+        self.radio_continuous = QRadioButton("Continuous")
         self.radio_oneshot.setChecked(True)
-        s_box.addWidget(self.radio_continuous)
-        s_box.addWidget(self.radio_oneshot)
-        scroll_layout.addLayout(s_box)
+        self.radio_oneshot.toggled.connect(self.update_scroll_binding)
+        self.radio_continuous.toggled.connect(self.update_scroll_binding)
+        mode_box.addWidget(self.radio_oneshot)
+        mode_box.addWidget(self.radio_continuous)
+        grid_notch.addLayout(mode_box, 1, 1)
 
-        n_box = QHBoxLayout()
-        n_box.addWidget(QLabel("Notches:"))
-        self.lbl_notch_val = QLabel("1 Notch")
-        self.lbl_notch_val.setStyleSheet("font-weight: bold; color: #00f5a0;")
-        n_box.addWidget(self.lbl_notch_val)
+        grid_notch.addWidget(QLabel("Delay (s):"), 1, 2)
+        self.spin_delay = QDoubleSpinBox()
+        self.spin_delay.setRange(0.01, 2.00)
+        self.spin_delay.setSingleStep(0.05)
+        self.spin_delay.setValue(0.05)
+        self.spin_delay.valueChanged.connect(self.update_scroll_binding)
+        grid_notch.addWidget(self.spin_delay, 1, 3)
 
-        btn_reset_notches = QPushButton("Reset Notches")
-        btn_reset_notches.setObjectName("SecondaryBtn")
-        btn_reset_notches.clicked.connect(self.reset_notches)
-        n_box.addWidget(btn_reset_notches)
-        scroll_layout.addLayout(n_box)
+        s_layout.addLayout(grid_notch)
 
-        self.scroll_frame.hide()
-        layout.addWidget(self.scroll_frame)
+        btn_apply_scroll = QPushButton("Apply Scroll Notch Binding")
+        btn_apply_scroll.setObjectName("SecondaryBtn")
+        btn_apply_scroll.clicked.connect(self.update_scroll_binding)
+        s_layout.addWidget(btn_apply_scroll)
 
+        layout.addWidget(scroll_box)
+
+        # ---------------------------------------------------------------------
+        # Dialog Action Buttons
+        # ---------------------------------------------------------------------
         btn_box = QHBoxLayout()
         self.btn_save = QPushButton("Save Binding")
         self.btn_save.setObjectName("PrimaryBtn")
@@ -140,86 +191,67 @@ class KeyRecorderDialog(QDialog):
         btn_box.addWidget(btn_cancel)
         layout.addLayout(btn_box)
 
-        self.kb_listener = pynput.keyboard.Listener(on_press=self.on_kb_press, on_release=self.on_kb_release)
-        self.mouse_listener = pynput.mouse.Listener(on_click=self.on_mouse_click, on_scroll=self.on_mouse_scroll)
-        self.kb_listener.start()
-        self.mouse_listener.start()
-
-    def reset_notches(self):
-        self.notch_count = 1
-        self.lbl_notch_val.setText("1 Notch")
-        self.update_scroll_binding()
-
-    def on_widget_scroll(self, direction):
-        self.scroll_direction = direction
-        self.notch_count += 1
-        self.lbl_notch_val.setText(f"{self.notch_count} Notches")
-        self.update_scroll_binding()
+    def set_direct_binding(self, code: str):
+        self.recorded_binding = code
+        self.lbl_key.setText(f"[ {code} ]")
+        self.btn_save.setEnabled(True)
 
     def update_scroll_binding(self):
+        s_dir = "scroll_up" if self.combo_scroll_dir.currentIndex() == 0 else "scroll_down"
+        notches = self.spin_notches.value()
         mode = "oneshot" if self.radio_oneshot.isChecked() else "continuous"
-        self.recorded_binding = f"{self.scroll_direction.lower()}:{self.notch_count}:{mode}:0.05"
+        delay = self.spin_delay.value()
+        self.recorded_binding = f"{s_dir}:{notches}:{mode}:{delay:.2f}"
         self.lbl_key.setText(f"[ {self.recorded_binding} ]")
         self.btn_save.setEnabled(True)
 
-    def on_kb_press(self, key):
-        if key in (pynput.keyboard.Key.shift, pynput.keyboard.Key.shift_r):
-            self.pressed_modifiers.add("shift")
+    def keyPressEvent(self, event):
+        key = event.key()
+        if key in (Qt.Key.Key_Control, Qt.Key.Key_Shift, Qt.Key.Key_Alt, Qt.Key.Key_Meta):
             return
-        elif key in (pynput.keyboard.Key.ctrl, pynput.keyboard.Key.ctrl_r):
-            self.pressed_modifiers.add("ctrl")
-            return
-        elif key in (pynput.keyboard.Key.alt, pynput.keyboard.Key.alt_r):
-            self.pressed_modifiers.add("alt")
-            return
+
+        mods = []
+        qt_mods = event.modifiers()
+        if qt_mods & Qt.KeyboardModifier.ControlModifier:
+            mods.append("ctrl")
+        if qt_mods & Qt.KeyboardModifier.ShiftModifier:
+            mods.append("shift")
+        if qt_mods & Qt.KeyboardModifier.AltModifier:
+            mods.append("alt")
+        if qt_mods & Qt.KeyboardModifier.MetaModifier:
+            mods.append("win")
 
         key_str = ""
-        if isinstance(key, pynput.keyboard.KeyCode):
-            if key.char:
-                key_str = key.char.lower()
-        elif key in SPECIAL_KEY_MAP:
-            key_str = SPECIAL_KEY_MAP[key]
+        text = event.text().lower()
+        if text and text.strip() and text not in ("\r", "\n", "\t"):
+            key_str = text.strip()
+        else:
+            key_map = {
+                Qt.Key.Key_Space: "space",
+                Qt.Key.Key_Return: "enter",
+                Qt.Key.Key_Enter: "enter",
+                Qt.Key.Key_Tab: "tab",
+                Qt.Key.Key_Backspace: "backspace",
+                Qt.Key.Key_Escape: "escape",
+                Qt.Key.Key_Delete: "delete",
+                Qt.Key.Key_Up: "up",
+                Qt.Key.Key_Down: "down",
+                Qt.Key.Key_Left: "left",
+                Qt.Key.Key_Right: "right",
+                Qt.Key.Key_F1: "f1", Qt.Key.Key_F2: "f2", Qt.Key.Key_F3: "f3", Qt.Key.Key_F4: "f4",
+                Qt.Key.Key_F5: "f5", Qt.Key.Key_F6: "f6", Qt.Key.Key_F7: "f7", Qt.Key.Key_F8: "f8",
+                Qt.Key.Key_F9: "f9", Qt.Key.Key_F10: "f10", Qt.Key.Key_F11: "f11", Qt.Key.Key_F12: "f12",
+            }
+            key_str = key_map.get(key, "")
 
         if key_str:
-            mods = sorted(list(self.pressed_modifiers))
             combo = "+".join(mods + [key_str]) if mods else key_str
-            self.recorded_binding = combo
-            self.lbl_key.setText(f"[ {combo} ]")
-            self.btn_save.setEnabled(True)
-
-    def on_kb_release(self, key):
-        if key in (pynput.keyboard.Key.shift, pynput.keyboard.Key.shift_r):
-            self.pressed_modifiers.discard("shift")
-        elif key in (pynput.keyboard.Key.ctrl, pynput.keyboard.Key.ctrl_r):
-            self.pressed_modifiers.discard("ctrl")
-        elif key in (pynput.keyboard.Key.alt, pynput.keyboard.Key.alt_r):
-            self.pressed_modifiers.discard("alt")
-
-    def on_mouse_click(self, x, y, button, pressed):
-        if not pressed:
-            return
-        btn_map = {
-            pynput.mouse.Button.left: "mouse_left",
-            pynput.mouse.Button.right: "mouse_right",
-            pynput.mouse.Button.middle: "mouse_middle",
-            pynput.mouse.Button.x1: "mouse_x1",
-            pynput.mouse.Button.x2: "mouse_x2",
-        }
-        if button in btn_map:
-            self.recorded_binding = btn_map[button]
-            self.lbl_key.setText(f"[ {self.recorded_binding} ]")
-            self.btn_save.setEnabled(True)
-
-    def on_mouse_scroll(self, x, y, dx, dy):
-        self.scroll_frame.show()
-        if dy > 0:
-            self.on_widget_scroll("scroll_up")
-        elif dy < 0:
-            self.on_widget_scroll("scroll_down")
+            self.set_direct_binding(combo)
+        else:
+            super().keyPressEvent(event)
 
     def closeEvent(self, event):
-        self.kb_listener.stop()
-        self.mouse_listener.stop()
+        super().closeEvent(event)
         super().closeEvent(event)
 
 

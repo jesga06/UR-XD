@@ -1,0 +1,80 @@
+# UR-XD GUI User Guide
+
+<div align="center">
+
+[Dashboard](#dashboard-tab) • [Remapping](#remapping-tab) • [Tuning & Deadzones](#tuning-tab) • [Circularity Calibrator](#circularity-calibrator) • [Macros Studio](#macros-studio-tab) • [Utilities & System Tray](#utilities--system-tray)
+
+</div>
+
+<br>
+
+The UR-XD visual configuration utility features a modern dark-mode interface for monitoring physical controller inputs, configuring button remapping, fine-tuning analog deadzones/curves, and recording macros—all applying instantly in real-time.
+
+---
+
+## Dashboard Tab
+
+The **Dashboard** is your live telemetry control room. It visualizes both physical inputs coming from your controller and virtual outputs sent to the virtual Xbox 360 controller.
+
+[screenshot of Dashboard tab][Live Controller Visualizer and Output Monitor]
+
+- **Live Controller Model:** Displays real-time button highlights, thumbstick positions, and analog trigger depths as you move your hardware controls.
+- **Active Backend & Profile Status:** Shows current device profile (`profiles/*.json`), output mode (XInput/DInput), and connection state.
+- **Visual Grid Alignment:** Snap buttons onto custom gamepad templates if working with non-standard hardware.
+
+---
+
+## Remapping Tab
+
+The **Remapping** tab allows you to assign any physical controller button (standard face buttons, shoulder triggers, or back paddles like L4/R4) to any combination of keyboard, mouse, or virtual gamepad outputs.
+
+[screenshot of Remapping tab][Button Mapping Interface with Key Combo Recorder]
+
+### Features:
+- **Interactive Recorder:** Click the **Record** button next to any input and press the physical keys on your keyboard/mouse to record bindings automatically.
+- **Keyboard Combos:** Chain multiple keys together with `+` (e.g. `keyboard:ctrl+shift+esc` or `keyboard:f13`). Keys are pressed sequentially and released in reverse order.
+- **Mouse Simulation:** Assign inputs to `mouse1` (Left Click), `mouse2` (Right Click), `mouse4` (X1 / Back), `mouse5` (X2 / Forward), or mouse wheel scrolls.
+- **Standard Button Blocking:** When remapping standard gamepad buttons (like 'A' or 'LB'), UR-XD automatically blocks the underlying physical button from reaching the virtual controller, preventing annoying double-input issues in games.
+- **Shift Layer Remapping:** Configure alternate mapping profiles activated dynamically by holding down a assigned modifier button.
+
+---
+
+## Tuning Tab
+
+Because not all thumbsticks and triggers are created equal (and factory calibration can drift), the **Tuning** tab gives you precise control over analog behavior.
+
+[screenshot of Tuning tab][Thumbstick & Trigger Deadzone and Response Curve Tuning]
+
+- **Inner & Outer Deadzones:** Eliminate stick drift by setting inner deadzones or expand maximum reach with outer deadzones.
+- **Response Curves:** Toggle between **Linear**, **Aggressive** (S-curve), **Instant Response**, or **Smooth Precision** for stick sensitivity.
+- **Trigger Trimming:** Fine-tune trigger min/max points so you reach 100% trigger pull effortlessly.
+
+---
+
+## Circularity Calibrator
+
+Analogs on third-party gamepads are notorious for squarish boundary caps that cause diagonal acceleration spikes.
+
+[screenshot of Circularity Calibrator][Interactive Circularity Calibrator]
+
+- **Real-Time Sampling:** Rotate your analog sticks 360° inside the visual circle widget.
+- **Cardinal & Diagonal Smoothing:** Automatically calculates offset coefficients to map outer analog boundaries into a clean, smooth circle output.
+
+---
+
+## Macros Studio Tab
+
+The **Macros Studio** enables recording complex automation sequences triggered by any controller button.
+
+[screenshot of Macros tab][Macros Studio Recording & Sequence Editor]
+
+- **Multi-Action Recording:** Record keypresses, delays, mouse clicks, and trigger pulls with millisecond precision.
+- **Hold & Loop Modes:** Set macros to execute **On Press**, **While Held**, or **Toggle Loop**.
+- **Anti-Stuck Safeguard:** Built-in emergency key-release logic guarantees keys are never left virtually "stuck down" if a macro execution is interrupted.
+
+---
+
+## Utilities & System Tray
+
+- **Diagnostic Wizard:** Launch diagnostic scans directly from the GUI.
+- **Live Reload:** Click **Save Settings** to write changes to `config.ini`. The background daemon picks up edits within 5 seconds without restarting!

@@ -1,7 +1,8 @@
 """
 Circularity Calibration Dialog for PySide6 (circularity_modal_qt.py)
 Modal dialog replacing legacy circularity_modal.py with QPainter polar grid drawing,
-360-degree point cloud heatmap visualization, speed warnings, and wizard steps.
+360-degree point cloud heatmap visualization, color-coded error vector lines,
+speed warnings, and wizard steps.
 """
 
 import math
@@ -14,7 +15,7 @@ import math_utils
 
 
 class CircularityCanvasWidget(QWidget):
-    """QPainter canvas widget for real-time polar grid and stick boundary point rendering."""
+    """QPainter canvas widget for real-time polar grid and color-coded error vector lines."""
 
     def __init__(self, parent=None):
         super().__init__(parent)
@@ -44,16 +45,16 @@ class CircularityCanvasWidget(QWidget):
         painter.setBrush(QBrush(QColor(12, 9, 20, 240)))
         painter.drawRoundedRect(0, 0, width, height, 12, 12)
 
-        # Draw Dashed Axes & Reference Circle
+        # Draw Dashed Axes & Unit Reference Circle
         pen_grid = QPen(QColor(255, 255, 255, 30), 1, Qt.PenStyle.DashLine)
         painter.setPen(pen_grid)
         painter.drawLine(QPointF(cx, 10), QPointF(cx, height - 10))
         painter.drawLine(QPointF(10, cy), QPointF(width - 10, cy))
         painter.drawEllipse(QPointF(cx, cy), scale, scale)
 
-        # Draw Bounds Polygon Loop
+        # Draw Color-Coded Error Vector Rays & Polygon Loop
         poly_pts = []
-        for a in range(360):
+        for a in range(0, 360, 2):
             r = self.bounds_data[a]
             if r > 0:
                 rad = math.radians(a)
@@ -61,9 +62,21 @@ class CircularityCanvasWidget(QWidget):
                 y = cy - r * math.sin(rad) * scale
                 poly_pts.append(QPointF(x, y))
 
+                # Color-coded error vectors (Green < 1%, Yellow < 5%, Red > 5%)
+                err = abs(r - 1.0)
+                if err < 0.01:
+                    ray_color = QColor(0, 245, 160, 100)
+                elif err < 0.05:
+                    ray_color = QColor(250, 204, 21, 120)
+                else:
+                    ray_color = QColor(255, 82, 82, 160)
+
+                painter.setPen(QPen(ray_color, 1))
+                painter.drawLine(QPointF(cx, cy), QPointF(x, y))
+
         if len(poly_pts) > 2:
             painter.setPen(QPen(QColor(168, 85, 247), 2))
-            painter.setBrush(QBrush(QColor(168, 85, 247, 40)))
+            painter.setBrush(QBrush(QColor(168, 85, 247, 30)))
             painter.drawPolygon(QPolygonF(poly_pts))
 
         # Draw Live Position Indicator Dot
@@ -155,15 +168,15 @@ class CircularityCalibrationDialog(QDialog):
         self.btn_frame = QFrame()
         btn_layout = QHBoxLayout(self.btn_frame)
         btn_layout.setContentsMargins(0, 0, 0, 0)
-        
+
         self.btn_apply = QPushButton("Apply Changes")
         self.btn_apply.setObjectName("PrimaryBtn")
         self.btn_apply.clicked.connect(self.save_and_close)
-        
+
         self.btn_discard = QPushButton("Discard")
         self.btn_discard.setObjectName("SecondaryBtn")
         self.btn_discard.clicked.connect(self.reject)
-        
+
         btn_layout.addWidget(self.btn_apply)
         btn_layout.addWidget(self.btn_discard)
         self.btn_frame.hide()
@@ -212,9 +225,13 @@ class CircularityCalibrationDialog(QDialog):
                     elif delta < 0:
                         self.accum_cw += abs(delta)
 
-                    if abs(delta) > 30:
-                        self.speed_warn_timer = 60
+                    # Check rotational speed (too fast or too slow warnings)
+                    if abs(delta) > 35:
+                        self.speed_warn_timer = 40
                         self.lbl_warning.setText("⚠️ Rotating Too Fast! Slow Down.")
+                    elif abs(delta) < 2 and r > 0.8:
+                        self.speed_warn_timer = 40
+                        self.lbl_warning.setText("⚠️ Rotate Faster to Complete Sweep.")
 
                 self.last_theta = theta
 
@@ -279,20 +296,23 @@ class CircularityCalibrationDialog(QDialog):
         self.btn_frame.show()
 
     def save_and_close(self):
-        config = self.parent_app.config
-        if not config.has_section(self.section):
-            config.add_section(self.section)
+        config = getattr(self.parent_app, 'config', getattr(self.parent_app, 'daemon_config', None))
+        if config:
+            if not config.has_section(self.section):
+                config.add_section(self.section)
 
-        bounds_str = ",".join(f"{r:.4f}" for r in self.bounds_data)
-        config.set(self.section, 'circularity_center_x', str(round(self.center_x, 4)))
-        config.set(self.section, 'circularity_center_y', str(round(self.center_y, 4)))
-        config.set(self.section, 'circularity_bounds', bounds_str)
+            bounds_str = ",".join(f"{r:.4f}" for r in self.bounds_data)
+            config.set(self.section, 'circularity_center_x', str(round(self.center_x, 4)))
+            config.set(self.section, 'circularity_center_y', str(round(self.center_y, 4)))
+            config.set(self.section, 'circularity_bounds', bounds_str)
 
-        current_mode = config.get(self.section, 'circularity_mode', fallback='disabled')
-        if current_mode == 'disabled':
-            config.set(self.section, 'circularity_mode', 'before')
+            current_mode = config.get(self.section, 'circularity_mode', fallback='disabled')
+            if current_mode == 'disabled':
+                config.set(self.section, 'circularity_mode', 'before')
 
-        self.parent_app.save_config()
+            if hasattr(self.parent_app, 'save_config'):
+                self.parent_app.save_config()
+
         if self.on_finish:
             self.on_finish()
         self.accept()

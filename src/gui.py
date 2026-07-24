@@ -2788,82 +2788,6 @@ class App(ctk.CTk):
             btn_add_hw = ctk.CTkButton(self.hw_chords_frame, text="+ Add Hardware Chord", command=lambda: self.add_hw_chord_row(hw_list, "", "", "", "auto"))
             btn_add_hw.pack(pady=5)
             
-        # Shift Layer Settings
-        shift_frame = ctk.CTkFrame(self.advanced_scroll)
-        shift_frame.pack(fill="x", padx=20, pady=10)
-        
-        ctk.CTkLabel(shift_frame, text="Shift Layer Settings", font=ctk.CTkFont(weight="bold")).pack(pady=5)
-        
-        # Trigger Button
-        trig_frame = ctk.CTkFrame(shift_frame, fg_color="transparent")
-        trig_frame.pack(fill="x", padx=10, pady=5)
-        
-        info_btn_trig = ctk.CTkButton(trig_frame, text="?", width=20, height=20, corner_radius=10, fg_color="#555555")
-        info_btn_trig.pack(side="left", padx=(0,5))
-        ToolTip(info_btn_trig, "Select the button that activates the secondary Shift Layer.\nWhen held or toggled, all other buttons will map to their Shift Layer configurations.")
-        
-        ctk.CTkLabel(trig_frame, text="Shift Key:", width=120, anchor="w").pack(side="left")
-        
-        self.shift_trig_var = ctk.StringVar(value=self.config.get('shift_layer', 'trigger_button', fallback=''))
-        base_buttons = self.get_profile_mapped_keys()
-        
-        def check_home_hold_warning():
-            trig_val = self.shift_trig_var.get().strip().lower()
-            mode_val = self.shift_mode_var.get().strip().lower()
-            if trig_val in ['home', 'guide'] and mode_val == 'hold':
-                import tkinter.messagebox
-                tkinter.messagebox.showwarning(
-                    "Recommended Setting Notice",
-                    "Holding the Home button for several seconds may force turn off your controller or trigger OS shortcuts.\n\n"
-                    "It is strongly recommended to set the Shift Mode to 'toggle' instead of 'hold' when using the Home button as your Shift Key."
-                )
-
-        def on_shift_trig_changed(val):
-            val_clean = val.strip()
-            if val_clean and self.config.has_option('extra_buttons', val_clean):
-                import tkinter.messagebox
-                tkinter.messagebox.showwarning(
-                    "Shift Key Conflict",
-                    f"The button '{val_clean}' is currently mapped to an action.\n\n"
-                    "It will be cleared and blocked from XInput so it can act as the Shift Key."
-                )
-                self.config.remove_option('extra_buttons', val_clean)
-                if not self.config.has_section('block_xinput'):
-                    self.config.add_section('block_xinput')
-                if self.config.has_option('block_xinput', val_clean):
-                    self.config.remove_option('block_xinput', val_clean)
-                
-                # Update UI elements in remapping tab if they exist
-                if hasattr(self, 'entries') and val_clean in self.entries:
-                    self.entries[val_clean].delete(0, 'end')
-                    self.block_vars[val_clean].set(True)
-                    self.block_checkboxes[val_clean].configure(state="disabled")
-            
-            check_home_hold_warning()
-            self.save_advanced()
-            
-        self.trig_menu = ctk.CTkOptionMenu(trig_frame, values=base_buttons, variable=self.shift_trig_var, command=on_shift_trig_changed)
-        self.trig_menu.pack(side="left", fill="x", expand=True)
-        
-        # Mode
-        mode_frame = ctk.CTkFrame(shift_frame, fg_color="transparent")
-        mode_frame.pack(fill="x", padx=10, pady=5)
-        
-        info_btn_mode = ctk.CTkButton(mode_frame, text="?", width=20, height=20, corner_radius=10, fg_color="#555555")
-        info_btn_mode.pack(side="left", padx=(0,5))
-        ToolTip(info_btn_mode, "Hold: Shift layer is active only while the shift key is held down.\nToggle: Pressing the shift key toggles the Shift layer permanently on or off.")
-        
-        ctk.CTkLabel(mode_frame, text="Mode:", width=120, anchor="w").pack(side="left")
-        
-        self.shift_mode_var = ctk.StringVar(value=self.config.get('shift_layer', 'mode', fallback='hold'))
-        
-        def on_shift_mode_changed(val):
-            check_home_hold_warning()
-            self.save_advanced()
-
-        mode_menu = ctk.CTkOptionMenu(mode_frame, values=["hold", "toggle"], variable=self.shift_mode_var, command=on_shift_mode_changed)
-        mode_menu.pack(side="left")
-
         # Chords Setting
         self.chords_frame = ctk.CTkFrame(self.advanced_scroll)
         self.chords_frame.pack(fill="both", expand=True, padx=20, pady=10)
@@ -3129,16 +3053,6 @@ class App(ctk.CTk):
         self.hw_chord_rows.append(row_data)
 
     def save_advanced(self):
-        # Save Shift Layer
-        trig = self.shift_trig_var.get().strip()
-        if trig:
-            self.config.set('shift_layer', 'trigger_button', trig)
-        else:
-            if self.config.has_option('shift_layer', 'trigger_button'):
-                self.config.remove_option('shift_layer', 'trigger_button')
-                
-        self.config.set('shift_layer', 'mode', self.shift_mode_var.get())
-        
         # Save Hardware Chords
         self.config.remove_section('hardware_chords')
         self.config.add_section('hardware_chords')

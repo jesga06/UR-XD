@@ -250,7 +250,8 @@ class MainWindow(QMainWindow):
         sidebar_layout.setSpacing(12)
 
         lbl_brand = QLabel("🎮 UR-XD 2C FIX")
-        lbl_brand.setStyleSheet("font-weight: bold; font-size: 16px; color: #f3e8ff; padding-left: 8px;")
+        lbl_brand.setObjectName("SectionHeader")
+        lbl_brand.setStyleSheet("padding-left: 8px;")
         sidebar_layout.addWidget(lbl_brand)
 
         self.sidebar_nav = QListWidget()

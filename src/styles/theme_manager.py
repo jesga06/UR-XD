@@ -1,12 +1,14 @@
 """
 Theme Manager module for PySide6 GUI (theme_manager.py)
 Handles dynamic QSS stylesheet generation, theme presets (Purple, Blue, Green, Red, Yellow, Orange, White),
-accent color customization, and font family overrides.
+accent RGBA glow calculation, system dark/light contrast auto-detection, and font family overrides.
 """
 
 import os
 import json
 import configparser
+from PySide6.QtGui import QGuiApplication, QColor
+from PySide6.QtCore import Qt
 
 THEME_PRESETS = {
     "purple": {
@@ -104,7 +106,7 @@ THEME_PRESETS = {
 
 
 class ThemeManager:
-    """Manages active QSS themes, font families, and dynamic palette generation for PySide6."""
+    """Manages active QSS themes, RGBA glow calculations, OS system contrast detection, and fonts."""
 
     def __init__(self, config_path='config.ini'):
         self.config_path = config_path
@@ -122,8 +124,27 @@ class ThemeManager:
                     self.font_family = config.get('UI', 'font', fallback='Inter')
             except Exception:
                 pass
-        if self.active_theme_key not in THEME_PRESETS:
+        if self.active_theme_key == 'system':
+            self.active_theme_key = self.detect_system_theme()
+        elif self.active_theme_key not in THEME_PRESETS:
             self.active_theme_key = "purple"
+
+    def detect_system_theme(self) -> str:
+        """Detect OS system dark/light contrast mode."""
+        try:
+            app = QGuiApplication.instance()
+            if app and hasattr(app, 'styleHints'):
+                scheme = app.styleHints().colorScheme()
+                if scheme == Qt.ColorScheme.Light:
+                    return "white"
+        except Exception:
+            pass
+        return "purple"
+
+    def get_accent_glow_rgba(self, hex_color: str, alpha: float = 0.5) -> str:
+        """Dynamically compute RGBA glow string from hex color."""
+        c = QColor(hex_color)
+        return f"rgba({c.red()}, {c.green()}, {c.blue()}, {alpha:.2f})"
 
     def get_active_theme(self):
         return THEME_PRESETS.get(self.active_theme_key, THEME_PRESETS["purple"])
@@ -134,7 +155,11 @@ class ThemeManager:
         if font_family is None:
             font_family = self.font_family
 
+        if theme_key == "system":
+            theme_key = self.detect_system_theme()
+
         theme = THEME_PRESETS.get(theme_key, THEME_PRESETS["purple"])
+        glow_rgba = self.get_accent_glow_rgba(theme["glow"], 0.45)
 
         qss = f"""
         /* Next-Gen Built Tomorrow Theme: {theme['name']} */

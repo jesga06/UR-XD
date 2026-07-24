@@ -495,6 +495,14 @@ class RemappingView(QWidget):
         if hasattr(self, 'lbl_home_warn'):
             self.lbl_home_warn.setVisible(trig_val == "HOME" and is_hold)
 
+    def add_shift_layer(self):
+        config = getattr(self.app, 'controller_config', None)
+        if config:
+            config.add_shift_layer(name=f"Shift Layer {self.combo_layers.count() + 1}")
+            self.app.save_config()
+            self.refresh_shift_layer_combobox()
+            self.combo_layers.setCurrentIndex(self.combo_layers.count() - 1)
+
     def rename_shift_layer(self):
         curr_idx = self.combo_layers.currentIndex()
         if curr_idx < 0:

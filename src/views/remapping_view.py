@@ -15,7 +15,7 @@ sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 from PySide6.QtWidgets import (
     QWidget, QVBoxLayout, QHBoxLayout, QLabel, QFrame, QPushButton, QCheckBox,
-    QLineEdit, QComboBox, QGridLayout, QScrollArea, QDialog, QRadioButton, QMessageBox
+    QLineEdit, QComboBox, QGridLayout, QScrollArea, QDialog, QRadioButton, QMessageBox, QInputDialog
 )
 from PySide6.QtCore import Qt
 
@@ -262,6 +262,10 @@ class RemappingView(QWidget):
         btn_add_layer.setObjectName("PrimaryBtn")
         btn_add_layer.clicked.connect(self.add_shift_layer)
 
+        btn_rename_layer = QPushButton("✏️ Rename Layer")
+        btn_rename_layer.setObjectName("SecondaryBtn")
+        btn_rename_layer.clicked.connect(self.rename_shift_layer)
+
         btn_del_layer = QPushButton("❌ Delete Layer")
         btn_del_layer.setObjectName("SecondaryBtn")
         btn_del_layer.clicked.connect(self.delete_shift_layer)
@@ -269,6 +273,7 @@ class RemappingView(QWidget):
         nav_row.addWidget(lbl_shift_title)
         nav_row.addWidget(self.combo_layers)
         nav_row.addWidget(btn_add_layer)
+        nav_row.addWidget(btn_rename_layer)
         nav_row.addWidget(btn_del_layer)
         nav_row.addStretch()
 
@@ -300,8 +305,14 @@ class RemappingView(QWidget):
         act_row.addWidget(self.chk_passthrough)
         act_row.addStretch()
 
+        # Warning Banner for HOME + Hold Mode
+        self.lbl_home_warn = QLabel("⚠️ WARNING: Using HOME in Hold mode may conflict with OS/Guide button overlay shortcuts. Toggle or modifier combo recommended.")
+        self.lbl_home_warn.setStyleSheet("color: #f59e0b; font-weight: bold; font-size: 11px;")
+        self.lbl_home_warn.setVisible(False)
+
         shift_layout.addLayout(nav_row)
         shift_layout.addLayout(act_row)
+        shift_layout.addWidget(self.lbl_home_warn)
         main_layout.addWidget(shift_card)
 
         # 2. Scrollable 2x2 Grid of Button Remapping Cards
@@ -478,73 +489,44 @@ class RemappingView(QWidget):
             config.set_shift_layers(layers)
             self.app.save_config()
 
-    def on_std_mapping_edited(self, button_name: str, new_val: str):
-        config = getattr(self.app, 'controller_config', None)
-        if config:
-            val = new_val.strip()
-            if val:
-                config.set("mappings", button_name.lower(), val)
-            else:
-                config.remove_option("mappings", button_name.lower())
-            self.app.save_config()
+        # Update HOME + Hold mode warning visibility
+        trig_val = self.combo_shift_trig.currentText()
+        is_hold = self.radio_hold.isChecked()
+        if hasattr(self, 'lbl_home_warn'):
+            self.lbl_home_warn.setVisible(trig_val == "HOME" and is_hold)
 
-    def on_shift_mapping_edited(self, button_name: str, new_val: str):
+    def rename_shift_layer(self):
+        curr_idx = self.combo_layers.currentIndex()
+        if curr_idx < 0:
+            return
         config = getattr(self.app, 'controller_config', None)
         if config:
-            val = new_val.strip()
             layers = config.get_shift_layers()
-            if self.active_layer_idx < len(layers):
-                if val:
-                    layers[self.active_layer_idx]["mappings"][button_name.lower()] = val
-                else:
-                    layers[self.active_layer_idx]["mappings"].pop(button_name.lower(), None)
-                config.set_shift_layers(layers)
-                self.app.save_config()
-
-    def on_block_xinput_changed(self, button_name: str, state):
-        config = getattr(self.app, 'controller_config', None)
-        if config:
-            val = (state == Qt.CheckState.Checked.value or state is True)
-            config.set("block_xinput", button_name.lower(), str(val).lower())
-            self.app.save_config()
-
-    def on_shift_block_changed(self, button_name: str, state):
-        config = getattr(self.app, 'controller_config', None)
-        if config:
-            val = (state == Qt.CheckState.Checked.value or state is True)
-            layers = config.get_shift_layers()
-            if self.active_layer_idx < len(layers):
-                layers[self.active_layer_idx]["block_xinput"][button_name.lower()] = val
-                config.set_shift_layers(layers)
-                self.app.save_config()
-
-    def record_for_edit(self, button_name: str, target_edit: QLineEdit, target_layer: str):
-        dlg = KeyRecorderDialog(button_name, self)
-        if dlg.exec() == QDialog.DialogCode.Accepted and dlg.recorded_binding:
-            target_edit.setText(dlg.recorded_binding)
-            if target_layer == "Standard":
-                self.on_std_mapping_edited(button_name, dlg.recorded_binding)
-            else:
-                self.on_shift_mapping_edited(button_name, dlg.recorded_binding)
-
-    def add_shift_layer(self):
-        config = getattr(self.app, 'controller_config', None)
-        if config:
-            config.add_shift_layer(name=f"Shift Layer {self.combo_layers.count() + 1}")
-            self.app.save_config()
-            self.refresh_shift_layer_combobox()
-            self.combo_layers.setCurrentIndex(self.combo_layers.count() - 1)
-
-    def delete_shift_layer(self):
-        if self.combo_layers.count() > 1:
-            config = getattr(self.app, 'controller_config', None)
-            if config:
-                layers = config.get_shift_layers()
-                if self.active_layer_idx < len(layers):
-                    config.remove_shift_layer(layers[self.active_layer_idx].get("id", ""))
+            if 0 <= curr_idx < len(layers):
+                curr_name = layers[curr_idx].get("name", f"Shift Layer {curr_idx+1}")
+                new_name, ok = QInputDialog.getText(self, "Rename Shift Layer", "Enter new layer name:", text=curr_name)
+                if ok and new_name.strip():
+                    layers[curr_idx]["name"] = new_name.strip()
+                    config.set_shift_layers(layers)
                     self.app.save_config()
                     self.refresh_shift_layer_combobox()
-                    self.combo_layers.setCurrentIndex(0)
+                    self.combo_layers.setCurrentIndex(curr_idx)
+
+    def delete_shift_layer(self):
+        curr_idx = self.combo_layers.currentIndex()
+        if curr_idx < 0:
+            return
+        config = getattr(self.app, 'controller_config', None)
+        if config:
+            layers = config.get_shift_layers()
+            if len(layers) > 1 and 0 <= curr_idx < len(layers):
+                del layers[curr_idx]
+                config.set_shift_layers(layers)
+                self.app.save_config()
+                self.active_layer_idx = max(0, curr_idx - 1)
+                self.refresh_shift_layer_combobox()
+                self.combo_layers.setCurrentIndex(self.active_layer_idx)
+                self.load_config_values()
 
     def reset_all_remappings(self):
         config = getattr(self.app, 'controller_config', None)

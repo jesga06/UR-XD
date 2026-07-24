@@ -241,12 +241,13 @@ This release introduces major UI Customizations, Utilities, and Core Profile fea
 ## [2.3.0] - 2026-07-23
 ### 🎮 User-Facing Changes
 - **Multiple Shift Remapping Layers:** Expanded the remapping engine and GUI to support creating, naming, and switching between multiple custom shift layers.
-- **Layer Activation Chords & Strict Order Logic:** Support chord activation for shift layers using a combination of a primary shift button and an optional modifier button (e.g., `LB + RB`). Enforces strict timing rules (primary shift button must be pressed before or simultaneously with the modifier button) and consumes inputs to prevent unintended base layer triggers.
-- **Multi-Shift Remapping GUI:** Revamped the Remapping tab in `gui.py` with an interactive shift layer tab bar, quick layer creation/deletion, layer property configuration (Name, Trigger, Modifier, Mode), and per-layer mapping and block preferences.
+- **Unified Remapping UX Consolidation:** Consolidated 100% of shift layer controls (creating, editing name/trigger/modifier/mode, tab switching, shift mappings, block checkboxes) into a single unified panel inside the **Remapping** tab, removing split settings from the Advanced tab.
+- **Shift Layer Toggle & Modifier Chord Fixes:** Fixed persistent layer state tracking for Toggle Mode (`mode == 'toggle'`) and edge-transition hold/release layer transitions for modifier key chords (e.g. `LB + RB`).
+- **Repeated Key Stroke Sequence Fix:** Updated key string sequence execution in `mapper.py` (`_press_key_sequence`) to auto-release identical consecutive keys (e.g. `keyboard:h+a+p+p+y` $\rightarrow$ `happy`) so repeated letters register cleanly on Windows.
 
 ### ⚙️ Under-the-Hood Changes
 - **Shift Layer Configuration Schema & Migration:** Updated `config_manager.py` to store shift layers under `shift_layers` array in JSON profile files, with automatic backward-compatibility migration for legacy single-shift configurations.
-- **Mapper Press Timestamp Tracking:** Enhanced `mapper.py` with fine-grained button press timestamp tracking (`button_press_times`) to enforce strict order evaluation during chord shift layer activation.
+- **Mapper Press Timestamp Tracking & Layer Transitions:** Enhanced `mapper.py` with fine-grained button press timestamp tracking (`button_press_times`), `toggled_shift_layers` state tracking, and automatic release/re-evaluate hold logic on layer transitions.
 - **Virtual Pad Multi-Shift Blocking:** Updated `virtual_pad.py` block logic to query all active shift layer block preferences and suppress virtual pad outputs for mapped shift buttons.
 
 

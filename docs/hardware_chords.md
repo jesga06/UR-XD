@@ -2,40 +2,38 @@
 
 <div align="center">
 
-[Overview](#overview) • [Evaluation Pipeline](#chord-evaluation-pipeline) • [Double Input Prevention](#double-input-prevention)
+[What Is It?](#what-is-it) • [Origin & Conception](#why-is-it-there--origin-story) • [How It Works](#how-does-it-work) • [Step-by-Step Setup](#how-to-set-it-up)
 
 </div>
 
-<br>
 
-**Hardware Chords** allow you to trigger unique actions by holding down multiple controller buttons simultaneously (e.g. `LB + RB + Back` to mute audio or toggle Shift layers).
+**Hardware Chords** allow you to trigger unique virtual gamepad actions, keyboard shortcuts, or macros by holding down combinations of physical controller buttons simultaneously (e.g. `LB + Start`, `Home + Dpad Up`, or `LB + RB`).
 
----
+## What Is It?
 
-## Overview
+Hardware Chords is a feature built into UR-XD's processing pipeline that evaluates multi-button button combinations before standard button mapping occurs. It allows physical controller buttons to act as modifier chords—effectively synthesizing virtual extra buttons without requiring dedicated hardware drivers or voiding controller firmware.
 
-Unlike basic button remapping where each button is evaluated in isolation, the Hardware Chord Engine inspects combinations before individual button actions are triggered.
+## Why Is It There?
 
-[diagram of hardware chord evaluation flow][Hardware Button Combo Evaluation Order]
+In standard **XInput mode**, Windows gamepad protocols strictly recognize a fixed 10-button + 2-trigger layout. Standard third-party controllers equipped with back paddles (such as `L4` and `R4`) or extra shoulder buttons cannot expose these extra inputs to Windows when operating in XInput mode because the XInput driver specification simply has no slots for them.
 
----
+Furthermore, users who wanted to map shortcuts (like muting Discord or toggling Shift layers) using standard buttons (like `LB + RB` or `LB + Start`) ran into a major problem: pressing `LB + Start` would send the `LB` bumper click and `Start` pause menu press to the game first, causing accidental grenade throws or unwanted pause screens.
 
-## Chord Evaluation Pipeline
+To solve both problems, I simply took a look at the smart kid's homework (Steam and SteamInput), saw the "cleared by parent function", and had the idea to create the **Hardware Chords Engine**:
+1. It creates synthetic input slots for extra buttons and combinations.
+2. It swallows the physical member button presses before they reach the game via **Input Suppression**, eliminating accidental double inputs entirely.
 
-```text
-Raw Controller Report
-        ↓
-Chord Evaluator (Checks active multi-button combinations)
-   ├─► Match Found: Suppress individual member buttons & trigger Chord Action
-   └─► No Match: Pass individual buttons down to standard Mapper & Shift Layer
-```
+## How to Set It Up
 
-1. When physical inputs arrive, UR-XD evaluates all registered chord rules.
-2. If all required buttons in a chord are active simultaneously, the chord action executes.
-3. Individual button actions for chord members are suppressed to prevent accidental triggers.
+Setting up Hardware Chords is done visually in the GUI:
 
----
-
-## Double Input Prevention
-
-To prevent `LB` or `RB` from sending normal bumper inputs to a game while you are trying to execute the `LB + RB` chord, UR-XD includes a short chord detection window (~25ms). If a second button in a registered chord is pressed within this window, individual inputs are absorbed cleanly.
+1. Navigate to the **Advanced** tab and scroll to the **Hardware Chords Builder** frame.
+2. Click **Add New Chord** to create a chord entry.
+3. **Select Primary & Modifier Buttons:**
+   - Pick your primary chord button (e.g., `LB`) and secondary modifier button (e.g., `RB` or `Start`).
+4. **Configure Output Action:**
+   - Type your desired output in the action field (e.g., `keyboard:ctrl+shift+m`, `mouse4`, or `macro:MyCombo`).
+5. **Toggle Input Suppression:**
+   - Keep **Input Suppression** checked (recommended) so the base physical buttons are swallowed when the chord triggers.
+6. **Save Mappings:**
+   - Click **Save Settings** (or press Enter). The wrapper process reloads your changes live within 5 seconds!

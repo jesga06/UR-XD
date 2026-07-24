@@ -6,11 +6,7 @@
 
 </div>
 
-<br>
-
 The UR-XD visual configuration utility features a modern interface for monitoring physical controller inputs, configuring button remapping, fine-tuning analog deadzones/curves, and recording macros—all applying instantly in real-time.
-
----
 
 ## Dashboard Tab
 
@@ -20,13 +16,11 @@ The **Dashboard** is your live telemetry control room. It visualizes both physic
 
 - **Live Controller Model:** Displays real-time button highlights, thumbstick positions, and analog trigger depths as you move your hardware controls.
 - **Active Backend & Profile Status:** Shows current device profile (`profiles/*.json`), output mode (XInput/DInput), and connection state.
-- **Visual Grid Alignment:** Snap buttons onto custom gamepad templates if working with non-standard hardware.
 
----
 
 ## Remapping Tab
 
-The **Remapping** tab allows you to assign any physical controller button (standard face buttons, shoulder triggers, or back paddles like L4/R4) to any combination of keyboard, mouse, or virtual gamepad outputs.
+The **Remapping** tab allows you to assign any physical controller button (standard face buttons, shoulder bumpers, triggers, or back paddles like L4/R4) to any combination of keyboard, mouse, or virtual gamepad outputs.
 
 [screenshot of Remapping tab][Button Mapping Interface with Key Combo Recorder]
 
@@ -36,8 +30,9 @@ The **Remapping** tab allows you to assign any physical controller button (stand
 - **Mouse Simulation:** Assign inputs to `mouse1` (Left Click), `mouse2` (Right Click), `mouse4` (X1 / Back), `mouse5` (X2 / Forward), or mouse wheel scrolls.
 - **Standard Button Blocking:** When remapping standard gamepad buttons (like 'A' or 'LB'), UR-XD automatically blocks the underlying physical button from reaching the virtual controller, preventing annoying double-input issues in games.
 - **Shift Layer Remapping:** Configure alternate mapping profiles activated dynamically by holding down a assigned modifier button.
+  - **Layer Management:** Create, name, and switch between multiple custom shift layers (`Shift 1`, `Shift 2`, etc.) with tab-based navigation.
+  - **Activation Chords & Order Logic:** Activate shift layers using a primary shift key or a primary shift key + modifier button combination (e.g. `LB + RB`). Requires strict press timing to prevent accidental base layer triggers.
 
----
 
 ## Tuning Tab
 
@@ -49,7 +44,6 @@ Because not all thumbsticks and triggers are created equal (and factory calibrat
 - **Response Curves:** Toggle between **Linear**, **Aggressive** (S-curve), **Instant Response**, or **Smooth Precision** for stick sensitivity.
 - **Trigger Trimming:** Fine-tune trigger min/max points so you reach 100% trigger pull effortlessly.
 
----
 
 ## Circularity Calibrator
 
@@ -60,7 +54,6 @@ Analogs on third-party gamepads are notorious for squarish boundary caps that ca
 - **Real-Time Sampling:** Rotate your analog sticks 360° inside the visual circle widget.
 - **Cardinal & Diagonal Smoothing:** Automatically calculates offset coefficients to map outer analog boundaries into a clean, smooth circle output.
 
----
 
 ## Macros Studio Tab
 
@@ -72,7 +65,6 @@ The **Macros Studio** enables recording complex automation sequences triggered b
 - **Hold & Loop Modes:** Set macros to execute **On Press**, **While Held**, or **Toggle Loop**.
 - **Anti-Stuck Safeguard:** Built-in emergency key-release logic guarantees keys are never left virtually "stuck down" if a macro execution is interrupted.
 
----
 
 ## Utilities & System Tray
 
@@ -83,4 +75,4 @@ The **Macros Studio** enables recording complex automation sequences triggered b
   - **Pause Interception:** Temporarily passes physical inputs directly through to the virtual gamepad without applying remappings or button blocks.
   - **Reload Configuration:** Forces an immediate re-read of `config.ini` and `profiles/`.
   - **Show Console:** Brings the minimized daemon console window to the front.
-  - **Exit:** Safely destroys the virtual gamepad and shuts down the background daemon.
+  - **Exit:** Safely destroys the virtual gamepad and shuts down the wrapper.

@@ -6,31 +6,22 @@
 
 </div>
 
-<br>
-
-[gif showing controller input response and tray daemon runtime][UR-XD Live Input Interception and System Tray Daemon]
 
 **Fixes Windows controllers whose HID descriptors lie just enough to ruin your day.**
 
 **UR-XD** is a lightweight Windows utility ***originally*** designed to fix controllers whose HID descriptors are incomplete or broken, restoring missing analog triggers, enabling extra back buttons, mapping inputs to macros, keyboard, and mouse actions. [Also does a whole truckload of other shit.](FEATURELIST.md)
 
----
-
 ## 🎯 What Problem Does This Solve?
 
-Many third-party controllers report incorrect behavior on Windows, depending on which mode they're on: ***DirectInput (DInput)*** or ***XInput***, such as analog triggers being treated as digital switches on DInput or extra back paddles being entirely inaccessible on XInput.
+Many third-party controllers report incorrect behavior on Windows depending on their operating mode (DirectInput vs XInput)—such as analog triggers being treated as digital switches in DInput, or extra back paddles being entirely inaccessible in XInput.
 
-UR-XD bypasses buggy driver descriptors, decodes raw HID data directly, and exposes a fully compliant Virtual Xbox 360 controller while allowing deep customization and remapping.
-
+UR-XD bypasses buggy driver descriptors, decodes raw HID payload data directly, and exposes a fully compliant Virtual Xbox 360 controller while allowing deep customization and remapping.
 
 ### Why Use UR-XD?
 - **Analog Triggers Fix:** Restores missing analog polling on controllers with broken DInput configurations. You paid for analog triggers, you're getting analog triggers.
-- **Precise Tuning & Tinkering:** Adjust button remapping, macros, stick and trigger deadzones, response curves, circularity, and sensitivity, even on controllers that do not have an official software solution.
+- **Precise Tuning & Tinkering:** Adjust button remapping, macros, stick and trigger deadzones, response curves, circularity, and sensitivity, even on controllers without official software support.
 - **No Firmware Hacks:** Fixes issues entirely in software without voiding warranties or flashing custom firmware.
 - **And Much More!** Check out the full list of features in the [Features List](FEATURELIST.md).
-
-
----
 
 ## 🎮 Supported Devices
 
@@ -38,33 +29,31 @@ UR-XD bypasses buggy driver descriptors, decodes raw HID data directly, and expo
 - ✅ **8BitDo Ultimate 2C Wireless 2.4 GHz** (literally what this whole project was built to fix)
 - ✅ **Machenike G5 Pro**
 
-> ℹ️ **NOTE**: These are only the devices that have been tested so far. If your controller is not listed, don't forget what the ***U*** in ***UR-XD*** stands for-it might still be compatible! Check out the [Calibration Guide](docs/calibration.md) for more information.
-
----
+> ℹ️ **NOTE**: These are only the devices tested so far. If your controller is not listed, don't forget what the ***U*** in ***UR-XD*** stands for—it might still be compatible! Check out the [Calibration Guide](docs/calibration.md) for more information.
 
 ## ⚡ Quick Start (5 Minutes)
 
 ### 1. Prerequisites
-- **Python 3.13+** installed.
+- **Python 3.13-3.14** installed.
 - **[ViGEmBus Driver](https://github.com/nefarius/ViGEmBus/releases)** installed on your system.
 
 ### 2. Install Dependencies
-Run the following command in PowerShell or Command Prompt:
+Run the following command in PowerShell or Command Prompt (or via Option 5 in `tools_and_diagnostics.bat`):
 ```powershell
 pip install -r requirements.txt
 ```
 
 ### 3. Calibrate Your Controller (One-time Setup)
-Run the guided calibration script:
+Run the guided calibration wizard:
 ```powershell
 .\calibrate.bat
 ```
 [screenshot of interactive CLI calibration prompt][Guided Button Calibration]
 
-Follow the on-screen prompts (e.g., press A, push Left Stick Up). You can skip buttons by typing `s` or undo by typing `u`. A custom controller map will be automatically saved in `profiles/`.
+Follow the step-by-step prompts (pressing buttons, pulling triggers, moving thumbsticks). You can skip buttons by typing `s` or undo by typing `u`. A custom controller profile will be saved automatically in `profiles/`.
 
-### 4. Launch the Daemon & GUI
-Start the wrapper:
+### 4. Launch the Wrapper & GUI
+Start the wrapper process:
 ```powershell
 .\run_wrapper.bat
 ```
@@ -72,27 +61,23 @@ Right-click the system tray icon and select **Open Config** to open the GUI and 
 
 [screenshot of configuration GUI dashboard][GUI Configuration Dashboard & Live Remapping Interface]
 
----
-
 ## 📚 Documentation Index
 
 For detailed guides, deep architecture breakdowns, and troubleshooting, explore the full documentation suite:
 
 ### 📖 User Documentation
-- **[Getting Started](docs/getting_started.md):** Complete installation, requirements, and background daemon configuration.
-- **[User Guide](docs/user_guide.md):** Detailed breakdown of GUI tabs (Dashboard, Remapping, Tuning, Macros, Utilities).
-- **[Calibration Guide](docs/calibration.md):** Auto-detection, manual interface selection, and Interactive Layout Builder.
+- **[Getting Started](docs/getting_started.md):** Complete installation, requirements, and background wrapper configuration.
+- **[User Guide](docs/user_guide.md):** Detailed breakdown of GUI tabs (Dashboard, Remapping, Tuning, Macros, Utilities, System Tray).
+- **[Calibration Guide](docs/calibration.md):** Endpoint selection, button baselining, and Interactive Layout Builder.
 - **[HID Maps & Profiles](docs/hid_maps.md):** Profile JSON formats, database auto-downloads, and multi-endpoint hardware merging.
 - **[Macros Studio](docs/macros.md):** Recording sequences, press/hold states, loop modes, and anti-stuck key logic.
 - **[Hardware Chords](docs/hardware_chords.md):** Configuring hardware button combinations and multi-button chords.
-- **[Troubleshooting Guide](docs/troubleshooting.md):** Fixes for undetected controllers, double input, rumble restrictions, and issue reporting.
+- **[Troubleshooting Guide](docs/troubleshooting.md):** Solutions for undetected controllers, double inputs, rumble restrictions, and issue reporting.
 - **[FAQ](docs/faq.md):** Frequently asked questions.
 
 ### 💻 Developer Documentation
 - **[Architecture & Pipeline](docs/architecture.md):** Input pipeline architecture, data flow, thread model, and hardware rumble findings.
-- **[Developer Guide](docs/developer_guide.md):** Codebase navigation (`src/`), custom decoders, profile schemas, and testing workflows.
-
----
+- **[Developer Guide](docs/developer_guide.md):** Codebase navigation (`src/`), custom decoders, profile schemas, PR guidelines, and testing workflows.
 
 ## 🎨 EXTRAS
 

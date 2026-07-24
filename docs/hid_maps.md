@@ -6,11 +6,7 @@
 
 </div>
 
-<br>
-
 UR-XD decouples hardware telemetry parsing from output generation by storing controller specifications in JSON format inside `profiles/`.
-
----
 
 ## Profile JSON Structure
 
@@ -36,8 +32,6 @@ Each profile file defines hardware identification (VID/PID), endpoint parsing ru
 }
 ```
 
----
-
 ## Community HID Map Database
 
 To save users from manually calibrating popular gamepads, UR-XD features an **Automated Community Database Downloader**:
@@ -50,11 +44,9 @@ To save users from manually calibrating popular gamepads, UR-XD features an **Au
 
 ## Composite Endpoint Merging
 
-Certain hardware designs (like the **Machenike G5 Pro**) do not send all inputs inside a single HID report. Instead, they operate as a composite USB device with multiple endpoints:
+Certain hardware designs (like the **Machenike G5 Pro**) do not send all inputs inside a single HID report. Instead, they operate as a composite USB device with multiple interfaces:
 
-[diagram of multi-interface HID report merging][Composite Endpoint Input Merging Architecture]
+- **Interface 0:** Transmits standard face buttons and thumbstick positions.
+- **Interface 1:** Transmits back paddle states and motion telemetry.
 
-- **Endpoint 0:** Transmits standard face buttons and thumbstick positions.
-- **Endpoint 1:** Transmits back paddle states and motion telemetry.
-
-UR-XD's multi-threaded backend concurrently listens to all declared endpoints in `"endpoints": [0, 1]`, merging raw byte frames into a unified state payload before passing data to the remapping pipeline.
+UR-XD's multi-threaded backend concurrently listens to all declared interfaces in `"endpoints": [0, 1]`, merging raw byte frames into a unified state payload before passing data to the remapping pipeline.

@@ -100,20 +100,36 @@ class TestMapperShiftLayers(unittest.TestCase):
         mapper.process(st)
         self.assertEqual(mapper.active_layer, 'shift_2')
 
-    def test_reverse_order_rejects_chord(self):
-        mapper = Mapper(self.cfg)
+    def test_toggle_mode_activation(self):
+        cfg = ControllerConfig()
+        cfg.set_shift_layers([
+            {
+                "id": "shift_toggle",
+                "name": "Toggle Shift",
+                "trigger_button": "lb",
+                "modifier_button": "",
+                "mode": "toggle",
+                "mappings": {"a": "keyboard:t"},
+                "block_xinput": {}
+            }
+        ])
+        mapper = Mapper(cfg)
         st = ControllerState()
         
-        # RB pressed first
-        st.rb = 1.0
-        mapper.process(st)
-        self.assertEqual(mapper.active_layer, 'layer_base')
-        
-        time.sleep(0.01)
-        # LB pressed second -> t_lb > t_rb, chord shift_2 rejected, single shift_1 activated
+        # 1. Press LB -> toggles ON
         st.lb = 1.0
         mapper.process(st)
-        self.assertEqual(mapper.active_layer, 'shift_1')
+        self.assertEqual(mapper.active_layer, 'shift_toggle')
+        
+        # 2. Release LB -> stays ON
+        st.lb = 0.0
+        mapper.process(st)
+        self.assertEqual(mapper.active_layer, 'shift_toggle')
+        
+        # 3. Press LB again -> toggles OFF
+        st.lb = 1.0
+        mapper.process(st)
+        self.assertEqual(mapper.active_layer, 'layer_base')
 
 if __name__ == '__main__':
     unittest.main()

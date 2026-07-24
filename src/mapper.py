@@ -24,6 +24,7 @@ class Mapper:
         self.mappings = {'layer_base': {}}
         self.chords = []
         self.shift_layers = []
+        self.toggled_shift_layers = set()
         self.active_layer = 'layer_base'
         self.shift_button = None
         self.shift_mode = 'hold'
@@ -61,6 +62,7 @@ class Mapper:
         self.mappings = {'layer_base': {}}
         self.chords = []
         self.shift_layers = []
+        self.toggled_shift_layers = set()
         
         if config.has_section('settings'):
             self.chord_mode = config.get('settings', 'chord_mode', fallback='rollback').lower()
@@ -150,38 +152,6 @@ class Mapper:
         if self.macro_executor:
             self.macro_executor.execute_or_toggle(macro_name)
 
-    def _press(self, mapping):
-        if not mapping:
-            return
-
-        if mapping.startswith('macro:'):
-            self._execute_macro(mapping.split(':', 1)[1])
-            return
-        elif self.macro_executor and mapping in self.macro_executor.macros:
-            self._execute_macro(mapping)
-            return
-
-        if mapping.startswith('gamepad:'):
-            btn_name = mapping.split(':', 1)[1]
-            if hasattr(self, 'virtual_pad') and self.virtual_pad:
-                self.virtual_pad.press_gamepad_button(btn_name)
-            return
-        elif mapping in ['a', 'b', 'x', 'y', 'lb', 'rb', 'lt', 'rt', 'l3', 'r3', 'select', 'start', 'home', 'dpad_up', 'dpad_down', 'dpad_left', 'dpad_right']:
-            if hasattr(self, 'virtual_pad') and self.virtual_pad:
-                self.virtual_pad.press_gamepad_button(mapping)
-            return
-
-        if mapping == 'mouse4':
-            self.mouse.press(MouseButton.x1)
-        elif mapping == 'mouse5':
-            self.mouse.press(MouseButton.x2)
-        elif mapping.startswith('mouse:scroll_'):
-            parsed = self._parse_scroll_mapping(mapping)
-            if parsed['mode'] == 'oneshot':
-                self._do_scroll_parsed(parsed)
-            else:
-                self.active_scrolls[mapping] = parsed
-                self._do_scroll_parsed(parsed)
     def _press_key_sequence(self, keys):
         currently_pressed = set()
         for key_name in keys:
@@ -351,33 +321,64 @@ class Mapper:
 
         now = time.time()
 
-        # Track press timestamps
+        # Track press timestamps and edge transitions
+        new_presses = set()
+        new_releases = set()
         for btn, is_pressed in all_buttons.items():
             btn_lower = btn.lower()
             prev_p = self.prev_state.get(btn_lower, False)
             if is_pressed and not prev_p:
                 self.button_press_times[btn_lower] = now
+                new_presses.add(btn_lower)
             elif not is_pressed and prev_p:
                 self.button_press_times.pop(btn_lower, None)
+                new_releases.add(btn_lower)
+
+        # Check edge transitions for toggle-mode shift layers
+        for l in self.shift_layers:
+            if l.get('mode') == 'toggle':
+                trig = (l.get('trigger_button') or '').lower().strip()
+                mod = (l.get('modifier_button') or '').lower().strip()
+                l_id = l.get('id')
+                if trig:
+                    if mod:
+                        if (trig in new_presses and all_buttons.get(mod, False)) or (mod in new_presses and all_buttons.get(trig, False)):
+                            if l_id in self.toggled_shift_layers:
+                                self.toggled_shift_layers.remove(l_id)
+                            else:
+                                self.toggled_shift_layers.add(l_id)
+                    else:
+                        if trig in new_presses:
+                            if l_id in self.toggled_shift_layers:
+                                self.toggled_shift_layers.remove(l_id)
+                            else:
+                                self.toggled_shift_layers.add(l_id)
 
         # Determine Active Shift Layer
         target_layer = 'layer_base'
         consumed_shift_buttons = set()
 
-        chord_layers = [l for l in self.shift_layers if l['trigger_button'] and l['modifier_button']]
-        single_layers = [l for l in self.shift_layers if l['trigger_button'] and not l['modifier_button']]
+        chord_layers = [l for l in self.shift_layers if l.get('trigger_button') and l.get('modifier_button')]
+        single_layers = [l for l in self.shift_layers if l.get('trigger_button') and not l.get('modifier_button')]
 
         # 1. Check chord shift layers first (higher precedence)
         matched_chord = False
         for l in chord_layers:
-            trig = l['trigger_button']
-            mod = l['modifier_button']
-            if all_buttons.get(trig, False) and all_buttons.get(mod, False):
-                t_trig = self.button_press_times.get(trig, now)
-                t_mod = self.button_press_times.get(mod, now)
-                # Strict Order: trigger pressed BEFORE or at same time as modifier
-                if t_trig <= t_mod:
-                    target_layer = l['id']
+            trig = (l.get('trigger_button') or '').lower().strip()
+            mod = (l.get('modifier_button') or '').lower().strip()
+            l_id = l['id']
+            mode = l.get('mode', 'hold')
+
+            if mode == 'toggle':
+                if l_id in self.toggled_shift_layers:
+                    target_layer = l_id
+                    consumed_shift_buttons.add(trig)
+                    consumed_shift_buttons.add(mod)
+                    matched_chord = True
+                    break
+            else: # hold
+                if all_buttons.get(trig, False) and all_buttons.get(mod, False):
+                    target_layer = l_id
                     consumed_shift_buttons.add(trig)
                     consumed_shift_buttons.add(mod)
                     matched_chord = True
@@ -386,16 +387,40 @@ class Mapper:
         # 2. If no chord layer matched, check single trigger shift layers
         if not matched_chord:
             for l in single_layers:
-                trig = l['trigger_button']
-                if all_buttons.get(trig, False):
-                    target_layer = l['id']
-                    consumed_shift_buttons.add(trig)
-                    break
+                trig = (l.get('trigger_button') or '').lower().strip()
+                l_id = l['id']
+                mode = l.get('mode', 'hold')
 
+                if mode == 'toggle':
+                    if l_id in self.toggled_shift_layers:
+                        target_layer = l_id
+                        consumed_shift_buttons.add(trig)
+                        break
+                else: # hold
+                    if all_buttons.get(trig, False):
+                        target_layer = l_id
+                        consumed_shift_buttons.add(trig)
+                        break
+
+        # Handle Layer Change Transitions
         if self.active_layer != target_layer:
             if logger:
-                logger.debug(f"[MAPPER] Shift layer changed: {self.active_layer} -> {target_layer}")
+                logger.debug(f"[MAPPER] Active layer changed: {self.active_layer} -> {target_layer}")
+            # Release all active holds from previous layer
+            for b_held, m_held in list(self.active_holds.items()):
+                self._release(m_held)
+            self.active_holds.clear()
+
             self.active_layer = target_layer
+
+            # Trigger press actions for buttons currently held down in the new active layer
+            active_map = self.mappings.get(self.active_layer, {})
+            for b_pressed, is_down in all_buttons.items():
+                if is_down and b_pressed not in consumed_shift_buttons:
+                    mapping = active_map.get(b_pressed)
+                    if mapping and mapping != 'guide':
+                        self._press(mapping)
+                        self.active_holds[b_pressed] = mapping
         
         # Pre-process analog sticks
         active_map = self.mappings.get(self.active_layer, {})

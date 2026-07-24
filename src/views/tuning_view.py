@@ -174,6 +174,7 @@ class TuningView(QWidget):
 
         # Custom Equation Input (Visible when "custom" selected)
         self.edit_l_custom_eq = QLineEdit()
+        self.edit_l_custom_eq.setObjectName("OutlinedEdit")
         self.edit_l_custom_eq.setPlaceholderText("Fill text box with equation (e.g. x**2 + 0.1*x)")
         self.edit_l_custom_eq.textChanged.connect(self.on_l_custom_eq_changed)
         self.edit_l_custom_eq.editingFinished.connect(lambda: self.save_opt("analog_left", "custom_eq", self.edit_l_custom_eq.text()))
@@ -313,6 +314,7 @@ class TuningView(QWidget):
 
         # Custom Equation Input
         self.edit_r_custom_eq = QLineEdit()
+        self.edit_r_custom_eq.setObjectName("OutlinedEdit")
         self.edit_r_custom_eq.setPlaceholderText("Fill text box with equation (e.g. x**2 + 0.1*x)")
         self.edit_r_custom_eq.textChanged.connect(self.on_r_custom_eq_changed)
         self.edit_r_custom_eq.editingFinished.connect(lambda: self.save_opt("analog_right", "custom_eq", self.edit_r_custom_eq.text()))
@@ -919,14 +921,22 @@ class TuningView(QWidget):
         )
 
         dz_lt = self.slider_lt_dz.value() / 100.0
+        adz_lt = self.slider_lt_adz.value() / 100.0
+        rdz_lt = self.slider_lt_rdz.value() / 100.0
+        exp_lt = self.slider_lt_exp.value() / 10.0
+        sens_lt = self.slider_lt_sens.value() / 10.0
         ctype_lt = self.combo_lt_ctype.currentText()
-        mod_lt = math_utils.process_trigger(lt, dz_lt, 1.0, ctype_lt)
+        mod_lt = math_utils.process_trigger(lt, dz_lt, adz_lt, ctype_lt, exp_lt, rest_dz=rdz_lt, sensitivity=sens_lt)
         if self.chk_dig_lt.isChecked() and mod_lt > 0:
             mod_lt = 1.0
 
         dz_rt = self.slider_rt_dz.value() / 100.0
+        adz_rt = self.slider_rt_adz.value() / 100.0
+        rdz_rt = self.slider_rt_rdz.value() / 100.0
+        exp_rt = self.slider_rt_exp.value() / 10.0
+        sens_rt = self.slider_rt_sens.value() / 10.0
         ctype_rt = self.combo_rt_ctype.currentText()
-        mod_rt = math_utils.process_trigger(rt, dz_rt, 1.0, ctype_rt)
+        mod_rt = math_utils.process_trigger(rt, dz_rt, adz_rt, ctype_rt, exp_rt, rest_dz=rdz_rt, sensitivity=sens_rt)
         if self.chk_dig_rt.isChecked() and mod_rt > 0:
             mod_rt = 1.0
 

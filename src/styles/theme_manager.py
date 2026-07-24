@@ -1,7 +1,8 @@
 """
 Theme Manager module for PySide6 GUI (theme_manager.py)
 Handles dynamic QSS stylesheet generation, theme presets (Purple, Blue, Green, Red, Yellow, Orange, White),
-accent RGBA glow calculation, system dark/light contrast auto-detection, and font family overrides.
+accent RGBA glow calculation, system dark/light contrast auto-detection, font family overrides,
+and sleek thin borders across all interactive buttons, dropdowns, spinboxes, and text inputs.
 """
 
 import os
@@ -15,8 +16,8 @@ THEME_PRESETS = {
         "name": "Purple (Default)",
         "base_bg": "#0c0914",
         "card_bg": "rgba(22, 16, 36, 0.85)",
-        "card_border": "rgba(168, 85, 247, 0.25)",
-        "card_hover_border": "rgba(168, 85, 247, 0.55)",
+        "card_border": "rgba(168, 85, 247, 0.35)",
+        "card_hover_border": "rgba(168, 85, 247, 0.75)",
         "primary": "#7500ab",
         "primary_hover": "#8e00cf",
         "glow": "#a855f7",
@@ -28,8 +29,8 @@ THEME_PRESETS = {
         "name": "Ocean Blue",
         "base_bg": "#08101e",
         "card_bg": "rgba(15, 28, 48, 0.85)",
-        "card_border": "rgba(56, 189, 248, 0.25)",
-        "card_hover_border": "rgba(56, 189, 248, 0.55)",
+        "card_border": "rgba(56, 189, 248, 0.35)",
+        "card_hover_border": "rgba(56, 189, 248, 0.75)",
         "primary": "#0284c7",
         "primary_hover": "#0369a1",
         "glow": "#38bdf8",
@@ -41,8 +42,8 @@ THEME_PRESETS = {
         "name": "Cyber Green",
         "base_bg": "#08140c",
         "card_bg": "rgba(16, 36, 22, 0.85)",
-        "card_border": "rgba(74, 222, 128, 0.25)",
-        "card_hover_border": "rgba(74, 222, 128, 0.55)",
+        "card_border": "rgba(74, 222, 128, 0.35)",
+        "card_hover_border": "rgba(74, 222, 128, 0.75)",
         "primary": "#16a34a",
         "primary_hover": "#15803d",
         "glow": "#4ade80",
@@ -54,8 +55,8 @@ THEME_PRESETS = {
         "name": "Crimson Red",
         "base_bg": "#140809",
         "card_bg": "rgba(36, 16, 18, 0.85)",
-        "card_border": "rgba(248, 113, 113, 0.25)",
-        "card_hover_border": "rgba(248, 113, 113, 0.55)",
+        "card_border": "rgba(248, 113, 113, 0.35)",
+        "card_hover_border": "rgba(248, 113, 113, 0.75)",
         "primary": "#dc2626",
         "primary_hover": "#b91c1c",
         "glow": "#f87171",
@@ -67,8 +68,8 @@ THEME_PRESETS = {
         "name": "Solar Yellow",
         "base_bg": "#141208",
         "card_bg": "rgba(36, 32, 16, 0.85)",
-        "card_border": "rgba(250, 204, 21, 0.25)",
-        "card_hover_border": "rgba(250, 204, 21, 0.55)",
+        "card_border": "rgba(250, 204, 21, 0.35)",
+        "card_hover_border": "rgba(250, 204, 21, 0.75)",
         "primary": "#ca8a04",
         "primary_hover": "#a16207",
         "glow": "#facc15",
@@ -80,8 +81,8 @@ THEME_PRESETS = {
         "name": "Neon Orange",
         "base_bg": "#140c08",
         "card_bg": "rgba(36, 22, 16, 0.85)",
-        "card_border": "rgba(251, 146, 60, 0.25)",
-        "card_hover_border": "rgba(251, 146, 60, 0.55)",
+        "card_border": "rgba(251, 146, 60, 0.35)",
+        "card_hover_border": "rgba(251, 146, 60, 0.75)",
         "primary": "#ea580c",
         "primary_hover": "#c2410c",
         "glow": "#fb923c",
@@ -93,8 +94,8 @@ THEME_PRESETS = {
         "name": "Monochrome Light Dark",
         "base_bg": "#111318",
         "card_bg": "rgba(30, 35, 45, 0.85)",
-        "card_border": "rgba(226, 232, 240, 0.25)",
-        "card_hover_border": "rgba(226, 232, 240, 0.55)",
+        "card_border": "rgba(226, 232, 240, 0.35)",
+        "card_hover_border": "rgba(226, 232, 240, 0.75)",
         "primary": "#64748b",
         "primary_hover": "#475569",
         "glow": "#e2e8f0",
@@ -159,7 +160,6 @@ class ThemeManager:
             theme_key = self.detect_system_theme()
 
         theme = THEME_PRESETS.get(theme_key, THEME_PRESETS["purple"])
-        glow_rgba = self.get_accent_glow_rgba(theme["glow"], 0.45)
 
         qss = f"""
         /* Next-Gen Built Tomorrow Theme: {theme['name']} */
@@ -190,18 +190,34 @@ class ThemeManager:
             border-radius: 0px;
         }}
 
+        /* Buttons with Sleek Thin Outlines */
+        QPushButton {{
+            border: 1px solid {theme['card_border']};
+            border-radius: 8px;
+            padding: 6px 14px;
+            font-weight: 600;
+            background-color: rgba(255, 255, 255, 0.05);
+            color: {theme['text_main']};
+        }}
+
+        QPushButton:hover {{
+            border: 1px solid {theme['card_hover_border']};
+            background-color: rgba(255, 255, 255, 0.12);
+        }}
+
         QPushButton#PrimaryBtn {{
             background: qlineargradient(x1:0, y1:0, x2:1, y2:0, stop:0 {theme['primary']}, stop:1 {theme['glow']});
             color: #ffffff;
-            border: none;
+            border: 1px solid {theme['card_hover_border']};
             border-radius: 8px;
-            padding: 8px 16px;
+            padding: 7px 16px;
             font-weight: 700;
             font-size: 13px;
         }}
 
         QPushButton#PrimaryBtn:hover {{
             background: qlineargradient(x1:0, y1:0, x2:1, y2:0, stop:0 {theme['primary_hover']}, stop:1 {theme['primary']});
+            border: 1px solid #ffffff;
         }}
 
         QPushButton#SecondaryBtn {{
@@ -209,7 +225,7 @@ class ThemeManager:
             color: {theme['text_main']};
             border: 1px solid {theme['card_border']};
             border-radius: 8px;
-            padding: 8px 16px;
+            padding: 7px 16px;
             font-weight: 600;
         }}
 
@@ -218,6 +234,63 @@ class ThemeManager:
             border: 1px solid {theme['card_hover_border']};
         }}
 
+        /* Dropdown Menus (QComboBox) with Thin Outlines */
+        QComboBox {{
+            background-color: rgba(16, 12, 28, 0.95);
+            border: 1px solid {theme['card_border']};
+            border-radius: 6px;
+            padding: 5px 10px;
+            color: {theme['text_main']};
+            font-weight: 600;
+        }}
+
+        QComboBox:hover, QComboBox:focus {{
+            border: 1px solid {theme['card_hover_border']};
+            background-color: rgba(22, 16, 36, 0.95);
+        }}
+
+        QComboBox QAbstractItemView {{
+            background-color: {theme['base_bg']};
+            border: 1px solid {theme['card_hover_border']};
+            selection-background-color: {theme['primary']};
+            selection-color: #ffffff;
+            color: {theme['text_main']};
+            outline: none;
+        }}
+
+        /* Mutable Text Boxes (QLineEdit, QPlainTextEdit) with Thin Outlines and Clean Focus */
+        QLineEdit, QPlainTextEdit {{
+            background-color: rgba(10, 7, 18, 0.95);
+            border: 1px solid {theme['card_border']};
+            border-radius: 6px;
+            padding: 6px 10px;
+            color: {theme['text_main']};
+            selection-background-color: {theme['primary']};
+            selection-color: #ffffff;
+        }}
+
+        QLineEdit:hover, QLineEdit:focus, QPlainTextEdit:hover, QPlainTextEdit:focus {{
+            border: 1px solid {theme['card_hover_border']};
+            background-color: rgba(14, 10, 24, 0.95);
+        }}
+
+        /* SpinBoxes (QSpinBox, QDoubleSpinBox) with Thin Outlines */
+        QSpinBox, QDoubleSpinBox {{
+            background-color: rgba(10, 7, 18, 0.95);
+            border: 1px solid {theme['card_border']};
+            border-radius: 6px;
+            padding: 5px 8px;
+            color: {theme['text_main']};
+            font-weight: 600;
+            selection-background-color: {theme['primary']};
+            selection-color: #ffffff;
+        }}
+
+        QSpinBox:hover, QSpinBox:focus, QDoubleSpinBox:hover, QDoubleSpinBox:focus {{
+            border: 1px solid {theme['card_hover_border']};
+        }}
+
+        /* Sidebar Navigation List Items */
         QListWidget#SidebarNav {{
             background-color: transparent;
             border: none;
@@ -232,19 +305,23 @@ class ThemeManager:
             color: {theme['text_muted']};
             font-weight: 600;
             font-size: 14px;
+            border: 1px solid transparent;
         }}
 
         QListWidget#SidebarNav::item:hover {{
             background-color: rgba(255, 255, 255, 0.05);
             color: {theme['text_main']};
+            border: 1px solid {theme['card_border']};
         }}
 
         QListWidget#SidebarNav::item:selected {{
             background: qlineargradient(x1:0, y1:0, x2:1, y2:0, stop:0 {theme['primary']}, stop:1 {theme['glow']});
             color: #ffffff;
             font-weight: 700;
+            border: 1px solid {theme['card_hover_border']};
         }}
 
+        /* Sliders */
         QSlider::groove:horizontal {{
             height: 6px;
             background: rgba(255, 255, 255, 0.1);
@@ -263,6 +340,24 @@ class ThemeManager:
             margin-top: -6px;
             margin-bottom: -6px;
             border-radius: 9px;
+            border: 1px solid #ffffff;
+        }}
+
+        /* Tables (QTableWidget) with Thin Outlines */
+        QTableWidget {{
+            background-color: rgba(10, 7, 18, 0.85);
+            border: 1px solid {theme['card_border']};
+            border-radius: 8px;
+            gridline-color: rgba(168, 85, 247, 0.2);
+            color: {theme['text_main']};
+        }}
+
+        QHeaderView::section {{
+            background-color: rgba(22, 16, 36, 0.95);
+            color: {theme['text_muted']};
+            font-weight: bold;
+            border: 1px solid {theme['card_border']};
+            padding: 6px;
         }}
 
         QProgressBar#TriggerBar {{

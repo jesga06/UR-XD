@@ -1,8 +1,9 @@
 """
 Curve Graph Widget for PySide6 (curve_graph_widget.py)
 Interactive QPainter response curve editor with draggable control points,
-curve preset previews (Linear, Aggressive, Smooth, S-Curve, Custom),
-LaTeX math formula export, and JSON control points export.
+real-time input/output tracer dot rendering, support for all curve types
+(Linear, Relaxed, Aggressive, Cubic, Sigmoid, Bezier, Dotted, Custom),
+LaTeX Desmos math formula export, and JSON control points export.
 """
 
 import math
@@ -10,20 +11,27 @@ import json
 from PySide6.QtWidgets import QWidget, QApplication
 from PySide6.QtCore import Qt, QPointF, Signal
 from PySide6.QtGui import QPainter, QPen, QColor, QBrush, QPainterPath
+import curves
 
 
 class CurveGraphWidget(QWidget):
     """
-    Interactive QPainter response curve editor with draggable control points.
+    Interactive QPainter response curve editor with live tracer dots and all curve presets.
     """
 
     points_changed = Signal(list)
 
-    def __init__(self, parent=None):
+    def __init__(self, title="Response Curve", parent=None):
         super().__init__(parent)
+        self.title = title
         self.setMinimumSize(280, 220)
-        self.curve_preset = "Linear"
-        # Control points normalized from (0.0, 0.0) to (1.0, 1.0)
+        self.curve_preset = "linear"
+        self.power = 2.0
+        self.custom_eq = ""
+        self.raw_val = 0.0
+        self.mod_val = 0.0
+
+        # Control points for interactive/dotted curve normalized [0.0, 1.0]
         self.control_points = [
             QPointF(0.0, 0.0),
             QPointF(0.25, 0.25),
@@ -35,46 +43,37 @@ class CurveGraphWidget(QWidget):
         self.color_line = QColor(168, 85, 247)
         self.color_dot = QColor(0, 245, 160)
 
-    def set_preset(self, preset_name: str):
-        """Update control points based on curve preset."""
-        self.curve_preset = preset_name
-        if preset_name == "Linear":
-            self.control_points = [
-                QPointF(0.0, 0.0), QPointF(0.25, 0.25), QPointF(0.5, 0.5), QPointF(0.75, 0.75), QPointF(1.0, 1.0)
-            ]
-        elif preset_name == "Aggressive":
-            self.control_points = [
-                QPointF(0.0, 0.0), QPointF(0.25, 0.45), QPointF(0.5, 0.75), QPointF(0.75, 0.90), QPointF(1.0, 1.0)
-            ]
-        elif preset_name == "Smooth":
-            self.control_points = [
-                QPointF(0.0, 0.0), QPointF(0.25, 0.10), QPointF(0.5, 0.35), QPointF(0.75, 0.70), QPointF(1.0, 1.0)
-            ]
-        elif preset_name == "S-Curve":
-            self.control_points = [
-                QPointF(0.0, 0.0), QPointF(0.25, 0.12), QPointF(0.5, 0.5), QPointF(0.75, 0.88), QPointF(1.0, 1.0)
-            ]
+    def set_live_input_output(self, raw_val: float, mod_val: float):
+        """Update live input/output values from controller state to render active tracer dot."""
+        self.raw_val = max(0.0, min(1.0, abs(raw_val)))
+        self.mod_val = max(0.0, min(1.0, abs(mod_val)))
         self.update()
 
-    def get_points_data(self):
-        return [(pt.x(), pt.y()) for pt in self.control_points]
+    def set_curve_params(self, curve_type: str, power: float = 2.0, custom_eq: str = ""):
+        """Set curve type, sensitivity factor, and custom math equation."""
+        self.curve_preset = curve_type.lower()
+        self.power = power
+        self.custom_eq = custom_eq
+
+        if self.curve_preset == "linear":
+            self.control_points = [QPointF(0.0, 0.0), QPointF(0.25, 0.25), QPointF(0.5, 0.5), QPointF(0.75, 0.75), QPointF(1.0, 1.0)]
+        elif self.curve_preset in ["relaxed", "exponential"]:
+            self.control_points = [QPointF(x / 4.0, (x / 4.0) ** power) for x in range(5)]
+        elif self.curve_preset == "aggressive":
+            self.control_points = [QPointF(x / 4.0, 1.0 - (1.0 - (x / 4.0)) ** power) for x in range(5)]
+        elif self.curve_preset == "cubic":
+            self.control_points = [QPointF(x / 4.0, (x / 4.0) ** 3) for x in range(5)]
+        self.update()
 
     def export_latex(self) -> str:
-        """Export curve representation as LaTeX formula string."""
-        if self.curve_preset == "Linear":
-            return r"f(x) = x"
-        elif self.curve_preset == "Aggressive":
-            return r"f(x) = x^{0.5}"
-        elif self.curve_preset == "Smooth":
-            return r"f(x) = x^2"
-        elif self.curve_preset == "S-Curve":
-            return r"f(x) = \frac{1}{1 + e^{-10(x - 0.5)}}"
-        pts_str = ", ".join(f"({p.x():.2f}, {p.y():.2f})" for p in self.control_points)
-        return rf"f(x) \text{{ (Custom Points: }} {pts_str} \text{{)}}"
+        """Generate LaTeX Desmos formula list."""
+        formulas = curves.export_to_desmos(self.curve_preset, self.power, 0.05, 0.0, 0.0)
+        return "\n".join(formulas) if formulas else f"f(x) = {self.curve_preset}(x)"
 
     def export_json(self) -> str:
         """Export control points as JSON string."""
-        return json.dumps(self.get_points_data(), indent=2)
+        pts = [(pt.x(), pt.y()) for pt in self.control_points]
+        return json.dumps(pts, indent=2)
 
     def paintEvent(self, event):
         painter = QPainter(self)
@@ -86,12 +85,16 @@ class CurveGraphWidget(QWidget):
         w = width - (2 * margin)
         h = height - (2 * margin)
 
-        # Draw Graph Container Card
+        # Draw Graph Card Background
         painter.setPen(QPen(QColor(168, 85, 247, 60), 1))
         painter.setBrush(QBrush(QColor(12, 9, 20, 240)))
         painter.drawRoundedRect(0, 0, width, height, 8, 8)
 
-        # Draw Grid Lines & Diagonal Reference
+        # Title Header
+        painter.setPen(QColor(169, 146, 203))
+        painter.drawText(margin, 20, self.title.upper())
+
+        # Grid Lines & Diagonal Reference
         pen_grid = QPen(QColor(255, 255, 255, 25), 1, Qt.PenStyle.DashLine)
         painter.setPen(pen_grid)
         for i in range(1, 4):
@@ -104,38 +107,48 @@ class CurveGraphWidget(QWidget):
         painter.setPen(QPen(QColor(255, 255, 255, 40), 1, Qt.PenStyle.DotLine))
         painter.drawLine(QPointF(margin, height - margin), QPointF(width - margin, margin))
 
-        # Draw Curve Path
+        # Evaluate and Draw Full Curve Path (100 steps)
         path = QPainterPath()
-        start_x = margin + (self.control_points[0].x() * w)
-        start_y = (height - margin) - (self.control_points[0].y() * h)
-        path.moveTo(start_x, start_y)
+        start_y = curves.evaluate_curve(0.0, self.curve_preset, self.power, self.custom_eq)
+        path.moveTo(margin, (height - margin) - (start_y * h))
 
-        for pt in self.control_points[1:]:
-            px = margin + (pt.x() * w)
-            py = (height - margin) - (pt.y() * h)
+        for step in range(1, 101):
+            x_norm = step / 100.0
+            y_norm = curves.evaluate_curve(x_norm, self.curve_preset, self.power, self.custom_eq)
+            px = margin + (x_norm * w)
+            py = (height - margin) - (y_norm * h)
             path.lineTo(px, py)
 
         painter.setPen(QPen(self.color_line, 2.5))
         painter.setBrush(Qt.BrushStyle.NoBrush)
         painter.drawPath(path)
 
-        # Draw Interactive Control Points
-        for idx, pt in enumerate(self.control_points):
-            px = margin + (pt.x() * w)
-            py = (height - margin) - (pt.y() * h)
+        # Draw Draggable Control Points (if Dotted / Custom)
+        if self.curve_preset in ["dotted", "custom"]:
+            for idx, pt in enumerate(self.control_points):
+                px = margin + (pt.x() * w)
+                py = (height - margin) - (pt.y() * h)
+                if idx == self.active_point_idx:
+                    painter.setPen(QPen(QColor(255, 255, 255), 2))
+                    painter.setBrush(QBrush(self.color_dot))
+                    painter.drawEllipse(QPointF(px, py), 7, 7)
+                else:
+                    painter.setPen(QPen(self.color_line, 1.5))
+                    painter.setBrush(QBrush(QColor(12, 9, 20)))
+                    painter.drawEllipse(QPointF(px, py), 5, 5)
 
-            if idx == self.active_point_idx:
-                painter.setPen(QPen(QColor(255, 255, 255), 2))
-                painter.setBrush(QBrush(self.color_dot))
-                painter.drawEllipse(QPointF(px, py), 7, 7)
-            else:
-                painter.setPen(QPen(self.color_line, 1.5))
-                painter.setBrush(QBrush(QColor(12, 9, 20)))
-                painter.drawEllipse(QPointF(px, py), 5, 5)
+        # Draw Live Input / Output Tracer Dot
+        tracer_x = margin + (self.raw_val * w)
+        tracer_y = (height - margin) - (self.mod_val * h)
+        painter.setPen(QPen(QColor(255, 255, 255), 1.5))
+        painter.setBrush(QBrush(QColor(0, 245, 160)))
+        painter.drawEllipse(QPointF(tracer_x, tracer_y), 6, 6)
 
         painter.end()
 
     def mousePressEvent(self, event):
+        if self.curve_preset not in ["dotted", "custom"]:
+            return
         margin = 30
         w = self.width() - (2 * margin)
         h = self.height() - (2 * margin)
@@ -151,7 +164,7 @@ class CurveGraphWidget(QWidget):
                 break
 
     def mouseMoveEvent(self, event):
-        if self.active_point_idx is not None:
+        if self.active_point_idx is not None and self.curve_preset in ["dotted", "custom"]:
             margin = 30
             w = self.width() - (2 * margin)
             h = self.height() - (2 * margin)
@@ -160,16 +173,16 @@ class CurveGraphWidget(QWidget):
             norm_x = max(0.0, min(1.0, (pos.x() - margin) / w))
             norm_y = max(0.0, min(1.0, ((self.height() - margin) - pos.y()) / h))
 
-            # Clamp endpoints (0,0) and (1,1)
             if self.active_point_idx == 0:
                 norm_x = 0.0
             elif self.active_point_idx == len(self.control_points) - 1:
                 norm_x = 1.0
 
             self.control_points[self.active_point_idx] = QPointF(norm_x, norm_y)
-            self.curve_preset = "Custom"
+            pts_list = [(pt.x(), pt.y()) for pt in self.control_points]
+            self.custom_eq = json.dumps(pts_list)
             self.update()
-            self.points_changed.emit(self.get_points_data())
+            self.points_changed.emit(pts_list)
 
     def mouseReleaseEvent(self, event):
         self.active_point_idx = None

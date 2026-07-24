@@ -231,8 +231,13 @@ class DashboardView(QWidget):
             self.lbl_telemetry.setText(f"TELEMETRY: Polling Rate: {self.current_hz} Hz | Latency: <1.0 ms | ViGEmBus: Active | Buffer: 0 Drops")
 
         # Update Connection Badge State
-        self.status_dot.setStyleSheet("font-size: 16px; color: #00f5a0;")
-        self.status_title.setText("CONNECTED: 8BitDo Ultimate 2C")
+        is_conn = getattr(controller_state, 'is_connected', True)
+        if is_conn:
+            self.status_dot.setStyleSheet("font-size: 16px; color: #00f5a0;")
+            self.status_title.setText("CONNECTED: 8BitDo Ultimate 2C")
+        else:
+            self.status_dot.setStyleSheet("font-size: 16px; color: #ef4444;")
+            self.status_title.setText("DISCONNECTED: Searching for Controller...")
 
         # Stick Coordinates & Radars
         self.js_left.set_stick_position(controller_state.lx, controller_state.ly)
@@ -256,7 +261,8 @@ class DashboardView(QWidget):
             if hasattr(controller_state, b_key):
                 is_pressed = bool(getattr(controller_state, b_key))
             elif isinstance(controller_state.extra_inputs, dict):
-                is_pressed = bool(controller_state.extra_inputs.get(bname, controller_state.extra_inputs.get(b_key, False)))
+                raw_val = controller_state.extra_inputs.get(bname, controller_state.extra_inputs.get(b_key, False))
+                is_pressed = (raw_val > 0) if isinstance(raw_val, (int, float)) else bool(raw_val)
 
             if is_pressed:
                 lbl_widget.setStyleSheet(

@@ -205,7 +205,7 @@ class MainWindow(QMainWindow):
         target_font = font_family or self.theme_manager.font_family
         app_inst.setFont(QFont(target_font, font_size))
 
-        # Update canvas colors on dashboard
+        # Update canvas colors on dashboard and tuning views
         active_theme = self.theme_manager.get_active_theme()
         if hasattr(self, 'view_dashboard'):
             self.view_dashboard.js_left.set_theme_colors(
@@ -218,6 +218,18 @@ class MainWindow(QMainWindow):
                 glow_hex=active_theme['glow'],
                 accent_green_hex=active_theme['accent_green']
             )
+
+        if hasattr(self, 'view_tuning'):
+            for widget in [self.view_tuning.radar_left, self.view_tuning.radar_right,
+                           self.view_tuning.curve_graph_left, self.view_tuning.curve_graph_right,
+                           self.view_tuning.curve_graph_lt, self.view_tuning.curve_graph_rt,
+                           self.view_tuning.bar_lt, self.view_tuning.bar_rt]:
+                if hasattr(widget, 'set_theme_colors'):
+                    widget.set_theme_colors(
+                        primary_hex=active_theme['primary'],
+                        glow_hex=active_theme['glow'],
+                        accent_green_hex=active_theme['accent_green']
+                    )
 
     def setup_ui(self):
         central_widget = QWidget(self)

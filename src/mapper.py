@@ -71,14 +71,22 @@ class Mapper:
         if config.has_section('settings'):
             self.chord_mode = config.get('settings', 'chord_mode', fallback='rollback').lower()
 
-        # Legacy extra_buttons to layer_base
+        # Load mappings from ControllerConfig data or config sections
+        if hasattr(config, 'data') and isinstance(config.data, dict) and 'mappings' in config.data:
+            for key, val in config.data['mappings'].items():
+                self.mappings['layer_base'][key.lower()] = str(val).lower()
+        if config.has_section('mappings'):
+            for key, val in config.items('mappings'):
+                self.mappings['layer_base'][key.lower()] = str(val).lower()
+
+        # Legacy extra_buttons / layer_base sections
         if config.has_section('extra_buttons'):
             for key, val in config.items('extra_buttons'):
-                self.mappings['layer_base'][key.lower()] = val.lower()
+                self.mappings['layer_base'][key.lower()] = str(val).lower()
 
         if config.has_section('layer_base'):
             for key, val in config.items('layer_base'):
-                self.mappings['layer_base'][key.lower()] = val.lower()
+                self.mappings['layer_base'][key.lower()] = str(val).lower()
 
         # Load multi-shift layers
         if hasattr(config, 'get_shift_layers'):

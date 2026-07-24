@@ -325,6 +325,13 @@ def main():
         mapper = Mapper(controller_config)
         virtual_pad = VirtualPad(controller_config)
         
+        # Initialize Haptic Engine
+        from haptic_engine import HapticEngine
+        haptic_engine = HapticEngine(virtual_pad)
+        virtual_pad.set_haptic_engine(haptic_engine)
+        mapper.set_haptic_engine(haptic_engine)
+        mapper.config = controller_config
+        
         # Initialize Macro Executor and inject it into mapper
         from macro_executor import MacroExecutor
         macro_executor = MacroExecutor(mapper)

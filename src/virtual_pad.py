@@ -52,6 +52,7 @@ class VirtualPad:
         self.blocked_buttons = set()
         self.macro_pressed_buttons = set()
         self.rumble_callback = None
+        self.haptic_engine = None
         
         # Register for force feedback notifications
         try:
@@ -67,7 +68,17 @@ class VirtualPad:
         """callback(left_motor: int, right_motor: int) -> 0-255"""
         self.rumble_callback = callback
 
+    def set_haptic_engine(self, engine):
+        self.haptic_engine = engine
+
+    def set_vibration(self, lm: int, rm: int):
+        if self.rumble_callback:
+            # Scale 0-65535 to 0-255
+            self.rumble_callback(int(lm / 257), int(rm / 257))
+
     def _vgamepad_notification_handler(self, client, target, large_motor, small_motor, led_number, user_data):
+        if self.haptic_engine and getattr(self.haptic_engine, 'is_hijacked', False):
+            return # Ignore in-game rumble while shift haptic pattern is executing
         if self.rumble_callback:
             # large_motor and small_motor are 0-255
             self.rumble_callback(large_motor, small_motor)

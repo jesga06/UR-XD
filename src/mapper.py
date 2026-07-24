@@ -53,8 +53,12 @@ class Mapper:
         self.wasd_debounce_timers = {'w': 0, 'a': 0, 's': 0, 'd': 0}
 
         self.macro_executor = None # To be injected later
+        self.haptic_engine = None
 
         self.reload_config(config)
+
+    def set_haptic_engine(self, engine):
+        self.haptic_engine = engine
 
     def reload_config(self, config):
         if logger:
@@ -412,6 +416,16 @@ class Mapper:
             self.active_holds.clear()
 
             self.active_layer = target_layer
+
+            # Trigger haptic vibration feedback for layer transition
+            if hasattr(self, 'haptic_engine') and self.haptic_engine:
+                if hasattr(self, 'config') and hasattr(self.config, 'get_haptic_enabled') and self.config.get_haptic_enabled():
+                    # Returning to layer_base plays Shift 1 feedback as intended
+                    target_profile_layer = 'shift_1' if target_layer == 'layer_base' else target_layer
+                    if hasattr(self.config, 'get_effective_layer_haptic_profile'):
+                        prof_str = self.config.get_effective_layer_haptic_profile(target_profile_layer)
+                        if prof_str:
+                            self.haptic_engine.play_profile(prof_str)
 
             # Trigger press actions for buttons currently held down in the new active layer
             active_map = self.mappings.get(self.active_layer, {})

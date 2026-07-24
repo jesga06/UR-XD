@@ -149,7 +149,7 @@ class ControllerConfig:
         self.data["shift_layers"] = layers
         self._sync_legacy_shift_fields()
 
-    def add_shift_layer(self, name: str = "", trigger_button: str = "", modifier_button: str = "", mode: str = "hold") -> Dict[str, Any]:
+    def add_shift_layer(self, name: str = "", trigger_button: str = "", modifier_button: str = "", mode: str = "hold", haptic_profile: str = "") -> Dict[str, Any]:
         layers = self.get_shift_layers()
         next_idx = len(layers) + 1
         layer_id = f"shift_{next_idx}"
@@ -160,6 +160,7 @@ class ControllerConfig:
             "trigger_button": trigger_button,
             "modifier_button": modifier_button,
             "mode": mode,
+            "haptic_profile": haptic_profile,
             "mappings": {},
             "block_xinput": {}
         }
@@ -173,6 +174,38 @@ class ControllerConfig:
             return
         layers = [l for l in layers if l.get("id") != layer_id]
         self.set_shift_layers(layers)
+
+    def get_global_haptic_profile(self) -> str:
+        h_cfg = self.data.get("haptics", {})
+        if isinstance(h_cfg, dict):
+            return h_cfg.get("global_default", "RM[30% @ 0ms, dur=1500ms]")
+        return "RM[30% @ 0ms, dur=1500ms]"
+
+    def set_global_haptic_profile(self, profile: str) -> None:
+        if "haptics" not in self.data or not isinstance(self.data.get("haptics"), dict):
+            self.data["haptics"] = {}
+        self.data["haptics"]["global_default"] = profile.strip()
+
+    def get_haptic_enabled(self) -> bool:
+        h_cfg = self.data.get("haptics", {})
+        if isinstance(h_cfg, dict):
+            return bool(h_cfg.get("enabled", True))
+        return True
+
+    def set_haptic_enabled(self, enabled: bool) -> None:
+        if "haptics" not in self.data or not isinstance(self.data.get("haptics"), dict):
+            self.data["haptics"] = {}
+        self.data["haptics"]["enabled"] = bool(enabled)
+
+    def get_effective_layer_haptic_profile(self, layer_id: str) -> str:
+        layers = self.get_shift_layers()
+        for l in layers:
+            if l.get("id") == layer_id:
+                prof = (l.get("haptic_profile") or "").strip()
+                if prof:
+                    return prof
+                break
+        return self.get_global_haptic_profile()
 
     def save(self) -> None:
         if not self.filepath:

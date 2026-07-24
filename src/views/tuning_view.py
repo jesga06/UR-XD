@@ -655,14 +655,7 @@ class TuningView(QWidget):
             self.slider_rt_rdz.setValue(0)
             self.slider_rt_exp.setValue(10)
             self.slider_rt_sens.setValue(10)
-            self.combo_rt_ctype.setCurrentText("linear")
-        QMessageBox.information(self, "Reset Defaults", f"✓ Trigger parameters reset to defaults for {section}.")
-            self.slider_rt_adz.setValue(0)
-            self.slider_rt_rdz.setValue(0)
-            self.slider_rt_exp.setValue(10)
-            self.slider_rt_sens.setValue(10)
-            self.combo_rt_ctype.setCurrentText("linear")
-        QMessageBox.information(self, "Reset Defaults", f"✓ Trigger parameters reset to defaults for {section}.")
+            QMessageBox.information(self, "Reset Defaults", f"✓ Trigger parameters reset to defaults for {section}.")
 
     # ---------------------------------------------------------------------
     # Right Trigger Event Handlers

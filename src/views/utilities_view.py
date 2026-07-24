@@ -1,20 +1,35 @@
 """
 Utilities View for PySide6 GUI (utilities_view.py)
-Phased Selective Community HID Map Downloader, benchmark runner, oscilloscope viewer,
-diagnostic issue report generator launcher, and cyber log console with filter/export.
+Thread-safe Phased Selective Community HID Map Downloader, benchmark runner,
+diagnostic issue report generator launcher, and cyber log console.
 """
 
 import subprocess
-import sys
 import os
-import threading
 from PySide6.QtWidgets import (
     QWidget, QVBoxLayout, QHBoxLayout, QLabel, QFrame, QPushButton, QPlainTextEdit,
     QLineEdit, QComboBox, QProgressBar, QMessageBox
 )
-from PySide6.QtCore import Qt
+from PySide6.QtCore import Qt, Signal, QThread
 from PySide6.QtGui import QColor, QTextCharFormat
 import community_fetcher
+
+
+class DownloaderWorker(QThread):
+    """Thread-safe background worker for community HID map downloading."""
+    progress_signal = Signal(int, str)
+    finished_signal = Signal(bool, str)
+
+    def run(self):
+        try:
+            self.progress_signal.emit(25, "Fetching community database index from GitHub...")
+            db = community_fetcher.fetch_database()
+            num_maps = len(db.get("maps", []))
+            self.progress_signal.emit(75, f"Community index fetched: {num_maps} maps registered.")
+            self.progress_signal.emit(100, f"Successfully downloaded community HID map index!")
+            self.finished_signal.emit(True, f"Successfully updated {num_maps} community HID maps.")
+        except Exception as e:
+            self.finished_signal.emit(False, str(e))
 
 
 class UtilitiesView(QWidget):
@@ -25,6 +40,7 @@ class UtilitiesView(QWidget):
     def __init__(self, parent_app, parent=None):
         super().__init__(parent)
         self.app = parent_app
+        self.worker = None
         self.setup_ui()
 
     def setup_ui(self):
@@ -101,7 +117,6 @@ class UtilitiesView(QWidget):
         log_header.addWidget(btn_clear)
         log_layout.addLayout(log_header)
 
-        # Log Text Edit Console
         self.console = QPlainTextEdit()
         self.console.setObjectName("LogConsole")
         self.console.setReadOnly(True)
@@ -132,21 +147,26 @@ class UtilitiesView(QWidget):
         self.console.setTextCursor(cursor)
 
     def update_community_maps(self):
-        self.progress_bar.setValue(25)
+        self.progress_bar.setValue(10)
         self.progress_bar.show()
-        self.append_log("INFO", "Fetching community HID map database index from GitHub...")
 
-        def fetch_task():
-            try:
-                db = community_fetcher.fetch_database()
-                self.append_log("INFO", f"Downloaded community index successfully: {len(db.get('maps', []))} maps registered.")
-                self.progress_bar.setValue(100)
-            except Exception as e:
-                self.append_log("ERROR", f"Failed to update community HID maps: {e}")
-            finally:
-                QThread.msleep(1500) if False else None
+        self.worker = DownloaderWorker()
+        self.worker.progress_signal.connect(self.on_download_progress)
+        self.worker.finished_signal.connect(self.on_download_finished)
+        self.worker.start()
 
-        threading.Thread(target=fetch_task, daemon=True).start()
+    def on_download_progress(self, pct, msg_str):
+        self.progress_bar.setValue(pct)
+        self.append_log("INFO", msg_str)
+
+    def on_download_finished(self, success, result_msg):
+        self.progress_bar.hide()
+        if success:
+            self.append_log("INFO", result_msg)
+            QMessageBox.information(self, "Community Maps", result_msg)
+        else:
+            self.append_log("ERROR", f"Community fetch error: {result_msg}")
+            QMessageBox.warning(self, "Community Maps Error", result_msg)
 
     def run_benchmark(self):
         self.append_log("INFO", "Running 100,000 iteration processing loop benchmark...")

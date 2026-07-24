@@ -2,102 +2,103 @@
 
 <div align="center">
 
-[Virtual Controller Issues](#no-virtual-controller-appears) • [Controller Detection](#controller-not-detected-by-the-wrapper) • [Double Inputs](#double-inputs-in-games) • [Calibration & Axis Quirks](#calibration--axis-quirks) • [GUI & Remapping Issues](#gui--remapping-issues) • [Rumble Limitations](#rumble--force-feedback-limitations) • [Diagnostic Suite](#automated-diagnostic-suite)
+[Virtual Controller Issues](#no-virtual-controller-appears) • [Controller Detection](#controller-not-detected-by-the-wrapper) • [Double Inputs](#double-inputs-in-games) • [Calibration & Axis Quirks](#pulling-a-trigger-moves-thumbsticks-during-calibration) • [GUI & Remapping Issues](#gui--remapping-issues) • [Rumble Limitations](#no-vibration-in-directinput-dinput-mode) • [Diagnostic Suite](#automated-diagnostic-suite)
 
 </div>
 
+<br>
 
-Got an issue? Don't panic. Controller drivers and Windows HID APIs are notoriously quirky. This guide covers common failure modes, driver quirks, user setup mistakes, and machine bullshit—along with exact solutions.
+Got an issue? Don't panic. Controller drivers on Windows can be notoriously finicky. This guide covers common issues, setup mistakes, and weird hardware quirks—along with easy, step-by-step solutions.
 
-## Virtual Controller & Driver Issues (Machine Bullshit)
+## Virtual Controller & Driver Issues
 
 ### No Virtual Controller Appears
-- **Symptom:** You launched `run_wrapper.bat`, but games or Windows `joy.cpl` do not see a new "Xbox 360 Controller" or "Virtual Gamepad".
-- **Cause:** The **ViGEmBus** (Virtual Gamepad Emulation Bus) driver is missing or failed to initialize.
+- **Symptom:** You launched `run_wrapper.bat`, but games or Windows (`joy.cpl`) do not see a new "Xbox 360 Controller" or "Virtual Gamepad".
+- **Cause:** The **ViGEmBus** driver (the component that creates virtual Xbox controllers) is missing or failed to start.
 - **Fix:**
   1. Download and install the latest **[ViGEmBus Driver Installer](https://github.com/nefarius/ViGEmBus/releases)**.
-  2. Open Windows Device Manager (`devmgmt.msc`), expand **System devices**, and verify that **Virtual Gamepad Emulation Bus** is listed without any yellow exclamation mark.
+  2. Open Windows Device Manager (`devmgmt.msc`), expand **System devices**, and verify that **Virtual Gamepad Emulation Bus** is listed without any yellow warning icon.
   3. Restart `run_wrapper.bat`.
 
-### Exclusive Interface Locks (Port-Locked Sockets / Steam Input)
+### Other Apps Blocking the Controller (Steam or Background Remappers)
 - **Symptom:** The wrapper fails immediately upon launching or prints `PermissionError` / `Device locked`.
-- **Cause:** Another application (such as Steam, DS4Windows, reWASD, or a browser with WebHID) opened an exclusive read/write lock on your physical controller's USB interface.
+- **Cause:** Another program running on your computer (such as Steam, DS4Windows, reWASD, or a web browser) has grabbed full control of your controller, blocking UR-XD from reading its buttons.
 - **Fix:**
   1. Close Steam completely (or disable Steam Input for generic controllers in Steam Settings -> Controller).
-  2. Close third-party remapping software.
+  2. Close any third-party remapping software.
   3. Relaunch `run_wrapper.bat` once the competing app is closed.
 
 ## Controller Detection Issues
 
 ### Controller Not Detected by the Wrapper
 - **Symptom:** `run_wrapper.bat` says `No active profile found for device` or scans indefinitely.
-- **Cause:** You are using a controller that does not have a pre-packaged profile in `profiles/` yet.
+- **Cause:** You are using a controller that does not have a pre-packaged file in `profiles/` yet.
 - **Fix:**
   1. Turn on your controller and run the guided calibration wizard:
      ```powershell
      .\calibrate.bat
      ```
-  2. Complete the prompts to generate a profile JSON named after your hardware's Vendor ID (VID) and Product ID (PID).
+  2. Follow the prompts to create a profile file for your specific controller model.
   3. Relaunch `run_wrapper.bat`.
 
 ## Double Inputs in Games
 
 ### Physical Controller and Virtual Controller Both Sending Inputs
-- **Symptom:** Pressing 'A' in game jumps twice, or opening a menu causes it to scroll two items at a time.
-- **Cause:** The game is receiving inputs from BOTH your physical controller (DirectInput) and UR-XD's virtual controller (XInput) simultaneously.
+- **Symptom:** Pressing 'A' in a game jumps twice, or opening a menu causes it to scroll two items at once.
+- **Cause:** The game is receiving inputs from BOTH your physical controller and UR-XD's virtual controller at the same time.
 - **Fix:**
-  1. Verify **"Block XInput"** is checked in the GUI **Remapping** tab for remapped standard buttons. UR-XD automatically suppresses physical standard buttons from reaching the virtual pad when checked.
-  2. If the game still reads the physical DInput controller directly, use **[HidHide](https://github.com/nefarius/HidHide)** to cloak the physical controller from all applications except UR-XD (`python main.py`).
+  1. Verify **"Block XInput"** is checked in the GUI **Remapping** tab for remapped buttons. UR-XD automatically blocks physical buttons from reaching the virtual controller when checked.
+  2. If the game still reads your physical controller directly, use **[HidHide](https://github.com/nefarius/HidHide)** to hide the physical controller from games while allowing UR-XD to read it.
 
 ## Calibration & Axis Quirks
 
-### Calibration Fails Due to Dual-Axis Trigger Movement
-- **Symptom:** Squeezing a single trigger during calibration causes the CLI tool to report movement on two separate axes simultaneously or misidentify the trigger axis.
-- **Cause:** Hardware quirk present on cheap potentiometers or certain third-party microcontrollers where squeezing a trigger causes cross-talk voltage spikes on an unshielded thumbstick axis.
+### Pulling a Trigger Moves Thumbsticks During Calibration
+- **Symptom:** Squeezing a trigger during calibration causes the tool to report thumbstick movement or misidentify the trigger.
+- **Cause:** On some controllers, pulling a trigger causes minor electrical interference that makes an analog stick wiggle slightly at the same time.
 - **Fix:**
-  1. UR-XD includes a multi-axis movement rejection heuristic (0.7 threshold) to filter out minor cross-talk.
-  2. If cross-talk is severe, press **`s`** on your keyboard to **Skip** the trigger prompt during calibration, then manually edit the resulting profile JSON in `profiles/` to set the correct `byte` offset.
+  1. UR-XD automatically filters out minor stick wiggles during calibration.
+  2. If the interference is severe, press **s** on your keyboard to **Skip** the trigger step during calibration. You can then open your controller's file in `profiles/` and adjust the trigger line manually.
 
-### Gyroscope / Motion Sensor Telemetry Noise
-- **Symptom:** During calibration, the prompt advances automatically without pressing any buttons.
-- **Cause:** Your controller streams continuous motion sensor telemetry (gyro/accelerometer) over HID reports, causing rolling byte changes that confuse calibration.
+### Calibration Advances Automatically Without Pressing Buttons
+- **Symptom:** During calibration, the prompts advance by themselves without you touching anything.
+- **Cause:** Your controller has built-in motion sensors (gyroscope/accelerometer) that constantly send movement data to Windows, making the calibration tool think you are pressing buttons.
 - **Fix:**
   1. When prompted during `calibrate.bat` setup ("Does your controller stream continuous gyroscope telemetry?"), select **Yes**.
-  2. UR-XD will enable a sensor noise filter during button baselining.
+  2. UR-XD will turn on a motion filter to ignore sensor drift during calibration.
 
 ## GUI & Remapping Issues
 
 ### GUI Changes Aren't Applying Live
-- **Symptom:** You changed something in the GUI, but nothing changed in game.
+- **Symptom:** You changed something in the GUI, but nothing changed in your game.
 - **Cause:** The background wrapper (`run_wrapper.bat`) is not running, or you forgot to click **Save Settings**.
 - **Fix:**
-  1. Ensure `run_wrapper.bat` is running in your system tray (look for the circular icon). The GUI only modifies `config.ini`; the wrapper applies the changes live.
-  2. Click **Save Settings** in the GUI, if available. The wrapper reloads `config.ini` automatically within 5 seconds.
+  1. Ensure `run_wrapper.bat` is running in your system tray (look for the circular icon). The GUI only modifies settings; the wrapper process applies them live.
+  2. Click **Save Settings** in the GUI. The wrapper reloads your changes automatically within 5 seconds.
 
 ### Home / Guide Button Hold Turns Off Controller
 - **Symptom:** Setting the **HOME** button as a Shift Layer modifier causes the controller to shut down after 3 seconds.
-- **Cause:** Most wireless controllers have a hardware firmware timer that forces the controller to power off if the Home button is physically held down for 3+ seconds.
+- **Cause:** Most wireless controllers have a built-in hardware shortcut that turns the controller off if the Home button is held down for 3 seconds.
 - **Fix:**
   1. Change the Shift Layer mode from **Hold** to **Toggle** mode in the Remapping tab.
   2. Use a different modifier button (such as `LB`, `RB`, or `Select`).
 
-### Simulated Keyboard Keys Stuck Down
+### Keyboard Keys Stuck Down After a Macro
 - **Symptom:** After running a macro or stopping the app, Windows acts as if the `SHIFT` or `CTRL` key is stuck down.
-- **Cause:** An interrupted macro loop or unexpected process exit.
+- **Cause:** A macro was interrupted before it could send the key release signal.
 - **Fix:**
-  1. UR-XD includes an **Active Key Tracking Matrix** that automatically broadcasts explicit `key_up` events upon loop completion or exit.
-  2. If Windows gets stuck due to an outside event, tap the stuck key (`SHIFT`/`CTRL`) once on your physical keyboard to reset Windows state.
+  1. UR-XD automatically releases all simulated keys whenever a macro finishes or the app closes.
+  2. If Windows gets stuck due to an outside event, tap the stuck key (`SHIFT` or `CTRL`) once on your physical keyboard to reset it.
 
 ## Rumble / Force Feedback Limitations
 
 ### No Vibration in DirectInput (DInput) Mode
-- **Symptom:** Haptic rumble works in native XInput mode, but when switching your controller hardware toggle to DInput mode, rumble ceases to work entirely.
-- **Cause:** Extensive black-box reverse engineering revealed that third-party controller microcontrollers (such as 8BitDo Ultimate 2C) explicitly **firmware-gate** output reports outside of XInput mode. When set to DInput mode, the controller firmware ignores haptic motor packets entirely.
-- **Fix:** This is a hardware/firmware restriction enforced by controller vendors. If vibration is essential, operate your controller in **XInput mode** using UR-XD's XInput backend (`backend_xinput.py`).
+- **Symptom:** Vibration works when your controller is set to XInput mode, but stops completely when switched to DInput mode.
+- **Cause:** Testing revealed that controller hardware manufacturers explicitly turn off vibration motors inside the controller whenever it is switched to DirectInput mode. The controller's internal software ignores vibration commands completely when not in XInput mode.
+- **Fix:** This is a hardware limitation built into the controller itself. If you need rumble, switch your controller to **XInput mode** before playing.
 
 ## Automated Diagnostic Suite
 
-If you encounter an issue that isn't resolved by the solutions above, run the automated diagnostic suite:
+If you encounter an issue that isn't resolved by the solutions above, run the automated diagnostic tool:
 
 ```powershell
 .\generate_issue_report.bat
@@ -105,6 +106,6 @@ If you encounter an issue that isn't resolved by the solutions above, run the au
 
 [gif of generate_issue_report execution][Automated Diagnostics Running]
 
-1. Launches 6 comprehensive automated scans inspecting Python environment, ViGEmBus status, installed packages, raw byte packets, exclusive locks, and endpoint topology.
-2. Packages all logs into `issue_report.zip` in the root folder.
+1. Runs 6 automated checks to test your drivers, Python setup, controller connection, and system settings.
+2. Packages all logs into a single file named `issue_report.zip` in the main folder.
 3. Attach `issue_report.zip` when [opening an issue on GitHub](https://github.com/jesga06/ultimate-2c-dinput-fix/issues).

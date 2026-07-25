@@ -61,8 +61,7 @@ class Mapper:
         self.haptic_engine = engine
 
     def reload_config(self, config):
-        if logger:
-            logger.debug(f"[ENTER] reload_config() - active_layer={self.active_layer}")
+        logger.debug(f"[MAPPER] reload_config() called — active_layer={self.active_layer}")
         self.mappings = {'layer_base': {}}
         self.chords = []
         self.shift_layers = []
@@ -95,6 +94,7 @@ class Mapper:
                 mod = (l_cfg.get('modifier_button') or '').lower().strip()
                 mode = (l_cfg.get('mode') or 'hold').lower().strip()
                 maps = {k.lower(): v.lower() for k, v in l_cfg.get('mappings', {}).items()}
+                logger.debug(f"[MAPPER] Loaded shift layer id={l_id!r} trigger={trig!r} mod={mod!r} mode={mode!r} mappings={maps}")
                 self.shift_layers.append({
                     'id': l_id,
                     'name': l_cfg.get('name', l_id),
@@ -156,7 +156,7 @@ class Mapper:
         if self.macro_executor:
             self.macro_executor.execute_or_toggle(macro_name)
 
-    def _get_pynput_key(self, key_name: str):
+    def _get_pynput_key(self, key_name: str):  # noqa: logging not needed here
         k_lower = key_name.lower().strip()
         key_map = {
             'alt': Key.alt, 'alt_l': Key.alt_l, 'alt_r': Key.alt_r,
@@ -176,12 +176,14 @@ class Mapper:
         return KeyCode.from_char(k_lower[0]) if k_lower else None
 
     def _press_key_sequence(self, keys):
+        logger.debug(f"[MAPPER] _press_key_sequence keys={keys}")
         currently_pressed = set()
         for key_name in keys:
             key_name = key_name.strip()
             if not key_name:
                 continue
             if key_name in currently_pressed:
+                logger.debug(f"[MAPPER]   duplicate key {key_name!r} — releasing before re-press")
                 try:
                     pk = self._get_pynput_key(key_name)
                     if pk:
@@ -193,12 +195,16 @@ class Mapper:
             try:
                 pk = self._get_pynput_key(key_name)
                 if pk:
+                    logger.debug(f"[MAPPER]   keyboard.press({key_name!r}) → pynput_key={pk}")
                     self.keyboard.press(pk)
                     currently_pressed.add(key_name)
+                else:
+                    logger.warning(f"[MAPPER]   _get_pynput_key({key_name!r}) returned None — skipped")
             except Exception as e:
-                logger.error(f"Failed to press key {key_name}: {e}", exc_info=True)
+                logger.error(f"[MAPPER] Failed to press key {key_name!r}: {e}", exc_info=True)
 
     def _release_key_sequence(self, keys):
+        logger.debug(f"[MAPPER] _release_key_sequence keys={keys}")
         released = set()
         for key_name in reversed(keys):
             key_name = key_name.strip()
@@ -207,13 +213,18 @@ class Mapper:
             try:
                 pk = self._get_pynput_key(key_name)
                 if pk:
+                    logger.debug(f"[MAPPER]   keyboard.release({key_name!r}) → pynput_key={pk}")
                     self.keyboard.release(pk)
                     released.add(key_name)
+                else:
+                    logger.warning(f"[MAPPER]   _get_pynput_key({key_name!r}) returned None — skipped")
             except Exception as e:
-                logger.error(f"Failed to release key {key_name}: {e}", exc_info=True)
+                logger.error(f"[MAPPER] Failed to release key {key_name!r}: {e}", exc_info=True)
 
     def _press(self, mapping):
+        logger.debug(f"[MAPPER] _press({mapping!r}) | active_layer={self.active_layer} | active_holds={dict(self.active_holds)}")
         if not mapping:
+            logger.debug("[MAPPER]   _press called with empty mapping — skipped")
             return
 
         if mapping.startswith('macro:'):
@@ -257,7 +268,9 @@ class Mapper:
             self._press_key_sequence(keys)
 
     def _release(self, mapping):
+        logger.debug(f"[MAPPER] _release({mapping!r}) | active_layer={self.active_layer} | active_holds={dict(self.active_holds)}")
         if not mapping:
+            logger.debug("[MAPPER]   _release called with empty mapping — skipped")
             return
 
         if mapping.startswith('macro:'):
@@ -355,6 +368,8 @@ class Mapper:
                 new_releases.add(btn_lower)
 
         # Check edge transitions for toggle-mode shift layers
+        if new_presses or new_releases:
+            logger.debug(f"[MAPPER] Edge — new_presses={new_presses} new_releases={new_releases} | active_layer={self.active_layer}")
         for l in self.shift_layers:
             if l.get('mode') == 'toggle':
                 trig = (l.get('trigger_button') or '').lower().strip()
@@ -363,16 +378,20 @@ class Mapper:
                 if trig:
                     if mod:
                         if (trig in new_presses and all_buttons.get(mod, False)) or (mod in new_presses and all_buttons.get(trig, False)):
-                            if l_id in self.toggled_shift_layers:
+                            toggled = l_id in self.toggled_shift_layers
+                            if toggled:
                                 self.toggled_shift_layers.remove(l_id)
                             else:
                                 self.toggled_shift_layers.add(l_id)
+                            logger.debug(f"[MAPPER] Toggle shift layer {l_id!r}: {'OFF' if toggled else 'ON'} | toggled_set={self.toggled_shift_layers}")
                     else:
                         if trig in new_presses:
-                            if l_id in self.toggled_shift_layers:
+                            toggled = l_id in self.toggled_shift_layers
+                            if toggled:
                                 self.toggled_shift_layers.remove(l_id)
                             else:
                                 self.toggled_shift_layers.add(l_id)
+                            logger.debug(f"[MAPPER] Toggle shift layer {l_id!r}: {'OFF' if toggled else 'ON'} | toggled_set={self.toggled_shift_layers}")
 
         # Determine Active Shift Layer
         target_layer = 'layer_base'
@@ -391,6 +410,7 @@ class Mapper:
 
             if mode == 'toggle':
                 if l_id in self.toggled_shift_layers:
+                    logger.debug(f"[MAPPER] Chord shift layer {l_id!r} ACTIVE (toggle) trig={trig!r} mod={mod!r}")
                     target_layer = l_id
                     consumed_shift_buttons.add(trig)
                     consumed_shift_buttons.add(mod)
@@ -398,6 +418,7 @@ class Mapper:
                     break
             else: # hold
                 if all_buttons.get(trig, False) and all_buttons.get(mod, False):
+                    logger.debug(f"[MAPPER] Chord shift layer {l_id!r} ACTIVE (hold) trig={trig!r} mod={mod!r}")
                     target_layer = l_id
                     consumed_shift_buttons.add(trig)
                     consumed_shift_buttons.add(mod)
@@ -413,21 +434,23 @@ class Mapper:
 
                 if mode == 'toggle':
                     if l_id in self.toggled_shift_layers:
+                        logger.debug(f"[MAPPER] Single shift layer {l_id!r} ACTIVE (toggle) trig={trig!r}")
                         target_layer = l_id
                         consumed_shift_buttons.add(trig)
                         break
                 else: # hold
                     if all_buttons.get(trig, False):
+                        logger.debug(f"[MAPPER] Single shift layer {l_id!r} ACTIVE (hold) trig={trig!r}")
                         target_layer = l_id
                         consumed_shift_buttons.add(trig)
                         break
 
         # Handle Layer Change Transitions
         if self.active_layer != target_layer:
-            if logger:
-                logger.debug(f"[MAPPER] Active layer changed: {self.active_layer} -> {target_layer}")
+            logger.debug(f"[MAPPER] LAYER TRANSITION: {self.active_layer!r} -> {target_layer!r} | active_holds BEFORE clear={dict(self.active_holds)}")
             # Release all active holds from previous layer
             for b_held, m_held in list(self.active_holds.items()):
+                logger.debug(f"[MAPPER]   Releasing hold btn={b_held!r} mapping={m_held!r}")
                 self._release(m_held)
             self.active_holds.clear()
 
@@ -436,6 +459,7 @@ class Mapper:
             # Clear any delayed/pending inputs from the previous layer to prevent
             # stale presses bleeding into the new layer's mapping context.
             self.pending_inputs.clear()
+            logger.debug(f"[MAPPER] LAYER TRANSITION complete. Now in {self.active_layer!r}")
         
         # Pre-process analog sticks
         active_map = self.mappings.get(self.active_layer, {})
@@ -475,22 +499,32 @@ class Mapper:
 
             if is_pressed != prev_pressed:
                 mapping = active_map.get(btn_lower)
+                logger.debug(
+                    f"[MAPPER] BTN EDGE btn={btn_lower!r} pressed={is_pressed} prev={prev_pressed} "
+                    f"mapping={mapping!r} layer={self.active_layer!r} "
+                    f"active_holds={dict(self.active_holds)} pending={list(self.pending_inputs.keys())}"
+                )
                 
                 if is_pressed:
                     # Delay Buffer Mode
                     if self.chord_mode == 'delay':
+                        logger.debug(f"[MAPPER]   DELAY MODE: queuing {btn_lower!r}")
                         self.pending_inputs[btn_lower] = now
                     # Rollback Mode
                     else:
                         if mapping and mapping != 'guide':
                             self._press(mapping)
                             self.active_holds[btn_lower] = mapping
+                            logger.debug(f"[MAPPER]   PRESS registered: active_holds={dict(self.active_holds)}")
+                        else:
+                            logger.debug(f"[MAPPER]   No mapping for {btn_lower!r} in layer {self.active_layer!r} — no action")
                         self.pending_inputs[btn_lower] = now # Track for chord completion anyway
                 else:
                     if btn_lower in self.pending_inputs:
                         # Released before chord timeout (Delay mode only)
                         if self.chord_mode == 'delay':
                             if mapping and mapping != 'guide':
+                                logger.debug(f"[MAPPER]   DELAY tap: press+release {mapping!r}")
                                 self._press(mapping)
                                 self._release(mapping)
                         del self.pending_inputs[btn_lower]
@@ -501,7 +535,10 @@ class Mapper:
                     # Release actual held mapping
                     if btn_lower in self.active_holds:
                         mapped_to_release = self.active_holds.pop(btn_lower)
+                        logger.debug(f"[MAPPER]   RELEASE from active_holds: btn={btn_lower!r} releasing={mapped_to_release!r}")
                         self._release(mapped_to_release)
+                    else:
+                        logger.debug(f"[MAPPER]   RELEASE: {btn_lower!r} not in active_holds — nothing to release")
 
                 self.prev_state[btn_lower] = is_pressed
 
@@ -509,11 +546,13 @@ class Mapper:
         pressed_keys = list(self.pending_inputs.keys())
         for chord in self.chords:
             if chord['layer'] == self.active_layer and chord['keys'].issubset(pressed_keys):
+                logger.debug(f"[MAPPER] CHORD matched: keys={chord['keys']} action={chord['action']!r} layer={chord['layer']!r}")
                 # Chord completed!
                 if self.chord_mode == 'rollback':
                     # Rollback existing holds
                     for k in chord['keys']:
                         if k in self.active_holds:
+                            logger.debug(f"[MAPPER]   Chord rollback releasing {k!r} -> {self.active_holds[k]!r}")
                             self._release(self.active_holds.pop(k))
                             
                 # Execute chord

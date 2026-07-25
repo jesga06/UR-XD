@@ -12,7 +12,10 @@ Listener teardown is guaranteed via try/finally on save/cancel.
 """
 
 import threading
+import logging
 from typing import Optional, List
+
+logger = logging.getLogger('key_recorder_dialog')
 
 from PySide6.QtWidgets import (
     QDialog, QVBoxLayout, QHBoxLayout, QLabel, QPushButton,
@@ -303,9 +306,11 @@ class KeyRecorderDialog(QDialog):
     def start_listeners(self) -> None:
         """Start keyboard and mouse pynput listeners."""
         if not _PYNPUT_AVAILABLE:
+            logger.warning("[RECORDER] pynput not available — listeners skipped")
             return
         self._capture_active = True
         self._recorded_keys = []
+        logger.debug(f"[RECORDER] start_listeners() for button={self.button_name!r}")
 
         def _on_press(key):
             """Accumulates key names — does NOT stop listener (beta behaviour)."""
@@ -316,13 +321,16 @@ class KeyRecorderDialog(QDialog):
             except AttributeError:
                 key_name = key.name
 
+            logger.debug(f"[RECORDER] pynput key_press raw={key!r} resolved={key_name!r} recorded_so_far={self._recorded_keys}")
             if key_name and key_name not in self._recorded_keys:
                 self._recorded_keys.append(key_name)
                 combo = "keyboard:" + "+".join(self._recorded_keys)
+                logger.debug(f"[RECORDER] keyboard combo updated: {combo!r}")
                 QTimer.singleShot(0, lambda c=combo: self._set_result(c))
 
         def _on_click(x, y, button, pressed):
             """On button press: capture, stop both listeners (beta behaviour)."""
+            logger.debug(f"[RECORDER] pynput mouse_click button={button.name!r} pressed={pressed} xy=({x},{y})")
             if not pressed or not self._capture_active:
                 return
             if button.name == 'x1':
@@ -333,13 +341,16 @@ class KeyRecorderDialog(QDialog):
                 b_name = f"mouse:{button.name}"
 
             if button.name == 'left':
+                logger.debug("[RECORDER]   left click ignored (used for dialog interaction)")
                 return  # ignore left click (used to interact with dialog)
 
+            logger.debug(f"[RECORDER]   mouse capture: {b_name!r} — stopping listeners")
             self._stop_listeners()
             QTimer.singleShot(0, lambda n=b_name: self._set_result(n))
 
         def _on_scroll(x, y, dx, dy):
             """On scroll: stop listeners, show scroll settings panel (beta behaviour)."""
+            logger.debug(f"[RECORDER] pynput scroll dx={dx} dy={dy} is_showing_scroll={self._is_showing_scroll}")
             if not self._capture_active or self._is_showing_scroll:
                 return
             if dy > 0:
@@ -353,6 +364,7 @@ class KeyRecorderDialog(QDialog):
             else:
                 return
 
+            logger.debug(f"[RECORDER]   scroll capture: {direction!r} — stopping listeners")
             self._stop_listeners()
             QTimer.singleShot(0, lambda d=direction: self._show_scroll_settings(d))
 
@@ -361,11 +373,13 @@ class KeyRecorderDialog(QDialog):
             self._ms_listener = pynput_mouse.Listener(on_click=_on_click, on_scroll=_on_scroll)
             self._kb_listener.start()
             self._ms_listener.start()
+            logger.debug("[RECORDER] listeners started (kb + mouse)")
         except Exception as e:
-            print(f"[KeyRecorderDialog] Failed to start listeners: {e}")
+            logger.error(f"[RECORDER] Failed to start listeners: {e}", exc_info=True)
 
     def _stop_listeners(self) -> None:
         """Unconditionally stop and discard both pynput listeners."""
+        logger.debug(f"[RECORDER] _stop_listeners() capture_active was {self._capture_active}")
         self._capture_active = False
         for listener in (self._kb_listener, self._ms_listener):
             try:
@@ -375,6 +389,7 @@ class KeyRecorderDialog(QDialog):
                 pass
         self._kb_listener = None
         self._ms_listener = None
+        logger.debug("[RECORDER] listeners stopped")
 
     # ------------------------------------------------------------------
     # Gamepad telemetry slot (new for v2.3 GUI — not in beta)
@@ -386,7 +401,10 @@ class KeyRecorderDialog(QDialog):
         the button being configured (to avoid self-mapping).
         Only active while the listeners are running (capture_active).
         """
-        if not self._capture_active or not isinstance(telemetry, dict):
+        if not self._capture_active:
+            return
+        if not isinstance(telemetry, dict):
+            logger.debug(f"[RECORDER] update_telemetry: bad type {type(telemetry)}")
             return
         buttons = telemetry.get("buttons", {})
         if not isinstance(buttons, dict):
@@ -394,6 +412,7 @@ class KeyRecorderDialog(QDialog):
         for btn_name, is_pressed in buttons.items():
             if is_pressed and str(btn_name).lower() != self.button_name.lower():
                 action_str = f"gamepad:{str(btn_name).lower()}"
+                logger.debug(f"[RECORDER] gamepad button captured: {action_str!r} (button_name={self.button_name!r})")
                 self._set_result(action_str)
                 break
 
@@ -438,6 +457,7 @@ class KeyRecorderDialog(QDialog):
     # ------------------------------------------------------------------
     def _set_result(self, value: str) -> None:
         """Update the result string and preview label."""
+        logger.debug(f"[RECORDER] _set_result({value!r}) — hiding scroll, updating preview")
         self._result = value
         self._hide_scroll_settings()
         self.preview_label.setText(value)
@@ -464,18 +484,22 @@ class KeyRecorderDialog(QDialog):
 
     def _save_and_close(self, target: str) -> None:
         """Stop listeners, build final value, emit signal, close."""
+        logger.debug(f"[RECORDER] _save_and_close(target={target!r}) result={self._result!r} is_showing_scroll={self._is_showing_scroll}")
         self._stop_listeners()
 
         if self._is_showing_scroll:
             val = self._build_scroll_result()
+            logger.debug(f"[RECORDER]   scroll result built: {val!r}")
         else:
             val = self._result
 
+        logger.debug(f"[RECORDER]   final val to emit: {val!r}")
         if val:
             self.input_recorded.emit(target, val)
         self.accept()
 
     def _cancel(self) -> None:
+        logger.debug("[RECORDER] _cancel() called")
         self._stop_listeners()
         self.reject()
 

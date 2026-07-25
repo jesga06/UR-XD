@@ -13,6 +13,7 @@ All config mutations write through the live ControllerConfig instance.
 
 import sys
 import os
+import logging
 from typing import Dict, Optional, Any, List, Tuple
 
 from PySide6.QtWidgets import (
@@ -27,6 +28,8 @@ from PySide6.QtCore import Qt, Slot, QTimer
 sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "..")))
 
 from gui_v2.dialogs.key_recorder_dialog import KeyRecorderDialog
+
+logger = logging.getLogger('remapping_view')
 
 
 # ---------------------------------------------------------------------------
@@ -167,6 +170,7 @@ class RemappingView(QWidget):
                 if chord_name not in extra_buttons:
                     extra_buttons.append(chord_name)
 
+        logger.debug(f"[REMAP] _get_dynamic_extra_buttons() -> {extra_buttons}")
         return extra_buttons
 
     # ------------------------------------------------------------------
@@ -414,18 +418,24 @@ class RemappingView(QWidget):
         base_map: Dict[str, Any] = {}
         base_map.update(data.get("extra_buttons", {}))
         base_map.update(data.get("layer_base", {}))
-        return str(base_map.get(key.lower(), ""))
+        val = str(base_map.get(key.lower(), ""))
+        logger.debug(f"[REMAP] _get_base_mapping({key!r}) -> {val!r}")
+        return val
 
     def _get_block_state(self, key: str) -> bool:
         data = self.config.data
         bx: Dict[str, Any] = data.get("block_xinput", {})
         val = bx.get(key.lower(), "false")
-        return str(val).lower() in ("true", "1", "yes")
+        blocked = str(val).lower() in ("true", "1", "yes")
+        logger.debug(f"[REMAP] _get_block_state({key!r}) -> {blocked} (raw={val!r})")
+        return blocked
 
     def _get_shift_mapping(self, key: str) -> str:
         layer = self._active_layer()
         if layer:
-            return str(layer.get("mappings", {}).get(key.lower(), ""))
+            val = str(layer.get("mappings", {}).get(key.lower(), ""))
+            logger.debug(f"[REMAP] _get_shift_mapping({key!r}) layer={layer.get('id')!r} -> {val!r}")
+            return val
         return ""
 
     # ------------------------------------------------------------------
@@ -438,15 +448,18 @@ class RemappingView(QWidget):
             self.config.data["layer_base"][key.lower()] = value
         else:
             self.config.data["layer_base"].pop(key.lower(), None)
+        logger.debug(f"[REMAP] _set_base_mapping({key!r}, {value!r}) — layer_base={self.config.data.get('layer_base')}")
 
     def _set_block_state(self, key: str, blocked: bool) -> None:
         if "block_xinput" not in self.config.data:
             self.config.data["block_xinput"] = {}
         self.config.data["block_xinput"][key.lower()] = "true" if blocked else "false"
+        logger.debug(f"[REMAP] _set_block_state({key!r}, {blocked}) — block_xinput={self.config.data.get('block_xinput')}")
 
     def _set_shift_mapping(self, key: str, value: str) -> None:
         layer = self._active_layer()
         if layer is None:
+            logger.warning(f"[REMAP] _set_shift_mapping({key!r}) called but no active layer")
             return
         if "mappings" not in layer:
             layer["mappings"] = {}
@@ -454,20 +467,24 @@ class RemappingView(QWidget):
             layer["mappings"][key.lower()] = value
         else:
             layer["mappings"].pop(key.lower(), None)
+        logger.debug(f"[REMAP] _set_shift_mapping({key!r}, {value!r}) — layer={layer.get('id')!r} mappings={layer.get('mappings')}")
 
     # ------------------------------------------------------------------
     # Debounced save
     # ------------------------------------------------------------------
     def mark_config_dirty(self) -> None:
         """Restarts the 300 ms debounced save timer."""
+        logger.debug("[REMAP] mark_config_dirty() — debounce timer restarted")
         self.save_timer.start()
 
     def _do_save(self) -> None:
         """Called when the debounce timer fires."""
+        logger.debug(f"[REMAP] _do_save() — writing config to disk: {getattr(self.config, 'filepath', '?')}")
         try:
             self.config.save()
+            logger.debug("[REMAP] config saved OK")
         except Exception as e:
-            print(f"[RemappingView] Config save error: {e}")
+            logger.error(f"[REMAP] Config save error: {e}", exc_info=True)
 
     # ------------------------------------------------------------------
     # Slot implementations – mapping fields
@@ -492,9 +509,11 @@ class RemappingView(QWidget):
     # ------------------------------------------------------------------
     def open_recorder_dialog(self, button_name: str, is_shift: bool = False) -> None:
         """Instantiates and executes KeyRecorderDialog modally."""
+        logger.debug(f"[REMAP] open_recorder_dialog(button_name={button_name!r} is_shift={is_shift})")
         dlg = KeyRecorderDialog(button_name, parent=self)
 
         def _handle_recorded(target: str, mapping_str: str) -> None:
+            logger.debug(f"[REMAP] input_recorded signal: target={target!r} mapping={mapping_str!r} for button={button_name!r}")
             widgets = self._row_widgets.get(button_name.lower(), {})
             if is_shift or target == "shift":
                 self._set_shift_mapping(button_name.lower(), mapping_str)
@@ -517,8 +536,10 @@ class RemappingView(QWidget):
         # Connect live UDP telemetry worker if available on main window
         main_win = self.window()
         udp_worker = getattr(main_win, 'udp_worker', None)
+        logger.debug(f"[REMAP] UDP worker found: {udp_worker is not None} has telemetry_received: {hasattr(udp_worker, 'telemetry_received') if udp_worker else False}")
         if udp_worker and hasattr(udp_worker, 'telemetry_received'):
             udp_worker.telemetry_received.connect(dlg.update_telemetry)
+            logger.debug("[REMAP] Connected telemetry_received -> dlg.update_telemetry")
 
         try:
             dlg.exec()
@@ -526,6 +547,7 @@ class RemappingView(QWidget):
             if udp_worker and hasattr(udp_worker, 'telemetry_received'):
                 try:
                     udp_worker.telemetry_received.disconnect(dlg.update_telemetry)
+                    logger.debug("[REMAP] Disconnected telemetry_received")
                 except Exception:
                     pass
 

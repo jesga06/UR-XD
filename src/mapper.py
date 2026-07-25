@@ -147,6 +147,28 @@ class Mapper:
             for k in keys_to_remove:
                 del self.mappings[layer][k]
 
+        # Load explicit hardware_chords from config.data["hardware_chords"]
+        if hasattr(config, 'data') and isinstance(config.data, dict) and 'hardware_chords' in config.data:
+            for hc in config.data['hardware_chords']:
+                trig = hc.get('trigger', '').lower()
+                delayed = hc.get('delayed', '').lower()
+                action = hc.get('action', '').lower()
+                mode = hc.get('mode', 'auto').lower()
+                if '+' in trig:
+                    keys = set([k.strip() for k in trig.split('+')])
+                elif trig:
+                    keys = {trig.strip()}
+                else:
+                    keys = set()
+                if keys and action:
+                    self.chords.append({
+                        'keys': keys,
+                        'delayed': delayed,
+                        'action': action,
+                        'mode': mode,
+                        'layer': 'layer_base'
+                    })
+
     def _mouse_interpolation_loop(self):
         # Runs at 250Hz for smooth mouse movement
         while self.mouse_thread_active:

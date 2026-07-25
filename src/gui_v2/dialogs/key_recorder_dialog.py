@@ -285,6 +285,7 @@ class KeyRecorderDialog(QDialog):
             return
 
         self._capture_active = True
+        self._latched_keys = set()
 
         def _on_press(key):
             if not self._capture_active:
@@ -293,7 +294,20 @@ class KeyRecorderDialog(QDialog):
             if key_str:
                 with self._kb_lock:
                     self._held_keys.add(key_str)
-                    combo = "+".join(sorted(self._held_keys))
+                    self._latched_keys.add(key_str)
+
+                    # Order modifiers first: ctrl, alt, shift, cmd/win, followed by chars
+                    mods = []
+                    chars = []
+                    for k in self._latched_keys:
+                        if k in ('ctrl', 'alt', 'shift', 'cmd', 'win'):
+                            mods.append(k)
+                        else:
+                            chars.append(k)
+
+                    combo_list = sorted(mods) + sorted(chars)
+                    combo = "+".join(combo_list)
+
                 QTimer.singleShot(0, lambda c=combo: self._set_preview_keyboard(c))
 
         def _on_release(key):
@@ -303,6 +317,7 @@ class KeyRecorderDialog(QDialog):
             if key_str:
                 with self._kb_lock:
                     self._held_keys.discard(key_str)
+                    # Note: We do NOT discard from _latched_keys so the combo remains persistent
 
         try:
             self._kb_listener = pynput_keyboard.Listener(
@@ -331,7 +346,12 @@ class KeyRecorderDialog(QDialog):
             if hasattr(key, 'char') and key.char:
                 return key.char.lower()
             if hasattr(key, 'name'):
-                return key.name
+                name = key.name.lower()
+                if name.startswith('ctrl'): return 'ctrl'
+                if name.startswith('alt'): return 'alt'
+                if name.startswith('shift'): return 'shift'
+                if name in ('cmd', 'win', 'super'): return 'win'
+                return name
         except Exception:
             pass
         return ""
@@ -339,6 +359,24 @@ class KeyRecorderDialog(QDialog):
     # ------------------------------------------------------------------
     # Internal helpers
     # ------------------------------------------------------------------
+    @Slot(dict)
+    def update_telemetry(self, telemetry: dict) -> None:
+        """
+        Receives UDP telemetry and captures gamepad button presses while recording.
+        """
+        if not self._capture_active or not isinstance(telemetry, dict):
+            return
+
+        buttons = telemetry.get("buttons", {})
+        if not isinstance(buttons, dict):
+            return
+
+        for btn_name, is_pressed in buttons.items():
+            if is_pressed and str(btn_name).lower() != self.button_name.lower():
+                action_str = f"gamepad:{str(btn_name).lower()}"
+                self._set_preview(action_str)
+                break
+
     @Slot(str)
     def _set_preview_keyboard(self, combo: str) -> None:
         """Updates preview with keyboard combo (called on Qt main thread)."""
@@ -347,7 +385,7 @@ class KeyRecorderDialog(QDialog):
             self.preview_label.setText(self.recorded_string)
 
     def _set_preview(self, action: str) -> None:
-        """Sets preview directly (for mouse quick-buttons)."""
+        """Sets preview directly (for mouse quick-buttons or gamepad)."""
         self.recorded_string = action
         self.preview_label.setText(action)
 
@@ -365,7 +403,9 @@ class KeyRecorderDialog(QDialog):
         """Clears the current recorded string."""
         self.recorded_string = ""
         self._held_keys.clear()
-        self.preview_label.setText("Press a key combination…")
+        if hasattr(self, '_latched_keys'):
+            self._latched_keys.clear()
+        self.preview_label.setText("Press a key combination or gamepad button…")
 
     def _save_standard(self) -> None:
         """Emits the recorded mapping for the standard (base layer) slot."""

@@ -513,7 +513,21 @@ class RemappingView(QWidget):
             self.mark_config_dirty()
 
         dlg.input_recorded.connect(_handle_recorded)
-        dlg.exec()
+
+        # Connect live UDP telemetry worker if available on main window
+        main_win = self.window()
+        udp_worker = getattr(main_win, 'udp_worker', None)
+        if udp_worker and hasattr(udp_worker, 'telemetry_received'):
+            udp_worker.telemetry_received.connect(dlg.update_telemetry)
+
+        try:
+            dlg.exec()
+        finally:
+            if udp_worker and hasattr(udp_worker, 'telemetry_received'):
+                try:
+                    udp_worker.telemetry_received.disconnect(dlg.update_telemetry)
+                except Exception:
+                    pass
 
     # ------------------------------------------------------------------
     # Shift layer management

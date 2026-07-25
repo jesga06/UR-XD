@@ -36,15 +36,12 @@ if os.path.exists(theme_path):
     ctk.set_default_color_theme(theme_path)
 
 _app_font = _global_config.get('UI', 'font', fallback="Arial")
-try:
-    _original_font_init = ctk.CTkFont.__init__
-    def _new_font_init(self, family=None, *args, **kwargs):
-        if family is None:
-            family = _app_font
-        _original_font_init(self, family=family, *args, **kwargs)
-    ctk.CTkFont.__init__ = _new_font_init
-except Exception:
-    pass
+_original_font_init = ctk.CTkFont.__init__
+def _new_font_init(self, family=None, *args, **kwargs):
+    if family is None:
+        family = _app_font
+    _original_font_init(self, family=family, *args, **kwargs)
+ctk.CTkFont.__init__ = _new_font_init
 
 class ToolTip:
     def __init__(self, widget, text):
@@ -53,31 +50,10 @@ class ToolTip:
         self.tipwindow = None
         self.id = None
         self.x = self.y = 0
-        self._top_bound = False
-
-        self.widget.bind("<Enter>", self.enter, add="+")
-        self.widget.bind("<Leave>", self.leave, add="+")
-        self.widget.bind("<ButtonPress>", self.leave, add="+")
-        self.widget.bind("<Map>", self._bind_toplevel_events, add="+")
-        self._bind_toplevel_events()
-
-    def _bind_toplevel_events(self, event=None):
-        if self._top_bound:
-            return
-        try:
-            top = self.widget.winfo_toplevel()
-            if top and top != self.widget:
-                top.bind("<FocusOut>", self._on_top_focus_out, add="+")
-                top.bind("<Unmap>", self.leave, add="+")
-                self._top_bound = True
-        except Exception:
-            pass
-
-    def _on_top_focus_out(self, event=None):
-        self.leave()
+        self.widget.bind("<Enter>", self.enter)
+        self.widget.bind("<Leave>", self.leave)
 
     def enter(self, event=None):
-        self._bind_toplevel_events()
         self.schedule()
 
     def leave(self, event=None):
@@ -92,30 +68,10 @@ class ToolTip:
         id_ = self.id
         self.id = None
         if id_:
-            try:
-                self.widget.after_cancel(id_)
-            except Exception:
-                pass
+            self.widget.after_cancel(id_)
 
     def showtip(self, event=None):
-        try:
-            top = self.widget.winfo_toplevel()
-            if not top or not top.winfo_viewable():
-                return
-            if top.focus_displayof() is None:
-                return
-        except Exception:
-            pass
-
-        try:
-            bbox = self.widget.bbox("insert")
-            if bbox:
-                x, y, cx, cy = bbox
-            else:
-                x = y = 0
-        except Exception:
-            x = y = 0
-
+        x, y, cx, cy = self.widget.bbox("insert")
         x += self.widget.winfo_rootx() + 25
         y += self.widget.winfo_rooty() + 20
         self.tipwindow = tw = ctk.CTkToplevel(self.widget)
@@ -132,10 +88,7 @@ class ToolTip:
         tw = self.tipwindow
         self.tipwindow = None
         if tw:
-            try:
-                tw.destroy()
-            except Exception:
-                pass
+            tw.destroy()
 
 class LoadingSpinner(tk.Canvas):
     def __init__(self, master, size=30, width=3, color="#7500ab", **kwargs):
@@ -1015,52 +968,16 @@ class App(ctk.CTk):
         # Configure columns and rows in remapping_scroll for expansion
         self.remapping_scroll.grid_columnconfigure(0, weight=1)
         self.remapping_scroll.grid_columnconfigure(1, weight=1)
+        self.remapping_scroll.grid_rowconfigure(0, weight=1)
+        self.remapping_scroll.grid_rowconfigure(1, weight=1)
 
-        if not hasattr(self, 'selected_shift_layer_index'):
-            self.selected_shift_layer_index = 0
-
-        # Shift Header Frame (Multi-shift layer management)
-        self.shift_header_frame = ctk.CTkFrame(self.remapping_scroll, corner_radius=6)
-        self.shift_header_frame.grid(row=0, column=0, columnspan=2, padx=10, pady=(10, 5), sticky="ew")
-
-        # Shift Layer Infobox Banner
-        shift_info_box = ctk.CTkFrame(self.remapping_scroll, fg_color=("#e6f2ff", "#1c2836"), corner_radius=6)
-        shift_info_box.grid(row=1, column=0, columnspan=2, padx=10, pady=(0, 10), sticky="ew")
-
-        shift_info_text = ctk.CTkLabel(
-            shift_info_box,
-            text=(
-                "💡 SHIFT LAYERS GUIDE: Use the tab bar above to create (+ Add Layer) and configure secondary remapping profiles.\n"
-                "• Trigger & Modifier Keys: Set 1 activation key (e.g. LB) or a 2-button chord (e.g. LB + RB).\n"
-                "• Hold vs Toggle Mode: 'hold' activates while buttons are down; 'toggle' switches layer ON/OFF per press.\n"
-                "• S. Blk (Shift Block): Prevents original native controller button press while this Shift layer is active."
-            ),
-            font=ctk.CTkFont(size=12),
-            justify="left",
-            anchor="w"
-        )
-        shift_info_text.pack(side="left", padx=12, pady=8, fill="x", expand=True)
-
-        btn_shift_guide = ctk.CTkButton(
-            shift_info_box,
-            text="? Remapping Guide",
-            width=140,
-            height=26,
-            corner_radius=13,
-            fg_color="#1f538d",
-            hover_color="#14375e",
-            font=ctk.CTkFont(size=12, weight="bold"),
-            command=self.open_remapping_guide_modal
-        )
-        btn_shift_guide.pack(side="right", padx=10, pady=8)
-
-        # 4 Quadrants
+        # Create 4 quadrants using normal Frames to avoid resize lag
         self.frame_face = ctk.CTkFrame(self.remapping_scroll, corner_radius=0)
         self.frame_dpad = ctk.CTkFrame(self.remapping_scroll, corner_radius=0)
         self.frame_sticks = ctk.CTkFrame(self.remapping_scroll, corner_radius=0)
         self.frame_system = ctk.CTkFrame(self.remapping_scroll, corner_radius=0)
 
-        # Labels for the frames
+        # Labels for the frames since CTkFrame doesn't have label_text
         for f, title in [(self.frame_face, "Face Buttons"), (self.frame_dpad, "D-Pad"),
                          (self.frame_sticks, "Shoulders & Sticks"), (self.frame_system, "System & Extras")]:
             lbl = ctk.CTkLabel(
@@ -1068,18 +985,18 @@ class App(ctk.CTk):
                     size=14, weight="bold"))
             lbl.grid(row=0, column=0, columnspan=6, pady=(5, 5))
 
-        self.frame_face.grid(row=2, column=0, padx=10, pady=10, sticky="n")
-        self.frame_dpad.grid(row=3, column=0, padx=10, pady=10, sticky="n")
-        self.frame_sticks.grid(row=2, column=1, padx=10, pady=10, sticky="n")
-        self.frame_system.grid(row=3, column=1, padx=10, pady=10, sticky="n")
+        self.frame_face.grid(row=0, column=0, padx=10, pady=10, sticky="n")
+        self.frame_dpad.grid(row=1, column=0, padx=10, pady=10, sticky="n")
+        self.frame_sticks.grid(row=0, column=1, padx=10, pady=10, sticky="n")
+        self.frame_system.grid(row=1, column=1, padx=10, pady=10, sticky="n")
 
         # Info Guide
         info_frame = ctk.CTkFrame(self.remapping_scroll, fg_color="transparent")
-        info_frame.grid(row=4, column=0, columnspan=2, pady=(10, 20))
+        info_frame.grid(row=2, column=0, columnspan=2, pady=(10, 20))
         
-        info_btn = ctk.CTkButton(info_frame, text="?  Remapping & Shift Layers Guide", width=220, height=26, corner_radius=13, fg_color="#555555", hover_color="#666666", font=ctk.CTkFont(size=12, weight="bold"), command=self.open_remapping_guide_modal)
+        info_btn = ctk.CTkButton(info_frame, text="?  Remapping Guide", width=140, height=24, corner_radius=12, fg_color="#555555", hover_color="#666666", font=ctk.CTkFont(size=12), command=self.open_remapping_guide_modal)
         info_btn.pack(side="top")
-        ToolTip(info_btn, "Mapping: Enter a keyboard key (e.g. 'h'), mouse click (e.g. 'mouse:left'), or macro name (e.g. 'macro:MyMacro' or 'MyMacro').\n[Rec]: Click to record key combinations or macros interactively.\nBlock: Prevent the original controller button from being sent to the game.\nShift Map/S. Blk: Secondary mapping & block state when the active Shift layer is active.\nClick to view full guide window!")
+        ToolTip(info_btn, "Mapping: Enter a keyboard key (e.g. 'h'), mouse click (e.g. 'mouse:left'), or macro name (e.g. 'macro:MyMacro' or 'MyMacro').\n[Rec]: Click to record key combinations or macros interactively.\nBlock: Prevent the original controller button from being sent to the game.\nShift Map/S. Blk: Secondary mapping & block state when the Shift layer trigger is held.\nClick to view full guide window!")
 
         self.entries = {}
         self.label_widgets = {}
@@ -1146,11 +1063,10 @@ class App(ctk.CTk):
             if current_val == "":
                 cb.configure(state="disabled")
                 
-            # Shift Map for selected shift layer
-            layers = self.config.get_shift_layers()
-            idx = getattr(self, 'selected_shift_layer_index', 0)
-            curr_layer = layers[idx] if (0 <= idx < len(layers)) else (layers[0] if layers else {})
-            shift_val = curr_layer.get('mappings', {}).get(btn, '')
+            # Shift Map
+            shift_val = ""
+            if self.config.has_option('shift_mappings', btn):
+                shift_val = self.config.get('shift_mappings', btn)
 
             s_entry = ctk.CTkEntry(frame, width=90, corner_radius=0)
             s_entry.insert(0, shift_val)
@@ -1161,7 +1077,9 @@ class App(ctk.CTk):
             self.shift_entries[btn] = s_entry
             
             # Shift Block
-            is_s_blocked = curr_layer.get('block_xinput', {}).get(btn, 'true').lower() != 'false'
+            is_s_blocked = True
+            if self.config.has_option('shift_block_xinput', btn):
+                is_s_blocked = self.config.get('shift_block_xinput', btn).lower() != 'false'
 
             scb_var = ctk.BooleanVar(value=is_s_blocked)
             scb = ctk.CTkCheckBox(frame, text="", variable=scb_var, width=20, corner_radius=0,
@@ -1224,8 +1142,6 @@ class App(ctk.CTk):
         all_system_and_extras = system_buttons + existing_extras
         for i, btn in enumerate(all_system_and_extras):
             add_button_row(self.frame_system, btn, i + 2)
-
-        self.rebuild_shift_header_ui()
 
     def start_recording(self, btn):
         record_win = ctk.CTkToplevel(self)
@@ -1516,205 +1432,30 @@ class App(ctk.CTk):
             self.config.set('block_xinput', btn, 'false')
         self.save_config()
 
-    def rebuild_shift_header_ui(self):
-        if not hasattr(self, 'shift_header_frame'):
-            return
-        for child in self.shift_header_frame.winfo_children():
-            child.destroy()
-
-        layers = self.config.get_shift_layers()
-        if not hasattr(self, 'selected_shift_layer_index'):
-            self.selected_shift_layer_index = 0
-        if self.selected_shift_layer_index >= len(layers):
-            self.selected_shift_layer_index = max(0, len(layers) - 1)
-
-        # Tab selection bar
-        tabs_f = ctk.CTkFrame(self.shift_header_frame, fg_color="transparent")
-        tabs_f.pack(fill="x", padx=10, pady=(5, 5))
-
-        ctk.CTkLabel(tabs_f, text="Shift Layers:", font=ctk.CTkFont(size=12, weight="bold")).pack(side="left", padx=(0, 10))
-
-        for idx, l in enumerate(layers):
-            l_name = l.get('name') or f"Shift {idx + 1}"
-            trig = l.get('trigger_button', '').upper()
-            mod = l.get('modifier_button', '').upper()
-            chord_str = f" [{trig}+{mod}]" if (trig and mod) else (f" [{trig}]" if trig else "")
-            btn_text = f"{l_name}{chord_str}"
-
-            is_selected = (idx == self.selected_shift_layer_index)
-            fg = "#1f538d" if is_selected else "#3a3a3a"
-            hover = "#2980b9" if is_selected else "#4a4a4a"
-
-            t_btn = ctk.CTkButton(
-                tabs_f, text=btn_text, height=26, fg_color=fg, hover_color=hover,
-                command=lambda i=idx: self.select_shift_layer_tab(i)
-            )
-            t_btn.pack(side="left", padx=3)
-
-        add_btn = ctk.CTkButton(tabs_f, text="+ Add Layer", width=90, height=26, fg_color="#2e7d32", hover_color="#388e3c", command=self.add_new_shift_layer_ui)
-        add_btn.pack(side="left", padx=8)
-
-        # Properties edit bar for selected shift layer
-        curr_l = layers[self.selected_shift_layer_index]
-        props_f = ctk.CTkFrame(self.shift_header_frame, fg_color="transparent")
-        props_f.pack(fill="x", padx=10, pady=(0, 5))
-
-        ctk.CTkLabel(props_f, text="Name:").pack(side="left", padx=(0, 2))
-        self.shift_name_entry = ctk.CTkEntry(props_f, width=120, height=24)
-        self.shift_name_entry.insert(0, curr_l.get('name', ''))
-        self.shift_name_entry.pack(side="left", padx=(0, 10))
-        self.shift_name_entry.bind("<FocusOut>", lambda e: self.on_shift_layer_props_changed())
-        self.shift_name_entry.bind("<Return>", lambda e: self.on_shift_layer_props_changed())
-
-        available_keys = self.get_profile_mapped_keys()
-        if "" in available_keys:
-            available_keys.remove("")
-        keys_opt = ["none"] + [k for k in available_keys if k]
-
-        ctk.CTkLabel(props_f, text="Trigger Key:").pack(side="left", padx=(0, 2))
-        trig_val = curr_l.get('trigger_button', '') or 'none'
-        self.shift_trig_opt = ctk.CTkOptionMenu(props_f, values=keys_opt, width=90, height=24, command=lambda v: self.on_shift_layer_props_changed())
-        self.shift_trig_opt.set(trig_val)
-        self.shift_trig_opt.pack(side="left", padx=(0, 10))
-
-        ctk.CTkLabel(props_f, text="+ Modifier Key:").pack(side="left", padx=(0, 2))
-        mod_val = curr_l.get('modifier_button', '') or 'none'
-        self.shift_mod_opt = ctk.CTkOptionMenu(props_f, values=keys_opt, width=90, height=24, command=lambda v: self.on_shift_layer_props_changed())
-        self.shift_mod_opt.set(mod_val)
-        self.shift_mod_opt.pack(side="left", padx=(0, 10))
-
-        ctk.CTkLabel(props_f, text="Mode:").pack(side="left", padx=(0, 2))
-        mode_val = curr_l.get('mode', 'hold')
-        self.shift_mode_opt = ctk.CTkOptionMenu(props_f, values=['hold', 'toggle'], width=80, height=24, command=lambda v: self.on_shift_layer_props_changed())
-        self.shift_mode_opt.set(mode_val)
-        self.shift_mode_opt.pack(side="left", padx=(0, 10))
-
-        if len(layers) > 1:
-            del_btn = ctk.CTkButton(props_f, text="Delete Layer", width=90, height=24, fg_color="#c62828", hover_color="#d32f2f", command=self.delete_current_shift_layer_ui)
-            del_btn.pack(side="right")
-
-    def select_shift_layer_tab(self, idx):
-        self.selected_shift_layer_index = idx
-        self.rebuild_shift_header_ui()
-        self.update_shift_entries_from_config()
-
-    def update_shift_entries_from_config(self):
-        layers = self.config.get_shift_layers()
-        idx = getattr(self, 'selected_shift_layer_index', 0)
-        if 0 <= idx < len(layers):
-            layer = layers[idx]
-        else:
-            layer = layers[0] if layers else {}
-
-        mappings = layer.get('mappings', {})
-        block = layer.get('block_xinput', {})
-
-        for btn, entry in self.shift_entries.items():
-            val = mappings.get(btn, '')
-            entry.delete(0, 'end')
-            entry.insert(0, val)
-
-            is_blocked = block.get(btn, 'true').lower() != 'false'
-            if btn in self.shift_block_vars:
-                self.shift_block_vars[btn].set(is_blocked)
-            if btn in self.shift_block_checkboxes:
-                if val == '':
-                    self.shift_block_checkboxes[btn].configure(state="disabled")
-                else:
-                    self.shift_block_checkboxes[btn].configure(state="normal")
-
-    def on_shift_layer_props_changed(self):
-        layers = self.config.get_shift_layers()
-        idx = getattr(self, 'selected_shift_layer_index', 0)
-        if 0 <= idx < len(layers):
-            layer = layers[idx]
-            if hasattr(self, 'shift_name_entry'):
-                layer['name'] = self.shift_name_entry.get().strip()
-            if hasattr(self, 'shift_trig_opt'):
-                trig = self.shift_trig_opt.get().strip().lower()
-                layer['trigger_button'] = '' if trig == 'none' else trig
-            if hasattr(self, 'shift_mod_opt'):
-                mod = self.shift_mod_opt.get().strip().lower()
-                layer['modifier_button'] = '' if mod == 'none' else mod
-            if hasattr(self, 'shift_mode_opt'):
-                layer['mode'] = self.shift_mode_opt.get().strip().lower()
-
-            trig_val = layer.get('trigger_button', '').strip().lower()
-            mode_val = layer.get('mode', '').strip().lower()
-            if trig_val in ['home', 'guide'] and mode_val == 'hold':
-                import tkinter.messagebox
-                tkinter.messagebox.showwarning(
-                    "Recommended Setting Notice",
-                    "Holding the Home button for several seconds may force turn off your controller or trigger OS shortcuts.\n\n"
-                    "It is strongly recommended to set the Shift Mode to 'toggle' instead of 'hold' when using the Home button as your Shift Key."
-                )
-
-            self.config.set_shift_layers(layers)
-            self.save_config()
-            self.rebuild_shift_header_ui()
-
-    def add_new_shift_layer_ui(self):
-        layers = self.config.get_shift_layers()
-        new_layer = self.config.add_shift_layer(
-            name=f"Shift Layer {len(layers) + 1}",
-            trigger_button="lb",
-            modifier_button="",
-            mode="hold"
-        )
-        self.save_config()
-        self.selected_shift_layer_index = len(self.config.get_shift_layers()) - 1
-        self.rebuild_shift_header_ui()
-        self.update_shift_entries_from_config()
-
-    def delete_current_shift_layer_ui(self):
-        layers = self.config.get_shift_layers()
-        if len(layers) <= 1:
-            return
-        idx = getattr(self, 'selected_shift_layer_index', 0)
-        if 0 <= idx < len(layers):
-            layer_id = layers[idx].get('id')
-            self.config.remove_shift_layer(layer_id)
-            self.save_config()
-            self.selected_shift_layer_index = max(0, idx - 1)
-            self.rebuild_shift_header_ui()
-            self.update_shift_entries_from_config()
-
     def on_shift_mapping_changed(self, btn):
-        layers = self.config.get_shift_layers()
-        idx = getattr(self, 'selected_shift_layer_index', 0)
-        if 0 <= idx < len(layers):
-            layer = layers[idx]
-            val = self.shift_entries[btn].get().strip()
-            if 'mappings' not in layer:
-                layer['mappings'] = {}
-            if 'block_xinput' not in layer:
-                layer['block_xinput'] = {}
-
-            if val == "":
-                layer['mappings'].pop(btn, None)
-                layer['block_xinput'].pop(btn, None)
-                self.shift_block_vars[btn].set(True)
-                self.shift_block_checkboxes[btn].configure(state="disabled")
-            else:
-                layer['mappings'][btn] = val
-                self.shift_block_checkboxes[btn].configure(state="normal")
-            self.config.set_shift_layers(layers)
-            self.save_config()
+        val = self.shift_entries[btn].get().strip()
+        if val == "":
+            if self.config.has_option('shift_mappings', btn):
+                self.config.remove_option('shift_mappings', btn)
+            if self.config.has_option('shift_block_xinput', btn):
+                self.config.remove_option('shift_block_xinput', btn)
+            self.shift_block_vars[btn].set(True)
+            self.shift_block_checkboxes[btn].configure(state="disabled")
+        else:
+            self.config.set('shift_mappings', btn, val)
+            self.shift_block_checkboxes[btn].configure(state="normal")
+        self.save_config()
 
     def on_shift_block_toggled(self, btn, var):
-        layers = self.config.get_shift_layers()
-        idx = getattr(self, 'selected_shift_layer_index', 0)
-        if 0 <= idx < len(layers):
-            layer = layers[idx]
-            if 'block_xinput' not in layer:
-                layer['block_xinput'] = {}
-            is_blocked = var.get()
-            if is_blocked:
-                layer['block_xinput'].pop(btn, None)
-            else:
-                layer['block_xinput'][btn] = 'false'
-            self.config.set_shift_layers(layers)
-            self.save_config()
+        is_blocked = var.get()
+        if not self.config.has_section('shift_block_xinput'):
+            self.config.add_section('shift_block_xinput')
+        if is_blocked:
+            if self.config.has_option('shift_block_xinput', btn):
+                self.config.remove_option('shift_block_xinput', btn)
+        else:
+            self.config.set('shift_block_xinput', btn, 'false')
+        self.save_config()
 
     def on_digital_trigger_toggled(self, btn, var):
         is_digital = var.get()
@@ -2726,26 +2467,28 @@ class App(ctk.CTk):
                     "=== MACROS STUDIO TUTORIAL ===\n\n"
                     + save_warning +
                     "1. WHAT ARE MACROS?\n"
-                    "Macros let you trigger automated keyboard keys, mouse clicks, or multi-step action sequences from any controller button.\n\n"
+                    "Macros let you trigger keyboard keys, mouse clicks, or multi-step macro sequences by pressing button combinations on your controller.\n\n"
                     "2. STEP-BY-STEP SETUP GUIDE:\n"
                     "* Step 1: Under 'Macros', click '+ Add Macro'.\n"
-                    "* Step 2: 'Name:' - Enter a short, unique name for your macro (example: fire_combo).\n"
-                    "* Step 3: 'Outputs:' - Enter the keys, clicks, or delays to trigger (example: keyboard:h, wait:50, mouse:left). You can also click '[Rec]' to record steps interactively.\n"
-                    "* Step 4: Scroll down and click 'Save Settings' at the bottom of the section to save your macro.\n"
-                    "* Step 5: Switch to the Remapping tab and assign the macro to any controller button by entering 'macro:fire_combo' or 'fire_combo'!"
+                    "* Step 2: 'Name:' - Enter a short name for your macro (example: macro1).\n"
+                    "* Step 3: 'Inputs:' - Enter the controller buttons pressed together (example: dpad_down, rb or dpad_up, lb). You can also click '[GP]' to record controller button presses automatically.\n"
+                    "* Step 4: 'Outputs:' - Enter the keys or clicks to trigger (example: keyboard:h, wait:50, mouse:left). You can also click '[KBM]' to record keys, mouse clicks, or wheel scrolls.\n"
+                    "* Step 5: Scroll down and click 'Save Settings' at the bottom of the section to apply your macros!"
                 )
             else:  # Overview / Both
                 content = (
-                    "=== MACROS & HARDWARE CHORDS OVERVIEW ===\n\n"
+                    "=== MACROS  & HARDWARE CHORDS OVERVIEW ===\n\n"
                     + save_warning +
-                    "Both features enhance your controller remapping capabilities:\n\n"
+                    "Both features let you press button combinations on your controller, but they serve different purposes:\n\n"
                     "1. HARDWARE CHORDS (INPUT SUPPRESSION)\n"
-                    "* Purpose: Turn physical button combinations (like dpad_up + lb) into a new extra button (like M1), while BLOCKING original buttons from reaching the game.\n"
+                    "* Purpose: Turn button combinations (like dpad_up + lb) into a new extra button (like M1), while BLOCKING the original buttons so they don't trigger in your game.\n"
                     "* Example: Back paddles mapped to dpad_up + lb will send M1 cleanly without pressing D-Pad Up or LB in-game.\n"
                     "* Requirements: Requires XInput backend mode.\n\n"
                     "2. MACROS STUDIO\n"
-                    "* Purpose: Create named multi-step macro sequences (keyboard keys, mouse clicks, delays) that can be mapped directly to any button in the Remapping tab.\n"
-                    "* Example: Map 'macro:fire_combo' to the B button to trigger 'H', wait 50ms, and left-click."
+                    "* Purpose: Map gamepad combinations (like dpad_down + rb) to automated keyboard keys, mouse clicks, or timed macro sequences.\n"
+                    "* Example: Pressing dpad_down + rb can press 'H', wait 50ms, and click left mouse button.\n\n"
+                    "3. SHIFT LAYER SETTINGS\n"
+                    "* Purpose: Holding or toggling a chosen Trigger Button switches all your other buttons to a secondary set of mappings."
                 )
 
             txt.insert("0.0", content)
@@ -2764,39 +2507,32 @@ class App(ctk.CTk):
 
     def open_remapping_guide_modal(self):
         guide_win = ctk.CTkToplevel(self)
-        guide_win.title("Remapping & Shift Layers Master Guide")
-        guide_win.geometry("680x580")
+        guide_win.title("Remapping Guide & Macro Usage")
+        guide_win.geometry("640x520")
         guide_win.attributes("-topmost", True)
         guide_win.focus()
 
-        lbl_title = ctk.CTkLabel(guide_win, text="🎮 Remapping & Shift Layers Master Guide", font=ctk.CTkFont(size=16, weight="bold"))
+        lbl_title = ctk.CTkLabel(guide_win, text="🎮 Remapping & Macro Usage Guide", font=ctk.CTkFont(size=16, weight="bold"))
         lbl_title.pack(pady=(10, 5))
 
         txt = ctk.CTkTextbox(guide_win, font=ctk.CTkFont(size=12), wrap="word")
         txt.pack(fill="both", expand=True, padx=15, pady=10)
 
         content = (
-            "=== REMAPPING & SHIFT LAYERS MASTER GUIDE ===\n\n"
+            "=== REMAPPING & MACRO USAGE GUIDE ===\n\n"
             "1. KEYBOARD & MOUSE MAPPING:\n"
             "* Plain Keyboard Key: Type the key directly (example: 'h', 'space', 'e', 'f1').\n"
             "* Explicit Keyboard Prefix: Type 'keyboard:key_name' (example: 'keyboard:space', 'keyboard:left_shift').\n"
             "* Mouse Clicks: Type 'mouse:left', 'mouse:right', 'mouse:middle', 'mouse4', or 'mouse5'.\n"
             "* Mouse Scroll: Type 'mouse:scroll_up' or 'mouse:scroll_down'.\n\n"
-            "2. MULTIPLE SHIFT LAYERS (SECONDARY REMAPPING PROFILES):\n"
-            "* Shift Layers allow your controller buttons to perform a completely different set of actions when a designated activation key is held or toggled.\n"
-            "* Adding Layers: Click '+ Add Layer' in the Shift Tab Bar at the top of the Remapping tab to create additional shift layers (e.g. Shift 1, Shift 2).\n"
-            "* Trigger Button & Modifier Key: Set a primary activation button (e.g. 'lb') or a 2-button chord (e.g. Trigger 'lb' + Modifier 'rb').\n"
-            "* Hold Mode vs Toggle Mode:\n"
-            "  - Hold: The Shift Layer is active strictly while holding down the activation button(s).\n"
-            "  - Toggle: Pressing the activation button(s) once toggles the Shift Layer ON or OFF permanently until pressed again.\n"
-            "* Shift Block (S. Blk): Check 'S. Blk' next to any button to block its native controller signal ONLY while that Shift layer is active.\n\n"
-            "3. REFERENCING MACROS BY NAME (macro:MyMacro):\n"
-            "* You can map any macro created in the Advanced tab directly to any button in the Remapping tab!\n"
-            "* Usage: Enter 'macro:MacroName' or simply 'MacroName' into the button's mapping entry (example: 'macro:FireCombo' or 'FireCombo').\n\n"
-            "4. BUTTON BLOCKING (Block vs S. Blk):\n"
+            "2. REFERENCING MACROS BY NAME (macro:MyMacro):\n"
+            "* You can trigger any macro created in the Advanced tab directly when pressing a controller button!\n"
+            "* Usage: Enter 'macro:MacroName' or simply 'MacroName' into the button's text box (example: 'macro:FireCombo' or 'FireCombo').\n"
+            "* Note: Macros do not require chord trigger inputs in the Advanced tab if you map them directly to a button here.\n\n"
+            "3. BUTTON BLOCKING (Block / S. Blk):\n"
             "* Check 'Block' to prevent the controller's original native button press from reaching the game (useful when remapping to keyboard/mouse or macros).\n"
-            "* Check 'S. Blk' to block the original native button press only when the selected Shift layer is active.\n\n"
-            "5. INTERACTIVE RECORDING ([Rec]):\n"
+            "* Check 'S. Blk' to block the original button only while holding the Shift key.\n\n"
+            "4. INTERACTIVE RECORDING ([Rec]):\n"
             "* Click the '[Rec]' button next to any remapping entry to interactively record key combinations or macro steps."
         )
         txt.insert("0.0", content)
@@ -2882,6 +2618,82 @@ class App(ctk.CTk):
             btn_add_hw = ctk.CTkButton(self.hw_chords_frame, text="+ Add Hardware Chord", command=lambda: self.add_hw_chord_row(hw_list, "", "", "", "auto"))
             btn_add_hw.pack(pady=5)
             
+        # Shift Layer Settings
+        shift_frame = ctk.CTkFrame(self.advanced_scroll)
+        shift_frame.pack(fill="x", padx=20, pady=10)
+        
+        ctk.CTkLabel(shift_frame, text="Shift Layer Settings", font=ctk.CTkFont(weight="bold")).pack(pady=5)
+        
+        # Trigger Button
+        trig_frame = ctk.CTkFrame(shift_frame, fg_color="transparent")
+        trig_frame.pack(fill="x", padx=10, pady=5)
+        
+        info_btn_trig = ctk.CTkButton(trig_frame, text="?", width=20, height=20, corner_radius=10, fg_color="#555555")
+        info_btn_trig.pack(side="left", padx=(0,5))
+        ToolTip(info_btn_trig, "Select the button that activates the secondary Shift Layer.\nWhen held or toggled, all other buttons will map to their Shift Layer configurations.")
+        
+        ctk.CTkLabel(trig_frame, text="Shift Key:", width=120, anchor="w").pack(side="left")
+        
+        self.shift_trig_var = ctk.StringVar(value=self.config.get('shift_layer', 'trigger_button', fallback=''))
+        base_buttons = self.get_profile_mapped_keys()
+        
+        def check_home_hold_warning():
+            trig_val = self.shift_trig_var.get().strip().lower()
+            mode_val = self.shift_mode_var.get().strip().lower()
+            if trig_val in ['home', 'guide'] and mode_val == 'hold':
+                import tkinter.messagebox
+                tkinter.messagebox.showwarning(
+                    "Recommended Setting Notice",
+                    "Holding the Home button for several seconds may force turn off your controller or trigger OS shortcuts.\n\n"
+                    "It is strongly recommended to set the Shift Mode to 'toggle' instead of 'hold' when using the Home button as your Shift Key."
+                )
+
+        def on_shift_trig_changed(val):
+            val_clean = val.strip()
+            if val_clean and self.config.has_option('extra_buttons', val_clean):
+                import tkinter.messagebox
+                tkinter.messagebox.showwarning(
+                    "Shift Key Conflict",
+                    f"The button '{val_clean}' is currently mapped to an action.\n\n"
+                    "It will be cleared and blocked from XInput so it can act as the Shift Key."
+                )
+                self.config.remove_option('extra_buttons', val_clean)
+                if not self.config.has_section('block_xinput'):
+                    self.config.add_section('block_xinput')
+                if self.config.has_option('block_xinput', val_clean):
+                    self.config.remove_option('block_xinput', val_clean)
+                
+                # Update UI elements in remapping tab if they exist
+                if hasattr(self, 'entries') and val_clean in self.entries:
+                    self.entries[val_clean].delete(0, 'end')
+                    self.block_vars[val_clean].set(True)
+                    self.block_checkboxes[val_clean].configure(state="disabled")
+            
+            check_home_hold_warning()
+            self.save_advanced()
+            
+        self.trig_menu = ctk.CTkOptionMenu(trig_frame, values=base_buttons, variable=self.shift_trig_var, command=on_shift_trig_changed)
+        self.trig_menu.pack(side="left", fill="x", expand=True)
+        
+        # Mode
+        mode_frame = ctk.CTkFrame(shift_frame, fg_color="transparent")
+        mode_frame.pack(fill="x", padx=10, pady=5)
+        
+        info_btn_mode = ctk.CTkButton(mode_frame, text="?", width=20, height=20, corner_radius=10, fg_color="#555555")
+        info_btn_mode.pack(side="left", padx=(0,5))
+        ToolTip(info_btn_mode, "Hold: Shift layer is active only while the shift key is held down.\nToggle: Pressing the shift key toggles the Shift layer permanently on or off.")
+        
+        ctk.CTkLabel(mode_frame, text="Mode:", width=120, anchor="w").pack(side="left")
+        
+        self.shift_mode_var = ctk.StringVar(value=self.config.get('shift_layer', 'mode', fallback='hold'))
+        
+        def on_shift_mode_changed(val):
+            check_home_hold_warning()
+            self.save_advanced()
+
+        mode_menu = ctk.CTkOptionMenu(mode_frame, values=["hold", "toggle"], variable=self.shift_mode_var, command=on_shift_mode_changed)
+        mode_menu.pack(side="left")
+
         # Chords Setting
         self.chords_frame = ctk.CTkFrame(self.advanced_scroll)
         self.chords_frame.pack(fill="both", expand=True, padx=20, pady=10)
@@ -3147,6 +2959,16 @@ class App(ctk.CTk):
         self.hw_chord_rows.append(row_data)
 
     def save_advanced(self):
+        # Save Shift Layer
+        trig = self.shift_trig_var.get().strip()
+        if trig:
+            self.config.set('shift_layer', 'trigger_button', trig)
+        else:
+            if self.config.has_option('shift_layer', 'trigger_button'):
+                self.config.remove_option('shift_layer', 'trigger_button')
+                
+        self.config.set('shift_layer', 'mode', self.shift_mode_var.get())
+        
         # Save Hardware Chords
         self.config.remove_section('hardware_chords')
         self.config.add_section('hardware_chords')

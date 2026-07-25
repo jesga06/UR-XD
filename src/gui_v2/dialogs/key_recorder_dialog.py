@@ -1,16 +1,18 @@
 """
 Key Recorder Dialog for PySide6 UI (gui_v2).
 
-Captures keyboard combinations, mouse button presses, and scroll-wheel notch
-configurations for button remapping. All pynput events are dispatched to the
-Qt main thread via Qt Signals. Listener teardown is guaranteed via try/finally
-blocks so OS input locks are never left dangling.
+Recording logic is a 1:1 port of v2.3-beta's start_recording() method.
+- Keyboard: persistent listener, appends unique key names to a list
+- Mouse click: captures button name, stops both listeners immediately
+- Mouse scroll: stops both listeners, shows scroll settings panel
+- Gamepad: captures live UDP telemetry button presses (new for v2.3 GUI)
+
+All pynput events are dispatched to the Qt main thread via QTimer.singleShot(0).
+Listener teardown is guaranteed via try/finally on save/cancel.
 """
 
-import sys
-import os
 import threading
-from typing import Optional, Set
+from typing import Optional, List
 
 from PySide6.QtWidgets import (
     QDialog, QVBoxLayout, QHBoxLayout, QLabel, QPushButton,
@@ -18,10 +20,9 @@ from PySide6.QtWidgets import (
     QButtonGroup, QFrame, QSizePolicy
 )
 from PySide6.QtCore import Qt, Signal, Slot, QTimer
-from PySide6.QtGui import QFont
 
-# pynput is imported lazily so the module can load even if it is not installed
 try:
+    import pynput
     from pynput import keyboard as pynput_keyboard
     from pynput import mouse as pynput_mouse
     _PYNPUT_AVAILABLE = True
@@ -30,7 +31,7 @@ except ImportError:
 
 
 # ---------------------------------------------------------------------------
-# Styling helpers
+# Styling — unchanged from previous version
 # ---------------------------------------------------------------------------
 _CARD_STYLE = """
 QGroupBox {
@@ -78,355 +79,407 @@ QPushButton:hover {
 QPushButton:pressed { background-color: #7500ab; }
 """
 
-_BTN_DANGER = """
+_BTN_SAVE = """
 QPushButton {
-    background-color: rgba(220, 38, 38, 0.2);
-    border: 1px solid rgba(220, 38, 38, 0.5);
+    background-color: rgba(34, 197, 94, 0.2);
+    border: 1px solid rgba(34, 197, 94, 0.5);
     border-radius: 6px;
     color: #ffffff;
+    padding: 5px 14px;
+    font-size: 11px;
+}
+QPushButton:hover { background-color: rgba(34, 197, 94, 0.4); }
+QPushButton:pressed { background-color: #14532d; }
+"""
+
+_BTN_SHIFT = """
+QPushButton {
+    background-color: rgba(34, 100, 94, 0.25);
+    border: 1px solid rgba(34, 197, 150, 0.5);
+    border-radius: 6px;
+    color: #ffffff;
+    padding: 5px 14px;
+    font-size: 11px;
+}
+QPushButton:hover { background-color: rgba(34, 197, 150, 0.35); }
+"""
+
+_BTN_CANCEL = """
+QPushButton {
+    background-color: rgba(100, 100, 100, 0.2);
+    border: 1px solid rgba(150, 150, 150, 0.4);
+    border-radius: 6px;
+    color: #aaaaaa;
     padding: 5px 12px;
+    font-size: 11px;
+}
+QPushButton:hover { background-color: rgba(150, 150, 150, 0.3); }
+"""
+
+_BTN_CLEAR = """
+QPushButton {
+    background-color: rgba(220, 38, 38, 0.2);
+    border: 1px solid rgba(220, 38, 38, 0.4);
+    border-radius: 5px;
+    color: #ffffff;
+    padding: 2px 8px;
     font-size: 11px;
 }
 QPushButton:hover { background-color: rgba(220, 38, 38, 0.4); }
 """
 
-_BTN_SUCCESS = """
-QPushButton {
-    background-color: rgba(22, 163, 74, 0.2);
-    border: 1px solid rgba(22, 163, 74, 0.5);
-    border-radius: 6px;
-    color: #ffffff;
-    padding: 5px 12px;
-    font-size: 11px;
-}
-QPushButton:hover { background-color: rgba(22, 163, 74, 0.4); }
-"""
-
 
 class KeyRecorderDialog(QDialog):
     """
-    Modal dialog for recording keyboard combinations, mouse buttons, and
-    scroll-wheel notch actions for a single remapping slot.
+    Modal dialog for recording a key/mouse/gamepad binding.
 
     Signals
     -------
-    input_recorded(target, mapping_str)
-        Emitted when the user confirms an action.
-        ``target`` is ``'standard'`` or ``'shift'``;
-        ``mapping_str`` is the formatted action string.
+    input_recorded(target: str, mapping: str)
+        Emitted on Save Standard ("standard") or Save Shift ("shift").
     """
 
     input_recorded = Signal(str, str)
 
     def __init__(self, button_name: str, parent=None):
         super().__init__(parent)
-        self.button_name: str = button_name
-        self.recorded_string: str = ""
+        self.button_name = button_name
+        self.setWindowTitle(f"Record Mapping — {button_name.upper()}")
+        self.setMinimumWidth(420)
+        self.setModal(True)
+        self.setStyleSheet("QDialog { background-color: #0f0a1e; color: #ffffff; }")
 
-        # pynput listener state
-        self._kb_listener: Optional[object] = None
-        self._kb_lock = threading.Lock()
-        self._held_keys: Set[str] = set()
+        # --- state (mirrors beta's locals) ---
+        self._recorded_keys: List[str] = []        # accumulated keyboard keys
+        self._result: str = ""                     # final mapping string
+        self._is_showing_scroll: bool = False
+        self._detected_scroll_dir: Optional[str] = None
+        self._accumulated_notches: int = 1
         self._capture_active: bool = False
 
-        self.setWindowTitle(f"Record Input — {button_name.upper()}")
-        self.setModal(True)
-        self.setMinimumWidth(420)
-        self.setStyleSheet("background-color: #0c0914; color: #ffffff;")
+        # pynput listeners
+        self._kb_listener = None
+        self._ms_listener = None
 
-        self.setup_ui()
-        self.start_pynput_listeners()
+        self._build_ui()
+        self.start_listeners()
 
     # ------------------------------------------------------------------
     # UI construction
     # ------------------------------------------------------------------
-    def setup_ui(self) -> None:
-        """Builds the dialog layout."""
+    def _build_ui(self) -> None:
         root = QVBoxLayout(self)
         root.setContentsMargins(16, 16, 16, 16)
-        root.setSpacing(12)
+        root.setSpacing(10)
 
-        # Title
-        title = QLabel(f"⚡ Recording input for  <b style='color:#a855f7'>{self.button_name.upper()}</b>")
-        title.setAlignment(Qt.AlignmentFlag.AlignCenter)
-        title.setStyleSheet("font-size: 14px; color: #ffffff; padding: 4px;")
-        root.addWidget(title)
+        # Instruction label
+        instr = QLabel(
+            "Press your key combination or mouse button…\n"
+            "Pressing a gamepad button will also be captured.\n"
+            "Click <b>Save</b> when done."
+        )
+        instr.setAlignment(Qt.AlignCenter)
+        instr.setStyleSheet("color: rgba(255,255,255,0.65); font-size: 12px;")
+        instr.setTextFormat(Qt.RichText)
+        root.addWidget(instr)
 
-        # Preview box
-        preview_frame = QFrame()
-        preview_frame.setStyleSheet("""
-            QFrame {
-                background: rgba(168, 85, 247, 0.08);
-                border: 1.5px solid rgba(168, 85, 247, 0.5);
-                border-radius: 8px;
-            }
-        """)
-        preview_layout = QVBoxLayout(preview_frame)
-        preview_layout.setContentsMargins(10, 8, 10, 8)
+        # Preview label
+        self.preview_label = QLabel("Waiting for input…")
+        self.preview_label.setAlignment(Qt.AlignCenter)
+        self.preview_label.setStyleSheet(
+            "color: #a855f7; font-size: 15px; font-weight: bold; "
+            "background: rgba(168,85,247,0.08); border-radius: 6px; padding: 8px;"
+        )
+        root.addWidget(self.preview_label)
 
-        self.preview_label = QLabel("Press a key combination…")
-        self.preview_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
-        font_mono = QFont("JetBrains Mono, Consolas, monospace")
-        font_mono.setPointSize(14)
-        self.preview_label.setFont(font_mono)
-        self.preview_label.setStyleSheet("color: #a855f7; font-weight: bold;")
-        self.preview_label.setWordWrap(True)
-        preview_layout.addWidget(self.preview_label)
-        root.addWidget(preview_frame)
-
-        # ---- Mouse Buttons -------------------------------------------
-        mouse_group = QGroupBox("🖱️  Quick Mouse Buttons")
-        mouse_group.setStyleSheet(_CARD_STYLE)
-        mouse_layout = QHBoxLayout(mouse_group)
-        mouse_layout.setSpacing(6)
+        # Quick mouse buttons
+        mouse_grp = QGroupBox("QUICK MOUSE BUTTONS")
+        mouse_grp.setStyleSheet(_CARD_STYLE)
+        mouse_row = QHBoxLayout(mouse_grp)
         for label, action in [
-            ("+ Left Click", "mouse:left"),
-            ("+ Right Click", "mouse:right"),
-            ("+ Middle", "mouse:middle"),
-            ("+ Mouse4", "mouse4"),
-            ("+ Mouse5", "mouse5"),
+            ("Left Click", "mouse:left"),
+            ("Right Click", "mouse:right"),
+            ("Middle Click", "mouse:middle"),
+            ("Mouse 4", "mouse4"),
+            ("Mouse 5", "mouse5"),
         ]:
-            btn = QPushButton(label)
-            btn.setStyleSheet(_BTN_ACCENT)
-            btn.clicked.connect(lambda checked, a=action: self._set_preview(a))
-            mouse_layout.addWidget(btn)
-        root.addWidget(mouse_group)
+            b = QPushButton(label)
+            b.setStyleSheet(_BTN_ACCENT)
+            b.clicked.connect(lambda checked=False, a=action: self._set_result(a))
+            mouse_row.addWidget(b)
+        root.addWidget(mouse_grp)
 
-        # ---- Scroll Wheel Notch Config --------------------------------
-        scroll_group = QGroupBox("📜  Scroll Wheel Notch Settings")
-        scroll_group.setStyleSheet(_CARD_STYLE)
-        scroll_layout = QVBoxLayout(scroll_group)
-        scroll_layout.setSpacing(6)
+        # Scroll settings panel (hidden by default, shown on scroll detection)
+        self._scroll_panel = self._build_scroll_panel()
+        self._scroll_panel.setVisible(False)
+        root.addWidget(self._scroll_panel)
 
-        row1 = QHBoxLayout()
-        row1.addWidget(QLabel("Direction:"))
-        self.scroll_dir = QComboBox()
-        self.scroll_dir.addItems(["scroll_up", "scroll_down"])
-        self.scroll_dir.setStyleSheet(_INPUT_STYLE)
-        row1.addWidget(self.scroll_dir)
-        row1.addSpacing(12)
-        row1.addWidget(QLabel("Notches:"))
-        self.scroll_notches = QSpinBox()
-        self.scroll_notches.setMinimum(1)
-        self.scroll_notches.setValue(1)
-        self.scroll_notches.setStyleSheet(_INPUT_STYLE)
-        row1.addWidget(self.scroll_notches)
-        row1.addStretch()
-        scroll_layout.addLayout(row1)
+        # Clear + action buttons
+        btn_row = QHBoxLayout()
+        btn_row.setSpacing(8)
 
-        row2 = QHBoxLayout()
-        row2.addWidget(QLabel("Mode:"))
+        clear_btn = QPushButton("Clear")
+        clear_btn.setStyleSheet(_BTN_CLEAR)
+        clear_btn.clicked.connect(self._clear)
+
+        save_std = QPushButton("Save Standard")
+        save_std.setStyleSheet(_BTN_SAVE)
+        save_std.clicked.connect(lambda: self._save_and_close("standard"))
+
+        save_shift = QPushButton("Save Shift Map")
+        save_shift.setStyleSheet(_BTN_SHIFT)
+        save_shift.clicked.connect(lambda: self._save_and_close("shift"))
+
+        cancel_btn = QPushButton("Cancel")
+        cancel_btn.setStyleSheet(_BTN_CANCEL)
+        cancel_btn.clicked.connect(self._cancel)
+
+        btn_row.addWidget(clear_btn)
+        btn_row.addStretch()
+        btn_row.addWidget(save_std)
+        btn_row.addWidget(save_shift)
+        btn_row.addWidget(cancel_btn)
+        root.addLayout(btn_row)
+
+        self.finished.connect(self._on_finished)
+
+    def _build_scroll_panel(self) -> QGroupBox:
+        grp = QGroupBox("SCROLL SETTINGS")
+        grp.setStyleSheet(_CARD_STYLE)
+        layout = QVBoxLayout(grp)
+
+        # Mode row
+        mode_row = QHBoxLayout()
+        mode_row.addWidget(QLabel("Mode:"))
+        self._scroll_oneshot = QRadioButton("oneshot")
+        self._scroll_continuous = QRadioButton("continuous")
+        self._scroll_continuous.setChecked(True)
         self._scroll_mode_group = QButtonGroup(self)
-        rb_oneshot = QRadioButton("Oneshot")
-        rb_oneshot.setChecked(True)
-        rb_cont = QRadioButton("Continuous")
-        for rb in (rb_oneshot, rb_cont):
-            rb.setStyleSheet("color: #ffffff; font-size: 11px;")
-        self._scroll_mode_group.addButton(rb_oneshot, 0)
-        self._scroll_mode_group.addButton(rb_cont, 1)
-        row2.addWidget(rb_oneshot)
-        row2.addWidget(rb_cont)
-        row2.addSpacing(12)
-        row2.addWidget(QLabel("Delay (s):"))
-        self.scroll_delay = QDoubleSpinBox()
-        self.scroll_delay.setMinimum(0.0)
-        self.scroll_delay.setMaximum(10.0)
-        self.scroll_delay.setSingleStep(0.01)
-        self.scroll_delay.setValue(0.05)
-        self.scroll_delay.setDecimals(2)
-        self.scroll_delay.setStyleSheet(_INPUT_STYLE)
-        row2.addWidget(self.scroll_delay)
-        row2.addStretch()
-        scroll_layout.addLayout(row2)
+        self._scroll_mode_group.addButton(self._scroll_oneshot, 0)
+        self._scroll_mode_group.addButton(self._scroll_continuous, 1)
+        self._scroll_oneshot.toggled.connect(self._on_scroll_mode_changed)
+        for rb in (self._scroll_oneshot, self._scroll_continuous):
+            rb.setStyleSheet("color: #ffffff;")
+            mode_row.addWidget(rb)
+        mode_row.addStretch()
+        layout.addLayout(mode_row)
 
-        apply_scroll = QPushButton("Apply Scroll Notch Binding")
-        apply_scroll.setStyleSheet(_BTN_ACCENT)
-        apply_scroll.clicked.connect(self._apply_scroll_binding)
-        scroll_layout.addWidget(apply_scroll)
-        root.addWidget(scroll_group)
+        # Interval row
+        interval_row = QHBoxLayout()
+        interval_row.addWidget(QLabel("Interval (sec):"))
+        self._scroll_interval = QDoubleSpinBox()
+        self._scroll_interval.setRange(0.01, 5.0)
+        self._scroll_interval.setSingleStep(0.01)
+        self._scroll_interval.setValue(0.05)
+        self._scroll_interval.setStyleSheet(_INPUT_STYLE)
+        self._scroll_interval.setFixedWidth(80)
+        interval_row.addWidget(self._scroll_interval)
+        interval_row.addStretch()
+        layout.addLayout(interval_row)
 
-        # ---- Divider -------------------------------------------------
-        line = QFrame()
-        line.setFrameShape(QFrame.Shape.HLine)
-        line.setStyleSheet("color: rgba(168, 85, 247, 0.3);")
-        root.addWidget(line)
+        # Notches row
+        notch_row = QHBoxLayout()
+        self._notches_label = QLabel("Notches: 1")
+        self._notches_label.setStyleSheet("color: #a855f7; font-weight: bold;")
+        notch_row.addWidget(self._notches_label)
 
-        # ---- Bottom Actions ------------------------------------------
-        actions_layout = QHBoxLayout()
-        btn_clear = QPushButton("🗑  Clear")
-        btn_clear.setStyleSheet(_BTN_DANGER)
-        btn_clear.clicked.connect(self._clear)
+        scroll_hint = QLabel("← Scroll here to set notches")
+        scroll_hint.setStyleSheet("color: rgba(255,255,255,0.45); font-size: 11px;")
+        notch_row.addWidget(scroll_hint)
+        notch_row.addStretch()
 
-        btn_std = QPushButton("💾  Save Standard")
-        btn_std.setStyleSheet(_BTN_SUCCESS)
-        btn_std.clicked.connect(self._save_standard)
+        reset_btn = QPushButton("Reset")
+        reset_btn.setStyleSheet(_BTN_ACCENT)
+        reset_btn.setFixedWidth(60)
+        reset_btn.clicked.connect(self._reset_notches)
+        notch_row.addWidget(reset_btn)
+        layout.addLayout(notch_row)
 
-        btn_shift = QPushButton("💾  Save Shift Map")
-        btn_shift.setStyleSheet(_BTN_ACCENT)
-        btn_shift.clicked.connect(self._save_shift)
-
-        btn_cancel = QPushButton("✕  Cancel")
-        btn_cancel.setStyleSheet(_BTN_DANGER)
-        btn_cancel.clicked.connect(self.reject)
-
-        actions_layout.addWidget(btn_clear)
-        actions_layout.addStretch()
-        actions_layout.addWidget(btn_cancel)
-        actions_layout.addWidget(btn_std)
-        actions_layout.addWidget(btn_shift)
-        root.addLayout(actions_layout)
+        return grp
 
     # ------------------------------------------------------------------
-    # pynput listener management
+    # pynput listeners  — exact beta logic, ported to PySide6
     # ------------------------------------------------------------------
-    def start_pynput_listeners(self) -> None:
-        """Spawns a pynput keyboard listener in a background thread."""
+    def start_listeners(self) -> None:
+        """Start keyboard and mouse pynput listeners."""
         if not _PYNPUT_AVAILABLE:
             return
-
         self._capture_active = True
-        self._latched_keys = set()
+        self._recorded_keys = []
 
         def _on_press(key):
+            """Accumulates key names — does NOT stop listener (beta behaviour)."""
             if not self._capture_active:
                 return
-            key_str = self._pynput_key_to_str(key)
-            if key_str:
-                with self._kb_lock:
-                    self._held_keys.add(key_str)
-                    self._latched_keys.add(key_str)
+            try:
+                key_name = key.char
+            except AttributeError:
+                key_name = key.name
 
-                    # Order modifiers first: ctrl, alt, shift, cmd/win, followed by chars
-                    mods = []
-                    chars = []
-                    for k in self._latched_keys:
-                        if k in ('ctrl', 'alt', 'shift', 'cmd', 'win'):
-                            mods.append(k)
-                        else:
-                            chars.append(k)
+            if key_name and key_name not in self._recorded_keys:
+                self._recorded_keys.append(key_name)
+                combo = "keyboard:" + "+".join(self._recorded_keys)
+                QTimer.singleShot(0, lambda c=combo: self._set_result(c))
 
-                    combo_list = sorted(mods) + sorted(chars)
-                    combo = "+".join(combo_list)
-
-                QTimer.singleShot(0, lambda c=combo: self._set_preview_keyboard(c))
-
-        def _on_release(key):
-            if not self._capture_active:
+        def _on_click(x, y, button, pressed):
+            """On button press: capture, stop both listeners (beta behaviour)."""
+            if not pressed or not self._capture_active:
                 return
-            key_str = self._pynput_key_to_str(key)
-            if key_str:
-                with self._kb_lock:
-                    self._held_keys.discard(key_str)
-                    # Note: We do NOT discard from _latched_keys so the combo remains persistent
+            if button.name == 'x1':
+                b_name = 'mouse4'
+            elif button.name == 'x2':
+                b_name = 'mouse5'
+            else:
+                b_name = f"mouse:{button.name}"
+
+            if button.name == 'left':
+                return  # ignore left click (used to interact with dialog)
+
+            self._stop_listeners()
+            QTimer.singleShot(0, lambda n=b_name: self._set_result(n))
+
+        def _on_scroll(x, y, dx, dy):
+            """On scroll: stop listeners, show scroll settings panel (beta behaviour)."""
+            if not self._capture_active or self._is_showing_scroll:
+                return
+            if dy > 0:
+                direction = 'scroll_up'
+            elif dy < 0:
+                direction = 'scroll_down'
+            elif dx > 0:
+                direction = 'scroll_right'
+            elif dx < 0:
+                direction = 'scroll_left'
+            else:
+                return
+
+            self._stop_listeners()
+            QTimer.singleShot(0, lambda d=direction: self._show_scroll_settings(d))
 
         try:
-            self._kb_listener = pynput_keyboard.Listener(
-                on_press=_on_press,
-                on_release=_on_release
-            )
+            self._kb_listener = pynput_keyboard.Listener(on_press=_on_press)
+            self._ms_listener = pynput_mouse.Listener(on_click=_on_click, on_scroll=_on_scroll)
             self._kb_listener.start()
+            self._ms_listener.start()
         except Exception as e:
-            print(f"[KeyRecorderDialog] Failed to start pynput listener: {e}")
+            print(f"[KeyRecorderDialog] Failed to start listeners: {e}")
 
-    def stop_pynput_listeners(self) -> None:
-        """Stops all pynput listeners unconditionally."""
+    def _stop_listeners(self) -> None:
+        """Unconditionally stop and discard both pynput listeners."""
         self._capture_active = False
-        try:
-            if self._kb_listener is not None:
-                self._kb_listener.stop()
-        except Exception:
-            pass
-        finally:
-            self._kb_listener = None
-
-    @staticmethod
-    def _pynput_key_to_str(key) -> str:
-        """Converts a pynput Key or KeyCode to a displayable string."""
-        try:
-            if hasattr(key, 'char') and key.char:
-                return key.char.lower()
-            if hasattr(key, 'name'):
-                name = key.name.lower()
-                if name.startswith('ctrl'): return 'ctrl'
-                if name.startswith('alt'): return 'alt'
-                if name.startswith('shift'): return 'shift'
-                if name in ('cmd', 'win', 'super'): return 'win'
-                return name
-        except Exception:
-            pass
-        return ""
+        for listener in (self._kb_listener, self._ms_listener):
+            try:
+                if listener is not None:
+                    listener.stop()
+            except Exception:
+                pass
+        self._kb_listener = None
+        self._ms_listener = None
 
     # ------------------------------------------------------------------
-    # Internal helpers
+    # Gamepad telemetry slot (new for v2.3 GUI — not in beta)
     # ------------------------------------------------------------------
     @Slot(dict)
     def update_telemetry(self, telemetry: dict) -> None:
         """
-        Receives UDP telemetry and captures gamepad button presses while recording.
+        Receives live UDP telemetry. Captures any button pressed that is NOT
+        the button being configured (to avoid self-mapping).
+        Only active while the listeners are running (capture_active).
         """
         if not self._capture_active or not isinstance(telemetry, dict):
             return
-
         buttons = telemetry.get("buttons", {})
         if not isinstance(buttons, dict):
             return
-
         for btn_name, is_pressed in buttons.items():
             if is_pressed and str(btn_name).lower() != self.button_name.lower():
                 action_str = f"gamepad:{str(btn_name).lower()}"
-                self._set_preview(action_str)
+                self._set_result(action_str)
                 break
 
-    @Slot(str)
-    def _set_preview_keyboard(self, combo: str) -> None:
-        """Updates preview with keyboard combo (called on Qt main thread)."""
-        if combo:
-            self.recorded_string = f"keyboard:{combo}"
-            self.preview_label.setText(self.recorded_string)
+    # ------------------------------------------------------------------
+    # Scroll settings helpers
+    # ------------------------------------------------------------------
+    def _show_scroll_settings(self, direction: str) -> None:
+        self._detected_scroll_dir = direction
+        self._is_showing_scroll = True
+        self._scroll_panel.setVisible(True)
+        self.adjustSize()
 
-    def _set_preview(self, action: str) -> None:
-        """Sets preview directly (for mouse quick-buttons or gamepad)."""
-        self.recorded_string = action
-        self.preview_label.setText(action)
+    def _hide_scroll_settings(self) -> None:
+        self._detected_scroll_dir = None
+        self._is_showing_scroll = False
+        self._scroll_panel.setVisible(False)
+        self.adjustSize()
 
-    def _apply_scroll_binding(self) -> None:
-        """Builds and previews the scroll notch action string."""
-        direction = self.scroll_dir.currentText()
-        notches = self.scroll_notches.value()
-        mode_id = self._scroll_mode_group.checkedId()
-        mode = "continuous" if mode_id == 1 else "oneshot"
-        delay = self.scroll_delay.value()
-        action = f"mouse:{direction}:{mode}:{notches}:{delay:.2f}"
-        self._set_preview(action)
+    def _on_scroll_mode_changed(self) -> None:
+        is_oneshot = self._scroll_oneshot.isChecked()
+        self._scroll_interval.setEnabled(not is_oneshot)
+
+    def _reset_notches(self) -> None:
+        self._accumulated_notches = 1
+        self._notches_label.setText("Notches: 1")
+
+    def wheelEvent(self, event) -> None:
+        """Route main-window scroll to notch accumulator when panel is visible."""
+        if self._is_showing_scroll:
+            delta = event.angleDelta().y()
+            ticks = max(1, abs(delta) // 120)
+            if delta > 0:
+                self._accumulated_notches += ticks
+            else:
+                self._accumulated_notches = max(1, self._accumulated_notches - ticks)
+            self._notches_label.setText(f"Notches: {self._accumulated_notches}")
+        else:
+            super().wheelEvent(event)
+
+    # ------------------------------------------------------------------
+    # Result helpers
+    # ------------------------------------------------------------------
+    def _set_result(self, value: str) -> None:
+        """Update the result string and preview label."""
+        self._result = value
+        self._hide_scroll_settings()
+        self.preview_label.setText(value)
 
     def _clear(self) -> None:
-        """Clears the current recorded string."""
-        self.recorded_string = ""
-        self._held_keys.clear()
-        if hasattr(self, '_latched_keys'):
-            self._latched_keys.clear()
-        self.preview_label.setText("Press a key combination or gamepad button…")
-
-    def _save_standard(self) -> None:
-        """Emits the recorded mapping for the standard (base layer) slot."""
-        if self.recorded_string:
-            self.input_recorded.emit("standard", self.recorded_string)
-        self.accept()
-
-    def _save_shift(self) -> None:
-        """Emits the recorded mapping for the active shift layer slot."""
-        if self.recorded_string:
-            self.input_recorded.emit("shift", self.recorded_string)
-        self.accept()
+        self._result = ""
+        self._recorded_keys = []
+        self._hide_scroll_settings()
+        self._reset_notches()
+        self.preview_label.setText("Waiting for input…")
 
     # ------------------------------------------------------------------
-    # Qt event overrides
+    # Save / Cancel
     # ------------------------------------------------------------------
-    def closeEvent(self, event) -> None:
-        """Guarantees pynput listeners are stopped on any close path."""
-        self.stop_pynput_listeners()
-        super().closeEvent(event)
+    def _build_scroll_result(self) -> str:
+        """Construct the mouse:scroll_* mapping string from scroll settings."""
+        direction = self._detected_scroll_dir or 'scroll_down'
+        notches = self._accumulated_notches
+        if self._scroll_oneshot.isChecked():
+            return f"mouse:{direction}:oneshot:{notches}"
+        else:
+            interval = self._scroll_interval.value()
+            return f"mouse:{direction}:continuous:{notches}:{interval:.2f}"
 
-    def reject(self) -> None:
-        self.stop_pynput_listeners()
-        super().reject()
+    def _save_and_close(self, target: str) -> None:
+        """Stop listeners, build final value, emit signal, close."""
+        self._stop_listeners()
+
+        if self._is_showing_scroll:
+            val = self._build_scroll_result()
+        else:
+            val = self._result
+
+        if val:
+            self.input_recorded.emit(target, val)
+        self.accept()
+
+    def _cancel(self) -> None:
+        self._stop_listeners()
+        self.reject()
+
+    @Slot()
+    def _on_finished(self) -> None:
+        """Safety net — always stop listeners when dialog closes for any reason."""
+        self._stop_listeners()

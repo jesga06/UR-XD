@@ -176,26 +176,37 @@ class KeyRecorderDialog(QDialog):
         layout.addWidget(scroll_box)
 
         # ---------------------------------------------------------------------
-        # Dialog Action Buttons
+        # Dialog Action Buttons (Matching Legacy Screenshot 3 Dual Save Buttons)
         # ---------------------------------------------------------------------
         btn_box = QHBoxLayout()
-        self.btn_save = QPushButton("Save Binding")
-        self.btn_save.setObjectName("PrimaryBtn")
-        self.btn_save.setEnabled(False)
-        self.btn_save.clicked.connect(self.accept)
+        self.btn_save_std = QPushButton("Save Standard")
+        self.btn_save_std.setObjectName("PrimaryBtn")
+        self.btn_save_std.setEnabled(False)
+        self.btn_save_std.clicked.connect(lambda: self.on_save_clicked("Standard"))
+
+        self.btn_save_shift = QPushButton("Save Shift Map")
+        self.btn_save_shift.setStyleSheet("background-color: #15803d; color: #ffffff; font-weight: bold; border-radius: 6px; padding: 6px 12px;")
+        self.btn_save_shift.setEnabled(False)
+        self.btn_save_shift.clicked.connect(lambda: self.on_save_clicked("Shift"))
 
         btn_cancel = QPushButton("Cancel")
         btn_cancel.setObjectName("SecondaryBtn")
         btn_cancel.clicked.connect(self.reject)
 
-        btn_box.addWidget(self.btn_save)
+        btn_box.addWidget(self.btn_save_std)
+        btn_box.addWidget(self.btn_save_shift)
         btn_box.addWidget(btn_cancel)
         layout.addLayout(btn_box)
+
+    def on_save_clicked(self, target: str):
+        self.save_target = target
+        self.accept()
 
     def set_direct_binding(self, code: str):
         self.recorded_binding = code
         self.lbl_key.setText(f"[ {code} ]")
-        self.btn_save.setEnabled(True)
+        self.btn_save_std.setEnabled(True)
+        self.btn_save_shift.setEnabled(True)
 
     def update_scroll_binding(self):
         s_dir = "scroll_up" if self.combo_scroll_dir.currentIndex() == 0 else "scroll_down"
@@ -204,7 +215,8 @@ class KeyRecorderDialog(QDialog):
         delay = self.spin_delay.value()
         self.recorded_binding = f"{s_dir}:{notches}:{mode}:{delay:.2f}"
         self.lbl_key.setText(f"[ {self.recorded_binding} ]")
-        self.btn_save.setEnabled(True)
+        self.btn_save_std.setEnabled(True)
+        self.btn_save_shift.setEnabled(True)
 
     def keyPressEvent(self, event):
         key = event.key()
@@ -527,6 +539,61 @@ class RemappingView(QWidget):
         is_hold = self.radio_hold.isChecked()
         if hasattr(self, 'lbl_home_warn'):
             self.lbl_home_warn.setVisible(trig_val == "HOME" and is_hold)
+
+    def on_std_mapping_edited(self, button_name: str, new_val: str):
+        config = getattr(self.app, 'controller_config', None)
+        if config:
+            val = new_val.strip()
+            if val:
+                config.set("mappings", button_name.lower(), val)
+            else:
+                config.remove_option("mappings", button_name.lower())
+            self.app.save_config()
+
+    def on_shift_mapping_edited(self, button_name: str, new_val: str):
+        config = getattr(self.app, 'controller_config', None)
+        if config:
+            val = new_val.strip()
+            layers = config.get_shift_layers()
+            if self.active_layer_idx < len(layers):
+                if val:
+                    layers[self.active_layer_idx]["mappings"][button_name.lower()] = val
+                else:
+                    layers[self.active_layer_idx]["mappings"].pop(button_name.lower(), None)
+                config.set_shift_layers(layers)
+                self.app.save_config()
+
+    def on_block_xinput_changed(self, button_name: str, state):
+        config = getattr(self.app, 'controller_config', None)
+        if config:
+            val = (state == Qt.CheckState.Checked.value or state is True)
+            config.set("block_xinput", button_name.lower(), str(val).lower())
+            self.app.save_config()
+
+    def on_shift_block_changed(self, button_name: str, state):
+        config = getattr(self.app, 'controller_config', None)
+        if config:
+            val = (state == Qt.CheckState.Checked.value or state is True)
+            layers = config.get_shift_layers()
+            if self.active_layer_idx < len(layers):
+                if "block_xinput" not in layers[self.active_layer_idx]:
+                    layers[self.active_layer_idx]["block_xinput"] = {}
+                layers[self.active_layer_idx]["block_xinput"][button_name.lower()] = val
+                config.set_shift_layers(layers)
+                self.app.save_config()
+
+    def record_for_edit(self, button_name: str, target_edit: QLineEdit, default_target: str = "Standard"):
+        dlg = KeyRecorderDialog(button_name, self)
+        if dlg.exec() == QDialog.DialogCode.Accepted and dlg.recorded_binding:
+            save_target = getattr(dlg, 'save_target', default_target)
+            if save_target == "Shift":
+                if button_name in self.row_widgets:
+                    self.row_widgets[button_name][3].setText(dlg.recorded_binding)
+                self.on_shift_mapping_edited(button_name, dlg.recorded_binding)
+            else:
+                if button_name in self.row_widgets:
+                    self.row_widgets[button_name][0].setText(dlg.recorded_binding)
+                self.on_std_mapping_edited(button_name, dlg.recorded_binding)
 
     def add_shift_layer(self):
         config = getattr(self.app, 'controller_config', None)

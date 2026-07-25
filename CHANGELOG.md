@@ -258,6 +258,7 @@ This release introduces major UI Customizations, Utilities, and Core Profile fea
 - **Removed Layout Builder:** Removed the Tkinter-based Interactive Layout Builder from the diagnostic tools menu.
 - **Removed Tkinter Unit Tests:** Removed `test_circularity.py` and `test_tooltip.py` as they relied on mocking the deprecated GUI components.
 
+- **Legacy Pystray Removal:** Removed the legacy `pystray` tray icon creation from `src/main.py` to prevent duplicate system tray icons, leaving only the PySide6 `QSystemTrayIcon` active.
 - **UDP Telemetry Rate-Limiting:** Capped UDP state broadcasts in `LatencyMonitor` to ~120Hz to prevent socket buffer backpressure and un-throttled CPU consumption.
 - **Zero-Allocation Hot Loops:** Reused persistent state/report instances in `XInputBackend.poll()` and `HIDReader.start()`, eliminating thousands of transient dataclass allocations per second and reducing Garbage Collection (GC) latency pauses.
 - **Atomic Disk Persistence:** Migrated `diagnostics.json` and `status.json` writers to use temporary files (`tempfile.NamedTemporaryFile` + `os.replace`), preventing file lock collisions during asynchronous reading by `FilePollerWorker`.

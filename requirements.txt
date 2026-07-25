@@ -1,7 +1,6 @@
 hidapi
 vgamepad
-pynput
-pystray 
+pynput 
 Pillow 
 PySide6
 matplotlib

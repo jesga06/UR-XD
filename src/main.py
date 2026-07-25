@@ -23,8 +23,6 @@ from hardware_chords import HardwareChordEngine
 from backend_dinput import DInputBackend
 from backend_xinput import XInputBackend
 
-import pystray
-from PIL import Image, ImageDraw
 import ctypes
 import argparse
 import subprocess
@@ -107,15 +105,7 @@ def quit_app(icon, item):
     os._exit(0)
 
 
-def create_image():
-    # Generate a simple icon
-    width = 64
-    height = 64
-    image = Image.new('RGBA', (width, height), (0, 0, 0, 0))
-    dc = ImageDraw.Draw(image)
-    dc.ellipse((8, 8, width - 8, height - 8), fill=(175, 0, 250))
-    dc.rectangle((24, 24, width - 24, height - 24), fill=(255, 255, 255))
-    return image
+
 
 
 def load_config(filename='config.ini'):
@@ -428,24 +418,16 @@ def main():
     t_poller = threading.Thread(target=config_poller, daemon=True)
     t_poller.start()
 
-    logger.info("App is running in the system tray.")
+    logger.info("Daemon is running in the background.")
 
     # Automatically open GUI on initialization unless --boot is specified
     if not args.boot:
         logger.info("Auto-opening GUI...")
         open_config(None, None)
 
-    # Setup tray icon
-    image = create_image()
-    menu = pystray.Menu(
-        pystray.MenuItem('Open Config', open_config),
-        pystray.MenuItem('Show Console', show_console_action),
-        pystray.MenuItem('Quit', quit_app)
-    )
-    icon = pystray.Icon("ur-xd", image, "UR-XD Wrapper", menu)
-
     try:
-        icon.run()
+        while True:
+            time.sleep(1)
     except KeyboardInterrupt:
         pass
     finally:

@@ -44,18 +44,16 @@ BUTTON_GROUPS: Dict[str, List[Tuple[str, str]]] = {
         ("dpad_up", "UP"), ("dpad_down", "DOWN"),
         ("dpad_left", "LEFT"), ("dpad_right", "RIGHT"),
     ],
-    "System & Extras": [
+    "System": [
         ("select", "SELECT"), ("start", "START"), ("home", "HOME"),
-        ("m1", "M1"), ("m2", "M2"), ("l4", "L4"), ("r4", "R4"),
     ],
 }
 
-TRIGGER_BUTTONS = [
+BASE_TRIGGER_BUTTONS = [
     "", "a", "b", "x", "y",
     "lb", "rb", "lt", "rt",
     "l3", "r3", "select", "start", "home",
     "dpad_up", "dpad_down", "dpad_left", "dpad_right",
-    "m1", "m2", "l4", "r4",
 ]
 
 
@@ -143,6 +141,34 @@ class RemappingView(QWidget):
 
         self.setup_ui()
 
+    def _get_dynamic_extra_buttons(self) -> List[str]:
+        """
+        Dynamically inspects config data to resolve extra hardware buttons
+        or hardware chords (e.g. M1, M2, L4, R4).
+        """
+        extra_buttons: List[str] = []
+        data = getattr(self.config, 'data', {}) if self.config else {}
+        if not isinstance(data, dict):
+            return extra_buttons
+
+        eb_dict = data.get("extra_buttons", {})
+        if isinstance(eb_dict, dict) and eb_dict:
+            extra_buttons.extend(list(eb_dict.keys()))
+        else:
+            eb_settings = data.get("settings", {}).get("extra_inputs", [])
+            if isinstance(eb_settings, list):
+                extra_buttons.extend([str(x) for x in eb_settings])
+            elif isinstance(eb_settings, dict):
+                extra_buttons.extend(list(eb_settings.keys()))
+
+        hw_chords = data.get("hardware_chords", {})
+        if isinstance(hw_chords, dict):
+            for chord_name in hw_chords.keys():
+                if chord_name not in extra_buttons:
+                    extra_buttons.append(chord_name)
+
+        return extra_buttons
+
     # ------------------------------------------------------------------
     # UI construction
     # ------------------------------------------------------------------
@@ -179,6 +205,13 @@ class RemappingView(QWidget):
                 left_col.addWidget(grid_card)
             else:
                 right_col.addWidget(grid_card)
+
+        # Dynamic Extra Buttons card
+        extra_btns = self._get_dynamic_extra_buttons()
+        if extra_btns:
+            extra_tuples = [(b.lower(), b.upper()) for b in extra_btns]
+            extra_card = self._build_mapping_grid("Extra Buttons", extra_tuples)
+            right_col.addWidget(extra_card)
 
         left_col.addStretch()
         right_col.addStretch()
@@ -229,8 +262,14 @@ class RemappingView(QWidget):
         row2 = QHBoxLayout()
         row2.addWidget(QLabel("Shift Trigger Key:"))
 
+        trigger_items = list(BASE_TRIGGER_BUTTONS)
+        for eb in self._get_dynamic_extra_buttons():
+            eb_l = eb.lower()
+            if eb_l not in trigger_items:
+                trigger_items.append(eb_l)
+
         self.trigger_combo = QComboBox()
-        self.trigger_combo.addItems(TRIGGER_BUTTONS)
+        self.trigger_combo.addItems(trigger_items)
         self.trigger_combo.setStyleSheet(_INPUT_STYLE)
         self.trigger_combo.currentTextChanged.connect(self._on_trigger_changed)
         row2.addWidget(self.trigger_combo)
@@ -239,7 +278,7 @@ class RemappingView(QWidget):
         row2.addWidget(QLabel("Shift Modifier:"))
 
         self.modifier_combo = QComboBox()
-        self.modifier_combo.addItems(TRIGGER_BUTTONS)
+        self.modifier_combo.addItems(trigger_items)
         self.modifier_combo.setStyleSheet(_INPUT_STYLE)
         self.modifier_combo.currentTextChanged.connect(self._on_modifier_changed)
         row2.addWidget(self.modifier_combo)

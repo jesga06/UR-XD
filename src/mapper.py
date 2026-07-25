@@ -433,17 +433,14 @@ class Mapper:
 
             self.active_layer = target_layer
 
-            # Trigger press actions for buttons currently held down in the new active layer
-            active_map = self.mappings.get(self.active_layer, {})
-            base_map = self.mappings.get('layer_base', {})
-            for b_pressed, is_down in all_buttons.items():
-                if is_down and b_pressed not in consumed_shift_buttons:
-                    mapping = active_map.get(b_pressed)
-                    if not mapping:
-                        mapping = base_map.get(b_pressed)
-                    if mapping and mapping != 'guide':
-                        self._press(mapping)
-                        self.active_holds[b_pressed] = mapping
+            # Reset prev_state for all non-shift buttons so the next frame's
+            # edge-detection loop fires natural press/release events cleanly.
+            # DO NOT manually fire _press() here — active_holds already cleared
+            # above, so the next iteration will re-detect is_pressed edge and
+            # call _press() with proper tracking.
+            for b in list(self.prev_state.keys()):
+                if b not in consumed_shift_buttons:
+                    self.prev_state[b] = False
         
         # Pre-process analog sticks
         active_map = self.mappings.get(self.active_layer, {})

@@ -175,8 +175,6 @@ class VirtualPad:
         block_prefs = {}
         if config.has_section('block_xinput'):
             for key, val in config.items('block_xinput'):
-                # config values can be read as string, we check if it is
-                # explicitly false
                 block_prefs[key.lower()] = val.lower() != 'false'
 
         for section_name in ['layer_base', 'layer_shift', 'extra_buttons']:
@@ -187,42 +185,77 @@ class VirtualPad:
                     if key_lower == 'home':
                         self.home_mapping = val_lower
 
-                    # If a standard button/trigger is mapped, block it from being pressed on virtual pad
-                    # unless explicitly opted out in block_xinput
                     if key_lower in ['a', 'b', 'x', 'y', 'lb', 'rb', 'lt', 'rt', 'select',
                                      'start', 'l3', 'r3', 'dpad_up', 'dpad_down', 'dpad_left', 'dpad_right', 'ls', 'rs']:
                         should_block = block_prefs.get(key_lower, True)
                         if should_block:
                             self.blocked_buttons.add(key_lower)
 
+        # Check multi-shift layers block preferences
+        if hasattr(config, 'get_shift_layers'):
+            shift_layers_data = config.get_shift_layers()
+        elif hasattr(config, 'data') and 'shift_layers' in config.data:
+            shift_layers_data = config.data.get('shift_layers', [])
+        else:
+            shift_layers_data = []
 
-    def process(self, state: ControllerState):
+        for s_layer in shift_layers_data:
+            s_mappings = s_layer.get('mappings', {})
+            s_block = s_layer.get('block_xinput', {})
+            for key, val in s_mappings.items():
+                key_lower = key.lower()
+                if key_lower in ['a', 'b', 'x', 'y', 'lb', 'rb', 'lt', 'rt', 'select',
+                                 'start', 'l3', 'r3', 'dpad_up', 'dpad_down', 'dpad_left', 'dpad_right', 'ls', 'rs']:
+                    s_should_block = s_block.get(key_lower, True)
+                    if isinstance(s_should_block, str):
+                        s_should_block = s_should_block.lower() != 'false'
+                    if s_should_block:
+                        self.blocked_buttons.add(key_lower)
+
+
+    def destroy(self):
+        """Safely resets and unregisters virtual gamepad resources."""
+        try:
+            if hasattr(self, 'gamepad') and self.gamepad:
+                self.gamepad.reset()
+                self.gamepad.update()
+                logger.info("Virtual gamepad safely destroyed.")
+        except Exception as e:
+            if logger:
+                logger.error(f"Error destroying virtual pad: {e}")
+
+    def process(self, state: ControllerState, paused: bool = False):
         """
         Translates normalized float ControllerState values into vgamepad commands.
         Clamps values, handles deadzones, inverts Y axis as needed, and respects blocked inputs.
+        If paused is True, physical inputs pass directly through without remapping or button blocking.
         """
         if not self.gamepad:
             return
 
         # Triggers
-        lt_val = math_utils.process_trigger(state.lt, self.lt_inner, self.lt_adz, self.lt_curve, self.lt_power, getattr(self, 'lt_rest_dz', 0.0), getattr(self, 'lt_sens', 1.0))
-        if getattr(self, 'digital_lt', False):
-            lt_val = 1.0 if lt_val > 0 else 0.0
+        if paused:
+            lt_val = state.lt
+            rt_val = state.rt
+        else:
+            lt_val = math_utils.process_trigger(state.lt, self.lt_inner, self.lt_adz, self.lt_curve, self.lt_power, getattr(self, 'lt_rest_dz', 0.0), getattr(self, 'lt_sens', 1.0))
+            if getattr(self, 'digital_lt', False):
+                lt_val = 1.0 if lt_val > 0 else 0.0
 
-        rt_val = math_utils.process_trigger(state.rt, self.rt_inner, self.rt_adz, self.rt_curve, self.rt_power, getattr(self, 'rt_rest_dz', 0.0), getattr(self, 'rt_sens', 1.0))
-        if getattr(self, 'digital_rt', False):
-            rt_val = 1.0 if rt_val > 0 else 0.0
+            rt_val = math_utils.process_trigger(state.rt, self.rt_inner, self.rt_adz, self.rt_curve, self.rt_power, getattr(self, 'rt_rest_dz', 0.0), getattr(self, 'rt_sens', 1.0))
+            if getattr(self, 'digital_rt', False):
+                rt_val = 1.0 if rt_val > 0 else 0.0
 
-        if 'lt' in self.blocked_buttons:
+        if not paused and 'lt' in self.blocked_buttons:
             self.gamepad.left_trigger_float(value_float=0.0)
-        elif 'lt' in self.macro_pressed_buttons:
+        elif not paused and 'lt' in self.macro_pressed_buttons:
             self.gamepad.left_trigger_float(value_float=1.0)
         else:
             self.gamepad.left_trigger_float(value_float=lt_val)
 
-        if 'rt' in self.blocked_buttons:
+        if not paused and 'rt' in self.blocked_buttons:
             self.gamepad.right_trigger_float(value_float=0.0)
-        elif 'rt' in self.macro_pressed_buttons:
+        elif not paused and 'rt' in self.macro_pressed_buttons:
             self.gamepad.right_trigger_float(value_float=1.0)
         else:
             self.gamepad.right_trigger_float(value_float=rt_val)
@@ -233,9 +266,9 @@ class VirtualPad:
         rx_val = state.rx
         ry_val = state.ry
         
-        if 'ls' in self.blocked_buttons:
+        if not paused and 'ls' in self.blocked_buttons:
             lx_val, ly_val = 0.0, 0.0
-        else:
+        elif not paused:
             if getattr(self, 'ls_circ_mode', 'disabled') == 'before':
                 lx_val, ly_val = math_utils.apply_circularity_correction(lx_val, ly_val, getattr(self, 'ls_circ_cx', 0.0), getattr(self, 'ls_circ_cy', 0.0), getattr(self, 'ls_circ_bounds', None))
                 lx_val, ly_val = math_utils.process_analog_stick(lx_val, ly_val, self.ls_inner, self.ls_adz, self.ls_curve, self.ls_power, getattr(self, 'ls_rest_dz', 0.0), getattr(self, 'ls_sens', 1.0))
@@ -245,9 +278,9 @@ class VirtualPad:
             else:
                 lx_val, ly_val = math_utils.process_analog_stick(lx_val, ly_val, self.ls_inner, self.ls_adz, self.ls_curve, self.ls_power, getattr(self, 'ls_rest_dz', 0.0), getattr(self, 'ls_sens', 1.0))
 
-        if 'rs' in self.blocked_buttons:
+        if not paused and 'rs' in self.blocked_buttons:
             rx_val, ry_val = 0.0, 0.0
-        else:
+        elif not paused:
             if getattr(self, 'rs_circ_mode', 'disabled') == 'before':
                 rx_val, ry_val = math_utils.apply_circularity_correction(rx_val, ry_val, getattr(self, 'rs_circ_cx', 0.0), getattr(self, 'rs_circ_cy', 0.0), getattr(self, 'rs_circ_bounds', None))
                 rx_val, ry_val = math_utils.process_analog_stick(rx_val, ry_val, self.rs_inner, self.rs_adz, self.rs_curve, self.rs_power, getattr(self, 'rs_rest_dz', 0.0), getattr(self, 'rs_sens', 1.0))
@@ -268,7 +301,10 @@ class VirtualPad:
 
         # Helper function for pressing or releasing standard buttons
         def handle_btn(btn_name, state_val, xusb_btn):
-            active = (state_val and btn_name not in self.blocked_buttons) or (btn_name in self.macro_pressed_buttons)
+            if paused:
+                active = bool(state_val)
+            else:
+                active = (state_val and btn_name not in self.blocked_buttons) or (btn_name in self.macro_pressed_buttons)
             if active:
                 self.gamepad.press_button(button=xusb_btn)
             else:
@@ -285,8 +321,8 @@ class VirtualPad:
         handle_btn('start', state.start, vg.XUSB_BUTTON.XUSB_GAMEPAD_START)
 
         # Home button logic is special since it defaults to guide mapping
-        if self.home_mapping == 'guide':
-            if ('home' in self.macro_pressed_buttons) or (state.home and 'home' not in self.blocked_buttons):
+        if paused or self.home_mapping == 'guide':
+            if (not paused and 'home' in self.macro_pressed_buttons) or (state.home and (paused or 'home' not in self.blocked_buttons)):
                 self.gamepad.press_button(
                     button=vg.XUSB_BUTTON.XUSB_GAMEPAD_GUIDE)
             else:

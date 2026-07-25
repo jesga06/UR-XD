@@ -35,12 +35,17 @@ Run `tools_and_diagnostics.bat` for an interactive CLI menu covering developer u
 ## ⚙️ Advanced Remapping GUI (`src/gui.py`)
 Run the settings panel using `run_wrapper.bat` (and select "Open Config" in the system tray).
 * **Proportional Gamepad Test Dashboard:** Auto-scaling, responsive button layout mapping physical and extra paddles symmetrically or asymmetrically based on active controller resources.
+* **Dismissable Infobox Tooltips:** Contextual infobox help tooltips and widget hover text automatically dismiss when the window loses focus, is minimized, or when any widget button click occurs, preventing floating window artifacts on backgrounding.
 * **Interactive Button Layout Builder (`technical-stuff/interactive_layout_builder.py`):** Standalone drag-and-drop builder to visually customize gamepad button layouts with a configurable background grid slider (5px to 20px) and automatic snap-to-grid positioning.
 * **Interactive Recorder Modal:**
   * **Keyboard Combos:** Records complex multi-key combinations (e.g., `Ctrl + Shift + Alt + Z`) as you press them.
   * **Mouse Clicks:** Captures clicks for Middle, Left, Right, Mouse4, and Mouse5. Left-clicks inside the recorder are ignored for UI protection.
   * **Mouse Scroll Wheel:** Records scroll direction.
   * **Target Layer Saving:** Explicit **"Save Standard"** and **"Save Shift Map"** buttons to cleanly redirect recorded inputs.
+* **Multiple Shift Remapping Layers:**
+  * **Layer Selector & Management:** Create, name, and switch between multiple custom shift layers (`Shift 1`, `Shift 2`, etc.) with tab-based navigation in the Remapping UI.
+  * **Activation Chords & Strict Order Logic:** Activate shift layers using a primary shift key or a primary shift key + modifier button combination (e.g. `LB + RB`). Requires strict press timing (primary shift key pressed before or simultaneously with modifier) and consumes inputs to prevent unintended base layer triggers.
+  * **Per-Layer Mappings & XInput Blocking:** Customize independent mappings, macro assignments, and XInput block preferences for each shift layer.
 * **Mouse Scroll Remapping Customization:**
   * **Oneshot Mode:** Triggers exactly $X$ scroll notches on button press.
   * **Continuous Mode:** Repeats $X$ scroll notches every $Y$ seconds as long as the button is held.
@@ -69,7 +74,7 @@ Run the settings panel using `run_wrapper.bat` (and select "Open Config" in the 
 
 ## 🖥️ Daemon Background Wrapper Process (`src/main.py`)
 * **XInput First Dual-Backend Emulation:** Utilizes a native `ctypes` backend to poll gamepads in XInput mode (unlocking physical vibration and avoiding generic generic HID limits) while maintaining a fallback DInput backend. Outputs to `vgamepad` virtual Xbox 360 controller.
-* **Tray Icon Application:** Runs quietly in the system tray, keeping your desktop clean.
+* **Tray Icon Application & Context Menu:** Runs quietly in the system tray with right-click context menu options: **Open Config** (launches GUI), **Pause Interception** (temporarily passes physical inputs through without remapping), **Reload Configuration** (forces immediate re-read of `config.ini` and `profiles/`), **Show Console**, and **Exit** (safely destroys virtual gamepad and closes daemon).
 * **Auto-Reloading Config:** A background thread polls `config.ini` every 5 seconds and updates the active mappings on-the-fly without needing a restart.
 * **Tray Restore Utility:** The "Show Console" action uses native Windows API calls (`SW_RESTORE` + `SetForegroundWindow`) to bring the minimized CLI window back to the front immediately.
 * **Smart Reconnection Loop:** If the physical controller is disconnected, the daemon enters a connection recovery loop, scanning for a connected device with the exact same name for up to 20 seconds. It will restore the connection automatically if found, or gracefully terminate all processes (including the GUI) if the timeout expires.

@@ -470,22 +470,6 @@ class Calibrator:
                 with open(basic_hid_map_path, 'w') as f:
                     json.dump(self.profile, f, indent=4)
                     
-            import re
-            sanitized_name = re.sub(r'[\\/*?:"<>|]', "", self.profile['name'])
-            sanitized_name = sanitized_name.replace(" ", "_")
-            x_profile_path = f"profiles/{sanitized_name}_xinput.json"
-            
-            x_profile = {}
-            if os.path.exists(x_profile_path):
-                try:
-                    with open(x_profile_path, 'r') as f:
-                        x_profile = json.load(f)
-                except:
-                    pass
-                    
-            with open(x_profile_path, 'w') as f:
-                json.dump(x_profile, f, indent=4)
-                
             import configparser
             config = configparser.ConfigParser()
             if os.path.exists('config.ini'): config.read('config.ini')

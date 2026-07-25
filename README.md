@@ -1,149 +1,87 @@
 # Universal Remapper, XInput/DInput Wrapper, ***and*** Fixer
 
-<p align="center">
-  <img width="800" height="436" alt="test tool showcase" src="https://github.com/user-attachments/assets/a74b972a-b1af-4ca4-8a08-198873898827"/><br>
-  <sub>test tool showcase</sub>
-</p>
+<div align="center">
+
+[Overview](#-what-problem-does-this-solve) • [Quick Start](#-quick-start-5-minutes) • [Documentation Index](#-documentation-index) • [Extras & Origin Story](#-extras) • [License](#-license)
+
+</div>
 
 
+**Fixes Windows controllers whose HID descriptors lie just enough to ruin your day.**
 
-Fixes Windows controllers whose HID descriptors lie just enough to ruin your day.
+**UR-XD** is a lightweight Windows utility ***originally*** designed to fix controllers whose HID descriptors are incomplete or broken, restoring missing analog triggers, enabling extra back buttons, mapping inputs to macros, keyboard, and mouse actions. [Also does a whole truckload of other shit.](FEATURELIST.md)
 
-A lightweight utility that fixes incorrect DirectInput (DInput) ***specific*** behaviors—like broken analog triggers—on various Windows controllers (e.g., 8BitDo Ultimate 2C, Machenike G5 Pro) and adds support for custom extra buttons (such as back paddles), converting them into standard XInput controllers with fully customizable mouse/keyboard mapping.
+## 🎯 What Problem Does This Solve?
 
-Some controllers expose perfectly valid input data but advertise incorrect HID descriptors, causing Windows and games to interpret inputs incorrectly. UR-XD bypasses the incomplete/wrong descriptor data, correctly parses the analog triggers and extra buttons, and exposes the fixed gamepad as a Virtual Xbox 360 controller using `vgamepad` (ViGEmBus). It even lets you remap the extra buttons!
+Many third-party controllers report incorrect behavior on Windows depending on their operating mode (DirectInput vs XInput)—such as analog triggers being treated as digital switches in DInput, or extra back paddles being entirely inaccessible in XInput.
 
-TL;DR: If your controller has digital triggers instead of analog, missing back buttons, or behaves differently in DInput than it should, UR-XD fixes those issues without requiring firmware modifications.
+UR-XD bypasses buggy driver descriptors, decodes raw HID payload data directly, and exposes a fully compliant Virtual Xbox 360 controller while allowing deep customization and remapping.
 
-For a detailed list of recent updates, architectural changes, and bug fixes, see the [CHANGELOG.md](CHANGELOG.md).
-
-### Supported today
-
-- ✅ 8BitDo Ultimate 2C Wireless 2.4 GHz (literally what this whole project was built to fix)
-- ✅ Machenike G5 Pro
-
-### ⚠️ Potentially compatible
-
-- Any HID controller whose descriptor does not match its reports. Requires one-time calibration
-- Probably any HID device tbh. This project got scope-crept so much that someone could probably make this work on an eldritch horror of a USB device with tens of buttons, axis, triggers, hats...
-
-## Features
-- **Analog Triggers Fix:** Restores missing analog polling on controllers with broken DInput configurations (e.g. Triggers that Windows treats as digital. You paid for analog triggers and you're getting them analog triggers!).
-- **Customizable Tuning:** Adjust stick and trigger deadzones, response curves, and sensitivity dynamically via the Tuning tab to fine-tune your gameplay.
-   - **Circularity Calibrator:** Calibrate circularity of analog sticks for a perfect circular output.
-- **Visual GUI Configuration:** A simple, dark-mode visual interface to easily map buttons without manual file editing.
-- **Universal Profiling:** Generate custom controller HID maps (`profiles/`) for any generic HID controller using the interactive calibration tool.
-   - **Automatically downloads the community HID map database on first run!**
-- **Background System Tray Operation:** Quietly sits in your system tray and hides the command prompt window.
-- **Full Button Remapping & Block:** Map *any* controller button (standard or extra paddle) to *any combination of* keyboard or mouse outputs; standard buttons are blocked from XInput when remapped to prevent double inputs
-   - Cannot remap some hardware specific buttons, like Turbo.
-   - Default config sets L4-R4 as Mouse4-Mouse 5, respectively. Home/Guide is set as ALT+UP
-- **Shift Layer Remapping:** Configure alternate mapping profiles toggled dynamically by a customizable modifier key.
-- **Macros Studio:** Record keyboard, mouse, and trigger macros directly in the GUI with support for press/hold states and stuck-key prevention.
-- **Automated Diagnostic Suite:** Built-in 6-step diagnostic tests and reporting wizard (`generate_issue_report.bat`) to inspect environments, raw byte packages, exclusive locks, and topology.
-- **Composite HID Interface Merging:** Concurrently monitors and merges inputs from controllers that split telemetry onto separate HID endpoints (such as the Machenike G5 Pro).
-- **Smart Reconnection:** Recover connection automatically if your physical controller gets disconnected, actively scanning for 20 seconds before closing safely.
-- **Live Reloading:** Your mapping changes are applied instantly in the background without needing to restart the app.
+### Why Use UR-XD?
+- **Analog Triggers Fix:** Restores missing analog polling on controllers with broken DInput configurations. You paid for analog triggers, you're getting analog triggers.
+- **Precise Tuning & Tinkering:** Adjust button remapping, macros, stick and trigger deadzones, response curves, circularity, and sensitivity, even on controllers without official software support.
+- **No Firmware Hacks:** Fixes issues entirely in software without voiding warranties or flashing custom firmware.
 - **And Much More!** Check out the full list of features in the [Features List](FEATURELIST.md).
 
-## Requirements
-- Python 3
-- [ViGEmBus](https://github.com/nefarius/ViGEmBus) driver installed.
-- Required pip packages (see `requirements.txt`)
+## 🎮 Supported Devices
 
-## Setup & Tutorial
+### Officially Supported
+- ✅ **8BitDo Ultimate 2C Wireless 2.4 GHz** (literally what this whole project was built to fix)
+- ✅ **Machenike G5 Pro**
 
-### Step 1: Install Requirements
-1. Install [Python 3.13](https://www.python.org/downloads/release/python-31314/) or higher.
-2. Install the [ViGEmBus](https://github.com/nefarius/ViGEmBus) driver.
-3. Install Python dependencies (run on PowerShell or CMD, or via option 5 in `tools_and_diagnostics.bat`):
-   ```powershell
-   pip install -r requirements.txt
-   ```
+> ℹ️ **NOTE**: These are only the devices tested so far. If your controller is not listed, don't forget what the ***U*** in ***UR-XD*** stands for—it might still be compatible! Check out the [Calibration Guide](docs/calibration.md) for more information.
 
-### Step 2: Calibrate Your Controller (One-time Setup)
-If your controller doesn't have a profile generated yet:
-1. Turn on your controller and run the **`calibrate.bat`** script (or run `python src/calibration.py` in PowerShell).
-2. Select a device by typing its corresponding number in the prompt.
-3. **Interface Detection & Selection:**
-   - **Stage 1 (Auto-Detect Mode):** The script starts a 15-second discovery window. Press buttons, pull triggers, and move the thumbsticks on your controller. The tool will auto-detect which interfaces are actively sending inputs.
-   - **Stage 2 (Manual Selection):** If no activity is auto-detected (or if you press **ENTER** immediately without pressing any buttons to force manual mode), you will be prompted to manually enter the index/indices (e.g., `0,1`) of the interface(s) you wish to use from the displayed list of endpoints.
-4. Select your preferred button layout (Xbox, PlayStation, or Nintendo) and indicate whether your device streams continuous gyroscope telemetry.
-5. Follow the step-by-step CLI prompts (e.g., press A, push Left Stick Up, etc.) to baseline and map your device. You can skip buttons by pressing `s` or undo the previous step by pressing `u` on your keyboard.
-6. Once finished, a custom JSON HID map will be automatically saved in the `profiles/` directory.
+## ⚡ Quick Start (5 Minutes)
 
-> *For advanced configurations or troubleshooting multi-interface controllers, see the [Manual Calibration Guide](technical-stuff/MANUAL_CALIBRATION_GUIDE.md).*
+### 1. Prerequisites
+- **Python 3.13-3.14** installed.
+- **[ViGEmBus Driver](https://github.com/nefarius/ViGEmBus/releases)** installed on your system.
 
-### Step 3: Run the Background Daemon
-To start intercepting inputs in the background:
-1. Run the **`run_wrapper.bat`** script (or run `python main.py` in PowerShell). You can optionally pass the `--boot` argument to start it silently without opening the GUI.
-2. The command prompt window will hide automatically.
-3. A circular white and purple icon will appear in your **System Tray**.
-
-### Step 4: Map Your Buttons
-1. Right-click the system tray icon and select **Open Config**.
-2. This opens the Configuration GUI window.
-3. Go to the **Remapping** tab, type your desired mappings (e.g., `keyboard:space` or `mouse4`) next to the controller buttons, and press Enter.
-   - *Otherwise, you can click the ***record*** button and press the keys themselves.*
-4. The background daemon will pick up your changes within 5 seconds!
-
-## Configuration Details
-If you prefer editing configuration manually, you can customize the mappings for the extra buttons in `config.ini`. This uses the `pynput` library to simulate mouse and keyboard events.
-
-### Mouse Mapping
-You can map to mouse buttons. The defaults are the forward and backward buttons on standard gaming mice:
-- `mouse4` (Backward / X1)
-- `mouse5` (Forward / X2)
-
-### Keyboard Mapping
-You can also map to keyboard keys by prefixing the value with `keyboard:`.
-- Letters/Numbers: `keyboard:a`, `keyboard:1`
-- Special Keys (must match pynput `Key` enum names): `keyboard:space`, `keyboard:enter`, `keyboard:f13`, `keyboard:shift`
-- **Key Combos:** You can chain multiple keys together with a `+` symbol (e.g. `keyboard:shift+o` or `keyboard:ctrl+alt+delete`). They will be pressed sequentially and released in reverse order.
-
-Example `config.ini`:
-```ini
-[controller]
-output = xinput
-
-[extra_buttons]
-l4 = mouse4
-r4 = keyboard:f13
+### 2. Install Dependencies
+Run the following command in PowerShell or Command Prompt (or via Option 5 in `tools_and_diagnostics.bat`):
+```powershell
+pip install -r requirements.txt
 ```
 
-## Troubleshooting
+### 3. Calibrate Your Controller (One-time Setup)
+Run the guided calibration wizard:
+```powershell
+.\calibrate.bat
+```
+[screenshot of interactive CLI calibration prompt][Guided Button Calibration]
 
-- **No Virtual Controller Appears:** Ensure you have the [ViGEmBus](https://github.com/nefarius/ViGEmBus) driver installed and that it is functioning correctly.
-- **Controller Not Detected by the App:** Make sure you have run the **`calibrate.bat`** script first to generate a profile for your specific controller.
-- **Changes in GUI Aren't Applying:** Ensure that **`run_wrapper.bat`** (the background daemon) is actively running in your system tray. The GUI only modifies the settings; the daemon actually applies them.
-- **Double Inputs in Games:** If you remap a standard button (like 'A'), the app blocks the original 'A' press from reaching the game to prevent double inputs. If you are still seeing double inputs, verify the background daemon is running and Steam Input is not interfering.
-- **Calibration Tool Fails Due to Two Axes Moving:** Some controllers report movement on two separate axes simultaneously when squeezing a single trigger (due to hardware quirks). The calibration tool expects isolated movement. If this happens to you, the tool may misidentify the trigger axis. You may need to manually edit the resulting `profiles/` JSON file or use a different controller.
-- **Dashboard Buttons Misaligned or Overlapping:** You can interactively align, position, and grid-snap buttons for your gamepad layout using the Interactive Layout Builder tool:
-   1. Run `python technical-stuff/interactive_layout_builder.py` in PowerShell or Command Prompt.
-   2. Switch between **Xbox** and **PlayStation** layout templates.
-   3. Adjust the **Grid Slider** (5px to 20px) to display background grid lines and enable automatic snap-to-grid alignment.
-   4. Drag buttons to their desired positions and click **Save Layout** to automatically update `resources/button_layout.json`.
-- **Tool doesn't work:**
-   - Check whether you're actually using the Virtual Gamepad exposed by this tool, not your physical controller. The Virtual Gamepad will appear in Windows Device Settings as "Virtual Gamepad" or "Xbox 360 Controller".
-   - Check if you correctly installed the required dependencies with `pip install -r requirements.txt`.
-   - Check if the daemon is actually running by looking for the system tray icon.
-- **Still Facing Issues? (Run the Diagnostic Test Suite):** If you encounter an issue you cannot resolve, please double-click the **`generate_issue_report.bat`** script in the repository root.
-  - It will run 6 comprehensive diagnostic tests to analyze your controller and system environment.
-  - At the end, it will automatically package all logs into a single `issue_report.zip` file in the repository root.
-  - Please **[open an issue on GitHub](https://github.com/jesga06/ultimate-2c-dinput-fix/issues)** and attach that `issue_report.zip` file. It contains the exact environment data and hardware scans needed to troubleshoot and add support for your specific controller!
+Follow the step-by-step prompts (pressing buttons, pulling triggers, moving thumbsticks). You can skip buttons by typing `s` or undo by typing `u`. A custom controller profile will be saved automatically in `profiles/`.
 
+### 4. Launch the Wrapper & GUI
+Start the wrapper process:
+```powershell
+.\run_wrapper.bat
+```
+Right-click the system tray icon and select **Open Config** to open the GUI and tinker with your controller to your heart's extent.
 
-## LICENSE
+[screenshot of configuration GUI dashboard][GUI Configuration Dashboard & Live Remapping Interface]
 
-This project is licensed under the PolyForm Noncommercial License 1.0.0.
+## 📚 Documentation Index
 
-You are free to use, modify and redistribute this software for noncommercial purposes under the terms of the license.
+For detailed guides, deep architecture breakdowns, and troubleshooting, explore the full documentation suite:
 
-Commercial use is not permitted without explicit permission from the copyright holder.
+### 📖 User Documentation
+- **[Getting Started](docs/getting_started.md):** Complete installation, requirements, and background wrapper configuration.
+- **[User Guide](docs/user_guide.md):** Detailed breakdown of GUI tabs (Dashboard, Remapping, Tuning, Macros, Utilities, System Tray).
+- **[Calibration Guide](docs/calibration.md):** Endpoint selection, button baselining, and Interactive Layout Builder.
+- **[HID Maps & Profiles](docs/hid_maps.md):** Profile JSON formats, database auto-downloads, and multi-endpoint hardware merging.
+- **[Macros Studio](docs/macros.md):** Recording sequences, press/hold states, loop modes, and anti-stuck key logic.
+- **[Hardware Chords](docs/hardware_chords.md):** Configuring hardware button combinations and multi-button chords.
+- **[Troubleshooting Guide](docs/troubleshooting.md):** Solutions for undetected controllers, double inputs, rumble restrictions, and issue reporting.
+- **[FAQ](docs/faq.md):** Frequently asked questions.
 
-## EXTRAS
+### 💻 Developer Documentation
+- **[Architecture & Pipeline](docs/architecture.md):** Input pipeline architecture, data flow, thread model, and hardware rumble findings.
+- **[Developer Guide](docs/developer_guide.md):** Codebase navigation (`src/`), custom decoders, profile schemas, PR guidelines, and testing workflows.
 
-### AI NOTICE: 
+## 🎨 EXTRAS
+
+### AI NOTICE:
 Yes, this was programmed by a clanker.
 
 No, the clanker did not do the fun part (the actual reverse engineering behind this hot mess).
@@ -151,27 +89,32 @@ No, the clanker did not do the fun part (the actual reverse engineering behind t
 No, I don't feel bad about it.
 
 ### NOTES:
-- **No Force Feedback / Rumble in DirectInput (DInput) Mode:** Force feedback (rumble) is **not supported** in DirectInput mode and likely never will be. Extensive reverse-engineering revealed that controller microcontrollers firmware-gate output reports outside of XInput mode, ignoring haptic motor execution routines entirely. Due to this firmware-level restriction and the extreme proprietary variation across vendors, rumble is strictly supported when operating via the **XInput backend**. For details on the technical reverse-engineering campaign, see the [Rumble Investigation Timeline](technical-stuff/RUMBLE_TIMELINE.md).
-- No, this tool does not disable the hardware L4/R4 remapping. I have no idea how to disable that. 
-   - It does let you completely disable or remap the home button to something else though, so there's that!
+- **No Force Feedback / Rumble in DirectInput (DInput) Mode:** Force feedback (rumble) is **not supported** in DirectInput mode and likely never will be. Extensive reverse-engineering revealed that controller microcontrollers firmware-gate output reports outside of XInput mode, ignoring haptic motor execution routines entirely. For details on the technical reverse-engineering campaign, see the [Rumble Investigation Timeline](docs/architecture.md#rumble-reverse-engineering).
+- No, this tool does not disable the hardware L4/R4 remapping. I have no idea how to disable that.
+  - It does let you completely disable or remap the home button to something else though, so there's that!
 - It also does not let you remap special controller buttons like "turbo", a profile/mode switch, pairing button, the one you'd use to remap extra buttons, etc.
+
 ### (maybe) TO-DOs:
-* [ ] bundle all of this up into a standalone `.exe` executable for those who just want to use the damn controller they paid for
+- [ ] bundle all of this up into a standalone `.exe` executable for those who just want to use the damn controller they paid for
 
 ### (fun) TIMELINE OF EVENTS THAT LED TO THIS PROJECT COMING TO LIFE:
 
-Stumbled upon a [reddit post](https://www.reddit.com/r/Controller/comments/1hu5faa/guide_for_8bitdo_ultimate_2c_wireless_controller/) with some tips about the 8BitDo Ultimate 2 controller family. Noticed that my controller could be used in Xinput or Dinput modes. Decided to test it out. 
+Stumbled upon a [reddit post](https://www.reddit.com/r/Controller/comments/1hu5faa/guide_for_8bitdo_ultimate_2c_wireless_controller/) with some tips about the 8BitDo Ultimate 2 controller family. Noticed that my controller could be used in Xinput or Dinput modes. Decided to test it out.
 
 Noticed that for some godforsaken reason the triggers didn't use analog polling when the controller was set to Dinput. Got pissed.
 
 Used [this USBView Tool](https://learn.microsoft.com/en-us/windows-hardware/drivers/debugger/usbview) to find out the VID and PID.
 
-Used [this CLI tool](https://github.com/todbot/hidapitester) to read raw input to determine whether it was a firmware issue (the controller actually just wouldn't send analog data) or if it was Windows being Windows. 
+Used [this CLI tool](https://github.com/todbot/hidapitester) to read raw input to determine whether it was a firmware issue (the controller actually just wouldn't send analog data) or if it was Windows being Windows.
 
-Noticed the controller was actually sending analog data. "Windows being Windows" theory didn't make sense because no tool correctly reported analog input. 
+Noticed the controller was actually sending analog data. "Windows being Windows" theory didn't make sense because no tool correctly reported analog input.
 
-Decided to take a look into the descriptor to figure out how the values were being mapped. Found out the 8BitDo engineers are lazier than I am (The descriptors didn't properly map to what the controller actually outputs). Got even more pissed. 
+Decided to take a look into the descriptor to figure out how the values were being mapped. Found out the 8BitDo engineers are lazier than I am (The descriptors didn't properly map to what the controller actually outputs). Got even more pissed.
 
 Wrote a proof of concept script. Concept was proven. Wrote a prompt. AI pumped this out faster than anyone could have. Learned basic black-box reverse engineering in the process. Not pissed anymore.
 
 Ended up feature-creeping this to the point where the name of this repository was outdated within hours of creation.
+
+## 📜 License
+
+This project is licensed under the **PolyForm Noncommercial License 1.0.0**. Free for noncommercial use and modification under the terms of the license.

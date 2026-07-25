@@ -21,13 +21,16 @@ class Mapper:
         self.mouse = MouseController()
         self.keyboard = KeyboardController()
         
-        self.mappings = {'layer_base': {}, 'layer_shift': {}}
+        self.mappings = {'layer_base': {}}
         self.chords = []
+        self.shift_layers = []
+        self.toggled_shift_layers = set()
         self.active_layer = 'layer_base'
         self.shift_button = None
         self.shift_mode = 'hold'
         self.chord_mode = 'rollback'
         self.chord_timeout = 0.040
+        self.button_press_times = {}
         
         self.prev_state = {}
         self.active_scrolls = {}
@@ -56,17 +59,13 @@ class Mapper:
     def reload_config(self, config):
         if logger:
             logger.debug(f"[ENTER] reload_config() - active_layer={self.active_layer}")
-        self.mappings = {'layer_base': {}, 'layer_shift': {}}
+        self.mappings = {'layer_base': {}}
         self.chords = []
+        self.shift_layers = []
+        self.toggled_shift_layers = set()
         
         if config.has_section('settings'):
             self.chord_mode = config.get('settings', 'chord_mode', fallback='rollback').lower()
-
-        if config.has_section('shift_layer'):
-            self.shift_button = config.get('shift_layer', 'trigger_button', fallback=None)
-            if self.shift_button:
-                self.shift_button = self.shift_button.lower()
-            self.shift_mode = config.get('shift_layer', 'mode', fallback='hold').lower()
 
         # Legacy extra_buttons to layer_base
         if config.has_section('extra_buttons'):
@@ -76,13 +75,57 @@ class Mapper:
         if config.has_section('layer_base'):
             for key, val in config.items('layer_base'):
                 self.mappings['layer_base'][key.lower()] = val.lower()
-                
-        if config.has_section('shift_mappings'):
-            for key, val in config.items('shift_mappings'):
-                self.mappings['layer_shift'][key.lower()] = val.lower()
 
-        # Extract Chords
-        for layer in ['layer_base', 'layer_shift']:
+        # Load multi-shift layers
+        if hasattr(config, 'get_shift_layers'):
+            raw_shift_layers = config.get_shift_layers()
+        elif hasattr(config, 'data') and 'shift_layers' in config.data:
+            raw_shift_layers = config.data['shift_layers']
+        else:
+            raw_shift_layers = []
+
+        if raw_shift_layers:
+            for l_cfg in raw_shift_layers:
+                l_id = l_cfg.get('id', 'shift_1')
+                trig = (l_cfg.get('trigger_button') or '').lower().strip()
+                mod = (l_cfg.get('modifier_button') or '').lower().strip()
+                mode = (l_cfg.get('mode') or 'hold').lower().strip()
+                maps = {k.lower(): v.lower() for k, v in l_cfg.get('mappings', {}).items()}
+                self.shift_layers.append({
+                    'id': l_id,
+                    'name': l_cfg.get('name', l_id),
+                    'trigger_button': trig,
+                    'modifier_button': mod,
+                    'mode': mode,
+                    'mappings': maps
+                })
+                self.mappings[l_id] = maps
+        else:
+            self.shift_button = None
+            self.shift_mode = 'hold'
+            if config.has_section('shift_layer'):
+                self.shift_button = config.get('shift_layer', 'trigger_button', fallback=None)
+                if self.shift_button:
+                    self.shift_button = self.shift_button.lower()
+                self.shift_mode = config.get('shift_layer', 'mode', fallback='hold').lower()
+
+            maps = {}
+            if config.has_section('shift_mappings'):
+                for key, val in config.items('shift_mappings'):
+                    maps[key.lower()] = val.lower()
+            self.mappings['layer_shift'] = maps
+            if self.shift_button:
+                self.shift_layers.append({
+                    'id': 'layer_shift',
+                    'name': 'Shift Layer',
+                    'trigger_button': self.shift_button,
+                    'modifier_button': '',
+                    'mode': self.shift_mode,
+                    'mappings': maps
+                })
+
+        # Extract Chords across all layers
+        for layer in list(self.mappings.keys()):
             keys_to_remove = []
             for key, val in self.mappings[layer].items():
                 if '+' in key:
@@ -108,6 +151,46 @@ class Mapper:
         # We will integrate the Macro Executor here later
         if self.macro_executor:
             self.macro_executor.execute_or_toggle(macro_name)
+
+    def _press_key_sequence(self, keys):
+        currently_pressed = set()
+        for key_name in keys:
+            key_name = key_name.strip()
+            if not key_name:
+                continue
+            if key_name in currently_pressed:
+                try:
+                    if hasattr(Key, key_name):
+                        self.keyboard.release(getattr(Key, key_name))
+                    else:
+                        self.keyboard.release(KeyCode.from_char(key_name))
+                except Exception:
+                    pass
+                time.sleep(0.015)
+
+            try:
+                if hasattr(Key, key_name):
+                    self.keyboard.press(getattr(Key, key_name))
+                else:
+                    self.keyboard.press(KeyCode.from_char(key_name))
+                currently_pressed.add(key_name)
+            except Exception as e:
+                logger.error(f"Failed to press key {key_name}: {e}", exc_info=True)
+
+    def _release_key_sequence(self, keys):
+        released = set()
+        for key_name in reversed(keys):
+            key_name = key_name.strip()
+            if not key_name or key_name in released:
+                continue
+            try:
+                if hasattr(Key, key_name):
+                    self.keyboard.release(getattr(Key, key_name))
+                else:
+                    self.keyboard.release(KeyCode.from_char(key_name))
+                released.add(key_name)
+            except Exception as e:
+                logger.error(f"Failed to release key {key_name}: {e}", exc_info=True)
 
     def _press(self, mapping):
         if not mapping:
@@ -147,27 +230,11 @@ class Mapper:
                 self.mouse.press(getattr(MouseButton, btn_name))
         elif mapping.startswith('keyboard:'):
             keys = mapping.split(':', 1)[1].split('+')
-            for key_name in keys:
-                key_name = key_name.strip()
-                try:
-                    if hasattr(Key, key_name):
-                        self.keyboard.press(getattr(Key, key_name))
-                    else:
-                        self.keyboard.press(KeyCode.from_char(key_name))
-                except Exception as e:
-                    logger.error(f"Failed to press key {key_name}: {e}", exc_info=True)
+            self._press_key_sequence(keys)
         else:
             # Fallback for plain key strings without explicit keyboard: prefix
             keys = mapping.split('+')
-            for key_name in keys:
-                key_name = key_name.strip()
-                try:
-                    if hasattr(Key, key_name):
-                        self.keyboard.press(getattr(Key, key_name))
-                    else:
-                        self.keyboard.press(KeyCode.from_char(key_name))
-                except Exception as e:
-                    logger.error(f"Failed to press key {key_name}: {e}", exc_info=True)
+            self._press_key_sequence(keys)
 
     def _release(self, mapping):
         if not mapping:
@@ -201,27 +268,11 @@ class Mapper:
                 self.mouse.release(getattr(MouseButton, btn_name))
         elif mapping.startswith('keyboard:'):
             keys = mapping.split(':', 1)[1].split('+')
-            for key_name in reversed(keys):
-                key_name = key_name.strip()
-                try:
-                    if hasattr(Key, key_name):
-                        self.keyboard.release(getattr(Key, key_name))
-                    else:
-                        self.keyboard.release(KeyCode.from_char(key_name))
-                except Exception as e:
-                    logger.error(f"Failed to release key {key_name}: {e}", exc_info=True)
+            self._release_key_sequence(keys)
         else:
             # Fallback for plain key strings without explicit keyboard: prefix
             keys = mapping.split('+')
-            for key_name in reversed(keys):
-                key_name = key_name.strip()
-                try:
-                    if hasattr(Key, key_name):
-                        self.keyboard.release(getattr(Key, key_name))
-                    else:
-                        self.keyboard.release(KeyCode.from_char(key_name))
-                except Exception as e:
-                    logger.error(f"Failed to release key {key_name}: {e}", exc_info=True)
+            self._release_key_sequence(keys)
 
     def _process_wasd(self, x, y, threshold=0.5):
         now = time.time()
@@ -255,7 +306,7 @@ class Mapper:
         all_buttons['rt'] = state.rt > 0
         
         # Pre-populate all known extra buttons from mappings and prev_state to False
-        extra_keys = set(self.mappings['layer_base'].keys()) | set(self.mappings['layer_shift'].keys()) | set(self.prev_state.keys())
+        extra_keys = set().union(*(m.keys() for m in self.mappings.values()), self.prev_state.keys())
         for k in extra_keys:
             if k not in all_buttons:
                 all_buttons[k] = False
@@ -268,26 +319,114 @@ class Mapper:
             else:
                 all_buttons[eb_lower] = bool(eb_val)
 
-        # Handle Shift Transition
-        if self.shift_button:
-            shift_is_down = all_buttons.get(self.shift_button, False)
-            shift_btn_prev = self.prev_state.get(self.shift_button, False)
-            
-            if shift_is_down != shift_btn_prev:
-                old_layer = self.active_layer
-                if self.shift_mode == 'toggle':
-                    if shift_is_down:
-                        self.active_layer = 'layer_shift' if self.active_layer == 'layer_base' else 'layer_base'
-                else: # hold
-                    self.active_layer = 'layer_shift' if shift_is_down else 'layer_base'
-                if old_layer != self.active_layer and logger:
-                    logger.debug(f"[MAPPER] Shift layer changed: {old_layer} -> {self.active_layer} (button={self.shift_button}, mode={self.shift_mode})")
-
         now = time.time()
+
+        # Track press timestamps and edge transitions
+        new_presses = set()
+        new_releases = set()
+        for btn, is_pressed in all_buttons.items():
+            btn_lower = btn.lower()
+            prev_p = self.prev_state.get(btn_lower, False)
+            if is_pressed and not prev_p:
+                self.button_press_times[btn_lower] = now
+                new_presses.add(btn_lower)
+            elif not is_pressed and prev_p:
+                self.button_press_times.pop(btn_lower, None)
+                new_releases.add(btn_lower)
+
+        # Check edge transitions for toggle-mode shift layers
+        for l in self.shift_layers:
+            if l.get('mode') == 'toggle':
+                trig = (l.get('trigger_button') or '').lower().strip()
+                mod = (l.get('modifier_button') or '').lower().strip()
+                l_id = l.get('id')
+                if trig:
+                    if mod:
+                        if (trig in new_presses and all_buttons.get(mod, False)) or (mod in new_presses and all_buttons.get(trig, False)):
+                            if l_id in self.toggled_shift_layers:
+                                self.toggled_shift_layers.remove(l_id)
+                            else:
+                                self.toggled_shift_layers.add(l_id)
+                    else:
+                        if trig in new_presses:
+                            if l_id in self.toggled_shift_layers:
+                                self.toggled_shift_layers.remove(l_id)
+                            else:
+                                self.toggled_shift_layers.add(l_id)
+
+        # Determine Active Shift Layer
+        target_layer = 'layer_base'
+        consumed_shift_buttons = set()
+
+        chord_layers = [l for l in self.shift_layers if l.get('trigger_button') and l.get('modifier_button')]
+        single_layers = [l for l in self.shift_layers if l.get('trigger_button') and not l.get('modifier_button')]
+
+        # 1. Check chord shift layers first (higher precedence)
+        matched_chord = False
+        for l in chord_layers:
+            trig = (l.get('trigger_button') or '').lower().strip()
+            mod = (l.get('modifier_button') or '').lower().strip()
+            l_id = l['id']
+            mode = l.get('mode', 'hold')
+
+            if mode == 'toggle':
+                if l_id in self.toggled_shift_layers:
+                    target_layer = l_id
+                    consumed_shift_buttons.add(trig)
+                    consumed_shift_buttons.add(mod)
+                    matched_chord = True
+                    break
+            else: # hold
+                if all_buttons.get(trig, False) and all_buttons.get(mod, False):
+                    target_layer = l_id
+                    consumed_shift_buttons.add(trig)
+                    consumed_shift_buttons.add(mod)
+                    matched_chord = True
+                    break
+
+        # 2. If no chord layer matched, check single trigger shift layers
+        if not matched_chord:
+            for l in single_layers:
+                trig = (l.get('trigger_button') or '').lower().strip()
+                l_id = l['id']
+                mode = l.get('mode', 'hold')
+
+                if mode == 'toggle':
+                    if l_id in self.toggled_shift_layers:
+                        target_layer = l_id
+                        consumed_shift_buttons.add(trig)
+                        break
+                else: # hold
+                    if all_buttons.get(trig, False):
+                        target_layer = l_id
+                        consumed_shift_buttons.add(trig)
+                        break
+
+        # Handle Layer Change Transitions
+        if self.active_layer != target_layer:
+            if logger:
+                logger.debug(f"[MAPPER] Active layer changed: {self.active_layer} -> {target_layer}")
+            # Release all active holds from previous layer
+            for b_held, m_held in list(self.active_holds.items()):
+                self._release(m_held)
+            self.active_holds.clear()
+
+            self.active_layer = target_layer
+
+            # Trigger press actions for buttons currently held down in the new active layer
+            active_map = self.mappings.get(self.active_layer, {})
+            for b_pressed, is_down in all_buttons.items():
+                if is_down and b_pressed not in consumed_shift_buttons:
+                    mapping = active_map.get(b_pressed)
+                    if mapping and mapping != 'guide':
+                        self._press(mapping)
+                        self.active_holds[b_pressed] = mapping
         
         # Pre-process analog sticks
-        ls_mapping = self.mappings[self.active_layer].get('ls')
-        rs_mapping = self.mappings[self.active_layer].get('rs')
+        active_map = self.mappings.get(self.active_layer, {})
+        base_map = self.mappings.get('layer_base', {})
+        ls_mapping = active_map.get('ls', base_map.get('ls'))
+        rs_mapping = active_map.get('rs', base_map.get('rs'))
         
         lx, ly = state.lx, state.ly
         rx, ry = state.rx, state.ry
@@ -313,14 +452,14 @@ class Mapper:
         # Process Buttons
         for btn, is_pressed in all_buttons.items():
             btn_lower = btn.lower()
-            if btn_lower == self.shift_button and self.shift_mode == 'hold':
+            if btn_lower in consumed_shift_buttons:
                 self.prev_state[btn_lower] = is_pressed
-                continue # Skip triggering standard actions for the shift button if it's held
+                continue
                 
             prev_pressed = self.prev_state.get(btn_lower, False)
 
             if is_pressed != prev_pressed:
-                mapping = self.mappings[self.active_layer].get(btn_lower)
+                mapping = active_map.get(btn_lower)
                 
                 if is_pressed:
                     # Delay Buffer Mode
@@ -427,3 +566,24 @@ class Mapper:
             self.mouse.scroll(dx, dy)
         except Exception:
             pass
+
+    def reset(self):
+        """Release all active holds, mouse movement, and reset WASD state."""
+        for b_held, m_held in list(self.active_holds.items()):
+            try:
+                self._release(m_held)
+            except Exception:
+                pass
+        self.active_holds.clear()
+        self.active_scrolls.clear()
+        self.pending_inputs.clear()
+        with self.mouse_lock:
+            self.mouse_dx = 0.0
+            self.mouse_dy = 0.0
+        for key in list(self.wasd_state.keys()):
+            if self.wasd_state[key]:
+                try:
+                    self.keyboard.release(KeyCode.from_char(key))
+                except Exception:
+                    pass
+                self.wasd_state[key] = False

@@ -238,24 +238,5 @@ This release introduces major UI Customizations, Utilities, and Core Profile fea
 - **Comprehensive Diagnostic & Test Suite:** Added unit tests for `HardwareChordEngine`, modernized test suites with dynamic `hid` module mocking for DLL-independent test execution, and expanded verbose debug logging.
 - **Cross-Platform UTF-8 & Batch Script Fixes:** Standardized `encoding='utf-8'` across file persistence, macro execution, layout builder, and configuration operations. Standardized `%PYTHON_CMD%` quote escaping in batch scripts.
 
-## [2.3.0] - 2026-07-23
-### 🎮 User-Facing Changes
-- **Multiple Shift Remapping Layers:** Expanded the remapping engine and GUI to support creating, naming, and switching between multiple custom shift layers activated via primary shift buttons or trigger + modifier chords (e.g. `LB + RB`) in hold or toggle mode.
-- **Unified Remapping UX Consolidation:** Consolidated 100% of shift layer controls (creating, editing name/trigger/modifier/mode, tab switching, shift mappings, block checkboxes) into a single unified panel inside the **Remapping** tab.
-- **ToolTip & Infobox Hover Text Dismissal Fix:** Fixed an issue where infobox hover text remained floating on screen when the window was minimized, lost focus, or was put to the background. Tooltips now automatically dismiss on window `FocusOut`, `Unmap`, or widget interaction.
-- **System Tray Right-Click Menu Options:** Fully implemented tray icon context menu actions: **Open Config** (launches GUI), **Pause Interception** (temporarily passes physical inputs through to virtual gamepad without remapping), **Reload Configuration** (forces immediate live re-read of `config.ini` and `profiles/`), **Show Console**, and **Exit** (safely resets/destroys virtual gamepad and closes daemon).
-
-### 📚 Documentation & Scalability Overhaul
-- **Modular Documentation Directory (`docs/`):** Restructured project documentation by creating a dedicated `docs/` directory housing topic-focused guides: Getting Started, Visual GUI User Guide, Calibration, HID Maps, Macros Studio, Hardware Chords, Troubleshooting, Architecture & Pipeline, Developer Guide, and FAQ.
-- **Streamlined Landing Page (`README.md`):** Transformed the primary `README.md` into an approachable landing page featuring a quick-navigation index header, concise 5-minute setup guide, overview, and the original EXTRAS & origin story section.
-- **Centered Quick-Navigation Headers:** Standardized centered quick-navigation headers across all documentation pages to allow skipping directly to key sections.
-
-### ⚙️ Under-the-Hood Changes
-- **Shift Layer Configuration Schema & Migration:** Updated `config_manager.py` to store shift layers under `shift_layers` array in JSON profile files, with automatic backward-compatibility migration for legacy single-shift configurations.
-- **Mapper Press Timestamp Tracking & Layer Transitions:** Enhanced `mapper.py` with fine-grained button press timestamp tracking (`button_press_times`), `toggled_shift_layers` state tracking, and automatic release/re-evaluate hold logic on layer transitions.
-- **Virtual Pad Multi-Shift Blocking:** Updated `virtual_pad.py` block logic to query all active shift layer block preferences and suppress virtual pad outputs for mapped shift buttons.
-
-
-
 
 

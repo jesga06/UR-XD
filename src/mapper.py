@@ -475,8 +475,6 @@ class Mapper:
 
             if is_pressed != prev_pressed:
                 mapping = active_map.get(btn_lower)
-                if not mapping:
-                    mapping = base_map.get(btn_lower)
                 
                 if is_pressed:
                     # Delay Buffer Mode

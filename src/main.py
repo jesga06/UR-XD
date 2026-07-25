@@ -84,10 +84,16 @@ def show_console_action(icon, item):
     show_console()
 
 
+import tempfile
+
 def write_status(state, device_name="None"):
     try:
-        with open('status.json', 'w', encoding='utf-8') as f:
-            json.dump({"status": state, "device": device_name}, f)
+        target_path = 'status.json'
+        dir_name = os.path.dirname(os.path.abspath(target_path)) or '.'
+        with tempfile.NamedTemporaryFile('w', dir=dir_name, delete=False, encoding='utf-8') as tf:
+            json.dump({"status": state, "device": device_name}, tf)
+            temp_name = tf.name
+        os.replace(temp_name, target_path)
     except Exception as e:
         if logger:
             logger.error(f"Error writing status.json: {e}")

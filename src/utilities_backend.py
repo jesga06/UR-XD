@@ -7,6 +7,8 @@ import os
 import dataclasses
 from typing import Dict, Any
 
+import tempfile
+
 class LatencyMonitor:
     """
     Monitors polling rates and processing latencies for backend transport loops.
@@ -20,7 +22,9 @@ class LatencyMonitor:
         self.last_poll_time: float = 0.0
         self.sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
         self._logging_started = False
-        
+        self._last_broadcast_time: float = 0.0
+        self._min_broadcast_interval: float = 0.008  # Max ~120Hz UDP broadcast cap
+
     def record_poll(self) -> float:
         now = time.perf_counter()
         if self.last_poll_time > 0.0:
@@ -33,11 +37,16 @@ class LatencyMonitor:
         self.process_latencies.append(now - start_time)
         
     def broadcast_state(self, state: Any) -> None:
+        now = time.perf_counter()
+        if (now - self._last_broadcast_time) < self._min_broadcast_interval:
+            return
+        self._last_broadcast_time = now
+
         try:
-            if dataclasses.is_dataclass(state):
+            if hasattr(state, '__dict__'):
+                d = state.__dict__
+            elif dataclasses.is_dataclass(state):
                 d = dataclasses.asdict(state)
-            elif hasattr(state, '__dict__'):
-                d = state.__dict__.copy()
             else:
                 return
             msg = json.dumps(d).encode('utf-8')
@@ -71,12 +80,17 @@ class LatencyMonitor:
         self._logging_started = True
         
         def _loop():
+            target_path = 'diagnostics.json'
+            dir_name = os.path.dirname(os.path.abspath(target_path)) or '.'
             while self._logging_started:
                 time.sleep(0.5)
                 stats = self.get_stats()
                 try:
-                    with open('diagnostics.json', 'w', encoding='utf-8') as f:
-                        json.dump(stats, f, indent=2)
+                    # Atomic file write to avoid PermissionError / partial read collisions
+                    with tempfile.NamedTemporaryFile('w', dir=dir_name, delete=False, encoding='utf-8') as tf:
+                        json.dump(stats, tf)
+                        temp_name = tf.name
+                    os.replace(temp_name, target_path)
                 except Exception:
                     pass
                     

@@ -203,14 +203,12 @@ class DashboardView(QWidget):
                 item.widget().deleteLater()
         self.btn_indicators.clear()
 
-        spatial_map = {
-            "LT": (0, 1), "RT": (0, 8),
-            "LB": (1, 1), "RB": (1, 8),
-            "DPAD_UP": (2, 2), "Y": (2, 7),
-            "DPAD_LEFT": (3, 1), "DPAD_RIGHT": (3, 3), "X": (3, 6), "B": (3, 8),
-            "DPAD_DOWN": (4, 2), "A": (4, 7),
-            "L3": (5, 2), "SELECT": (5, 4), "HOME": (5, 5), "START": (5, 6), "R3": (5, 7)
-        }
+        base_buttons = [
+            "LT", "RT", "LB", "RB",
+            "DPAD_UP", "DPAD_DOWN", "DPAD_LEFT", "DPAD_RIGHT",
+            "A", "B", "X", "Y",
+            "L3", "R3", "SELECT", "START", "HOME"
+        ]
 
         config = getattr(self.app, 'controller_config', None)
         extra_targets = []
@@ -218,23 +216,15 @@ class DashboardView(QWidget):
             chords = config.data.get("hardware_chords", [])
             for c in chords:
                 t = c.get("action", "").strip()
-                if t and t.upper() not in spatial_map and t not in extra_targets:
+                if t and t.upper() not in base_buttons and t not in extra_targets:
                     extra_targets.append(t)
 
-        for bname, (row, col) in spatial_map.items():
-            lbl_btn = QLabel(bname)
-            lbl_btn.setAlignment(Qt.AlignmentFlag.AlignCenter)
-            lbl_btn.setStyleSheet(
-                "background-color: rgba(255, 255, 255, 0.05); border: 1px solid rgba(168, 85, 247, 0.3); "
-                "border-radius: 6px; padding: 6px; font-weight: bold; font-size: 11px;"
-            )
-            self.btn_grid_layout.addWidget(lbl_btn, row, col)
-            self.btn_indicators[bname] = lbl_btn
+        all_buttons = base_buttons + extra_targets
 
-        start_row = 6
-        for idx, bname in enumerate(extra_targets):
-            row = start_row + (idx // 10)
-            col = idx % 10
+        col_max = 5
+        for idx, bname in enumerate(all_buttons):
+            row = idx // col_max
+            col = idx % col_max
             lbl_btn = QLabel(bname)
             lbl_btn.setAlignment(Qt.AlignmentFlag.AlignCenter)
             lbl_btn.setStyleSheet(

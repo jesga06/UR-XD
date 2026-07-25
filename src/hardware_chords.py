@@ -30,14 +30,15 @@ class HardwareChordEngine:
         self.pending_inputs.clear()
         self.executed_chords.clear()
         
-        if config.has_section('hardware_chords'):
-            for key, val in config.items('hardware_chords'):
-                parts = dict(p.strip().split('=') for p in val.split(';') if '=' in p)
-                if 'chord' in parts and 'action' in parts:
-                    chord_keys = set(k.strip() for k in re.split(r'[\+,\s]+', parts['chord'].lower()) if k.strip())
-                    delay_mode = parts.get('mode', 'auto').strip().lower()
-                    delayed_member = parts.get('delayed', '').strip().lower()
-                    action_name = parts['action'].strip().lower()
+        if hasattr(config, 'data') and 'hardware_chords' in config.data:
+            for hc in config.data['hardware_chords']:
+                trig = hc.get('trigger', '').lower()
+                action_name = hc.get('action', '').lower()
+                
+                if trig and action_name:
+                    chord_keys = set(k.strip() for k in re.split(r'[\+,\s]+', trig) if k.strip())
+                    delay_mode = hc.get('mode', 'auto').strip().lower()
+                    delayed_member = hc.get('delayed', '').strip().lower()
                     
                     try:
                         manual_delay = float(delay_mode.replace('ms', '')) / 1000.0 if delay_mode != 'auto' else 0.0

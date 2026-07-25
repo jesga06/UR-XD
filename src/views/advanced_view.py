@@ -140,6 +140,7 @@ class AdvancedView(QWidget):
         macro_layout.addLayout(bot_btn_box)
 
         scroll_layout.addWidget(macro_card)
+        scroll_layout.addStretch()
 
         scroll.setWidget(scroll_content)
         main_layout.addWidget(scroll)
@@ -247,6 +248,8 @@ class AdvancedView(QWidget):
             self.app.save_config()
             if hasattr(self.app, 'view_dashboard') and self.app.view_dashboard:
                 self.app.view_dashboard.refresh_button_indicators()
+            if hasattr(self.app, 'view_remapping') and self.app.view_remapping:
+                self.app.view_remapping.refresh_system_extras_card()
 
     def show_chords_guide(self):
         msg = QMessageBox(self)

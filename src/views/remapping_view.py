@@ -170,30 +170,19 @@ class KeyRecorderDialog(QDialog):
         btn_clear = QPushButton("Clear")
         btn_clear.setObjectName("SecondaryBtn")
         btn_clear.clicked.connect(self.clear_bindings)
-        
-        self.btn_save_std = QPushButton("Save Standard")
-        self.btn_save_std.setObjectName("PrimaryBtn")
-        self.btn_save_std.setEnabled(False)
-        self.btn_save_std.clicked.connect(lambda: self.on_save_clicked("Standard"))
-
-        self.btn_save_shift = QPushButton("Save Shift Map")
-        self.btn_save_shift.setStyleSheet("background-color: #15803d; color: #ffffff; font-weight: bold; border-radius: 6px; padding: 6px 12px;")
-        self.btn_save_shift.setEnabled(False)
-        self.btn_save_shift.clicked.connect(lambda: self.on_save_clicked("Shift"))
+        self.btn_save = QPushButton("Save")
+        self.btn_save.setObjectName("PrimaryBtn")
+        self.btn_save.setEnabled(False)
+        self.btn_save.clicked.connect(self.accept)
 
         btn_cancel = QPushButton("Cancel")
         btn_cancel.setObjectName("SecondaryBtn")
         btn_cancel.clicked.connect(self.reject)
 
         btn_box.addWidget(btn_clear)
-        btn_box.addWidget(self.btn_save_std)
-        btn_box.addWidget(self.btn_save_shift)
+        btn_box.addWidget(self.btn_save)
         btn_box.addWidget(btn_cancel)
         layout.addLayout(btn_box)
-
-    def on_save_clicked(self, target: str):
-        self.save_target = target
-        self.accept()
 
     def set_direct_binding(self, code: str):
         self.recorded_sequences.append(code)
@@ -228,12 +217,10 @@ class KeyRecorderDialog(QDialog):
         if not display_str:
             display_str = "⚡ Press key / combo or use Notch UI below"
             self.recorded_binding = ""
-            self.btn_save_std.setEnabled(False)
-            self.btn_save_shift.setEnabled(False)
+            self.btn_save.setEnabled(False)
         else:
             self.recorded_binding = ", ".join(self.recorded_sequences)
-            self.btn_save_std.setEnabled(True)
-            self.btn_save_shift.setEnabled(True)
+            self.btn_save.setEnabled(True)
             
         self.lbl_key.setText(f"[ {display_str} ]")
 
@@ -382,35 +369,26 @@ class RemappingView(QWidget):
         scroll_layout = QVBoxLayout(scroll_content)
         scroll_layout.setSpacing(12)
 
-        grid = QGridLayout()
-        grid.setSpacing(14)
+        self.grid = QGridLayout()
+        self.grid.setSpacing(16)
 
         # Group 1: Face Buttons
         card_face = self.create_button_group_card("Face Buttons", ["A", "B", "X", "Y"])
-        grid.addWidget(card_face, 0, 0)
+        self.grid.addWidget(card_face, 0, 0)
 
         # Group 2: Shoulders & Sticks
         card_shoulders = self.create_button_group_card("Shoulders & Sticks", ["LB", "RB", "LT", "RT", "LS", "RS"])
-        grid.addWidget(card_shoulders, 0, 1)
+        self.grid.addWidget(card_shoulders, 0, 1)
 
         # Group 3: D-Pad
         card_dpad = self.create_button_group_card("D-Pad", ["DPAD_UP", "DPAD_DOWN", "DPAD_LEFT", "DPAD_RIGHT"])
-        grid.addWidget(card_dpad, 1, 0)
+        self.grid.addWidget(card_dpad, 1, 0)
 
         # Group 4: System & Extras
-        extra_targets = []
-        config = getattr(self.app, 'controller_config', None)
-        if config:
-            chords = config.data.get("hardware_chords", [])
-            for c in chords:
-                t = c.get("action", "").strip().upper()
-                if t and t not in ALL_GAMEPAD_BUTTONS and t not in extra_targets:
-                    extra_targets.append(t)
-        sys_btns = ["SELECT", "START", "HOME"] + extra_targets
-        card_system = self.create_button_group_card("System & Extras", sys_btns)
-        grid.addWidget(card_system, 1, 1)
+        self.card_system = None
+        self.refresh_system_extras_card()
 
-        scroll_layout.addLayout(grid)
+        scroll_layout.addLayout(self.grid)
 
         # Bottom Action Bar
         bot_box = QHBoxLayout()
@@ -486,7 +464,7 @@ class RemappingView(QWidget):
             btn_rec_std = QPushButton("[R]")
             btn_rec_std.setFixedWidth(32)
             btn_rec_std.setObjectName("PrimaryBtn")
-            btn_rec_std.clicked.connect(lambda ch=False, name=bname, edit=edit_std: self.record_for_edit(name, edit, "Standard"))
+            btn_rec_std.clicked.connect(lambda ch=False, name=bname, edit=edit_std: self.record_for_edit(name, edit, False))
 
             # Native Block Checkbox
             chk_block = QCheckBox()
@@ -503,7 +481,7 @@ class RemappingView(QWidget):
             btn_rec_shift = QPushButton("[R]")
             btn_rec_shift.setFixedWidth(32)
             btn_rec_shift.setObjectName("PrimaryBtn")
-            btn_rec_shift.clicked.connect(lambda ch=False, name=bname, edit=edit_shift: self.record_for_edit(name, edit, "Shift"))
+            btn_rec_shift.clicked.connect(lambda ch=False, name=bname, edit=edit_shift: self.record_for_edit(name, edit, True))
 
             # Shift Block Checkbox
             chk_sblock = QCheckBox()
@@ -604,17 +582,13 @@ class RemappingView(QWidget):
                 config.set_shift_layers(layers)
                 self.app.save_config()
 
-    def record_for_edit(self, button_name: str, target_edit: QLineEdit, default_target: str = "Standard"):
+    def record_for_edit(self, button_name: str, target_edit: QLineEdit, is_shift: bool = False):
         dlg = KeyRecorderDialog(button_name, self)
         if dlg.exec() == QDialog.DialogCode.Accepted and dlg.recorded_binding:
-            save_target = getattr(dlg, 'save_target', default_target)
-            if save_target == "Shift":
-                if button_name in self.row_widgets:
-                    self.row_widgets[button_name][3].setText(dlg.recorded_binding)
+            target_edit.setText(dlg.recorded_binding)
+            if is_shift:
                 self.on_shift_mapping_edited(button_name, dlg.recorded_binding)
             else:
-                if button_name in self.row_widgets:
-                    self.row_widgets[button_name][0].setText(dlg.recorded_binding)
                 self.on_std_mapping_edited(button_name, dlg.recorded_binding)
 
     def add_shift_layer(self):

@@ -268,6 +268,11 @@ class ThemeManager:
             selection-background-color: {theme['primary']};
             selection-color: #ffffff;
         }}
+        
+        QLineEdit::placeholder {{
+            color: rgba(255, 255, 255, 0.6) !important;
+            font-style: italic;
+        }}
 
         QLineEdit:hover, QLineEdit:focus, QLineEdit#OutlinedEdit:focus {{
             border: 1.5px solid {theme['glow']} !important;

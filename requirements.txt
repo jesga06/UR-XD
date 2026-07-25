@@ -3,5 +3,5 @@ vgamepad
 pynput
 pystray 
 Pillow 
-customtkinter
+PySide6
 matplotlib

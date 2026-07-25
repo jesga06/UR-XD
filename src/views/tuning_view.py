@@ -62,13 +62,13 @@ class TuningView(QWidget):
         scroll_layout = QVBoxLayout(scroll_content)
         scroll_layout.setSpacing(16)
 
-        # ---------------------------------------------------------------------
-        # SECTION 1: DUAL STICK TUNING (Left Stick & Right Stick Side-by-Side)
-        # ---------------------------------------------------------------------
+       # ---------------------------------------------------------------------
+       # SECTION 1: DUAL STICK TUNING (Left Stick & Right Stick Side-by-Side)
+       # ---------------------------------------------------------------------
         stick_split = QHBoxLayout()
         stick_split.setSpacing(14)
 
-        # Left Stick Card
+       # Left Stick Card
         left_card = QFrame()
         left_card.setObjectName("GlassCard")
         left_layout = QVBoxLayout(left_card)
@@ -79,7 +79,7 @@ class TuningView(QWidget):
         lbl_l_title.setAlignment(Qt.AlignmentFlag.AlignCenter)
         left_layout.addWidget(lbl_l_title)
 
-        # Visualizers Row: Response Curve & Current Position
+        #Visualizers Row: Response Curve & Current Position
         vis_l_box = QHBoxLayout()
         self.curve_graph_left = CurveGraphWidget("Left Stick Curve")
         self.radar_left = JoystickVisualizerWidget("Left Stick Position")
@@ -88,17 +88,19 @@ class TuningView(QWidget):
         vis_l_box.addWidget(self.radar_left)
         left_layout.addLayout(vis_l_box)
 
-        # Sliders Grid
+        #Sliders Grid
         grid_l = QGridLayout()
         grid_l.setSpacing(6)
 
-        # 1. Deadzone
+        #1. Deadzone
         lbl_l_dz = QLabel("Deadzone")
         lbl_l_dz.setToolTip("Inner deadzone threshold (0.00 to 0.50). Inputs below this value are ignored to eliminate stick drift.")
         self.slider_l_dz = QSlider(Qt.Orientation.Horizontal)
         self.slider_l_dz.setRange(0, 50)
-        self.slider_l_dz.setSingleStep(1)
-        self.slider_l_dz.setPageStep(5)
+        self.slider_l_dz.setSingleStep(10)
+        #0, 50)
+        self.slider_l_dz.setPageStep(10)
+        #0, 50)
         self.slider_l_dz.setToolTip("Inner deadzone threshold (0.00 to 0.50).")
         self.lbl_val_l_dz = QLabel("0.00")
         self.lbl_val_l_dz.setFixedWidth(40)
@@ -107,11 +109,15 @@ class TuningView(QWidget):
         grid_l.addWidget(self.slider_l_dz, 0, 1)
         grid_l.addWidget(self.lbl_val_l_dz, 0, 2)
 
-        # 2. Anti-Deadzone
+        #2. Anti-Deadzone
         lbl_l_adz = QLabel("Anti-Deadzone")
         lbl_l_adz.setToolTip("Anti-deadzone boost (0.00 to 0.30) to bypass game engine deadzones.")
         self.slider_l_adz = QSlider(Qt.Orientation.Horizontal)
         self.slider_l_adz.setRange(0, 30)
+        self.slider_l_adz.setSingleStep(10)
+        #0, 30)
+        self.slider_l_adz.setPageStep(10)
+        #0, 30)
         self.slider_l_adz.setToolTip("Anti-deadzone boost (0.00 to 0.30).")
         self.lbl_val_l_adz = QLabel("0.00")
         self.lbl_val_l_adz.setFixedWidth(40)
@@ -120,11 +126,15 @@ class TuningView(QWidget):
         grid_l.addWidget(self.slider_l_adz, 1, 1)
         grid_l.addWidget(self.lbl_val_l_adz, 1, 2)
 
-        # 3. Rest Deadzone
+        #3. Rest Deadzone
         lbl_l_rdz = QLabel("Rest Deadzone")
         lbl_l_rdz.setToolTip("Resting state deadzone centered around zero (0.00 to 0.20).")
         self.slider_l_rdz = QSlider(Qt.Orientation.Horizontal)
         self.slider_l_rdz.setRange(0, 30)
+        self.slider_l_rdz.setSingleStep(10)
+        #0, 30)
+        self.slider_l_rdz.setPageStep(10)
+        #0, 30)
         self.slider_l_rdz.setToolTip("Resting state deadzone centered around zero (0.00 to 0.20).")
         self.lbl_val_l_rdz = QLabel("0.00")
         self.lbl_val_l_rdz.setFixedWidth(40)
@@ -133,11 +143,15 @@ class TuningView(QWidget):
         grid_l.addWidget(self.slider_l_rdz, 2, 1)
         grid_l.addWidget(self.lbl_val_l_rdz, 2, 2)
 
-        # 4. Warp Threshold
+        #4. Warp Threshold
         lbl_l_warp = QLabel("Warp Threshold")
         lbl_l_warp.setToolTip("Warp threshold power scaling (0.00 to 0.50) for fine-grained inner movement curve adjustment.")
         self.slider_l_warp = QSlider(Qt.Orientation.Horizontal)
         self.slider_l_warp.setRange(50, 100)
+        self.slider_l_warp.setSingleStep(10)
+        #50, 100)
+        self.slider_l_warp.setPageStep(10)
+        #50, 100)
         self.slider_l_warp.setValue(100)
         self.slider_l_warp.setToolTip("Warp threshold power scaling (0.00 to 0.50).")
         self.lbl_val_l_warp = QLabel("1.00")
@@ -147,11 +161,15 @@ class TuningView(QWidget):
         grid_l.addWidget(self.slider_l_warp, 3, 1)
         grid_l.addWidget(self.lbl_val_l_warp, 3, 2)
 
-        # 5. Curve Factor
+        #5. Curve Factor
         lbl_l_cf = QLabel("Curve Factor")
         lbl_l_cf.setToolTip("Response curve scaling factor multiplier (0.10 to 3.00).")
         self.slider_l_cf = QSlider(Qt.Orientation.Horizontal)
         self.slider_l_cf.setRange(10, 50)
+        self.slider_l_cf.setSingleStep(1)
+        #10, 50)
+        self.slider_l_cf.setPageStep(5)
+        #10, 50)
         self.slider_l_cf.setValue(10)
         self.slider_l_cf.setToolTip("Response curve scaling factor multiplier.")
         self.lbl_val_l_cf = QLabel("1.00")
@@ -161,11 +179,15 @@ class TuningView(QWidget):
         grid_l.addWidget(self.slider_l_cf, 4, 1)
         grid_l.addWidget(self.lbl_val_l_cf, 4, 2)
 
-        # 6. Sensitivity
+        #6. Sensitivity
         lbl_l_sens = QLabel("Sensitivity")
         lbl_l_sens.setToolTip("Output sensitivity multiplier scaling total stick reach (0.50 to 2.00).")
         self.slider_l_sens = QSlider(Qt.Orientation.Horizontal)
         self.slider_l_sens.setRange(5, 20)
+        self.slider_l_sens.setSingleStep(1)
+        #5, 20)
+        self.slider_l_sens.setPageStep(5)
+        #5, 20)
         self.slider_l_sens.setValue(10)
         self.slider_l_sens.setToolTip("Output sensitivity multiplier scaling total stick reach.")
         self.lbl_val_l_sens = QLabel("1.00")
@@ -177,7 +199,7 @@ class TuningView(QWidget):
 
         left_layout.addLayout(grid_l)
 
-        # Curve Type & Export Row
+        #Curve Type & Export Row
         ctype_l_box = QHBoxLayout()
         lbl_l_ctype = QLabel("Curve Type:")
         lbl_l_ctype.setToolTip("Select response curve mapping algorithm.")
@@ -195,7 +217,7 @@ class TuningView(QWidget):
         ctype_l_box.addWidget(btn_exp_l, stretch=1)
         left_layout.addLayout(ctype_l_box)
 
-        # Custom Equation Input (Visible when "custom" selected)
+        #Custom Equation Input (Visible when "custom" selected)
         self.edit_l_custom_eq = QLineEdit()
         self.edit_l_custom_eq.setObjectName("OutlinedEdit")
         self.edit_l_custom_eq.setPlaceholderText("Fill text box with equation (e.g. x**2 + 0.1*x)")
@@ -203,13 +225,13 @@ class TuningView(QWidget):
         self.edit_l_custom_eq.editingFinished.connect(lambda: self.save_opt("analog_left", "custom_eq", self.edit_l_custom_eq.text()))
         left_layout.addWidget(self.edit_l_custom_eq)
 
-        # Reset Button
+        #Reset Button
         btn_reset_l = QPushButton("Reset")
         btn_reset_l.setObjectName("PrimaryBtn")
         btn_reset_l.clicked.connect(lambda: self.reset_stick_defaults("analog_left"))
         left_layout.addWidget(btn_reset_l)
 
-        # Bottom Circularity Row
+        #Bottom Circularity Row
         circ_l_box = QHBoxLayout()
         self.combo_l_circ = QComboBox()
         self.combo_l_circ.addItems(["before", "after", "disabled"])
@@ -231,7 +253,7 @@ class TuningView(QWidget):
 
         stick_split.addWidget(left_card)
 
-        # Right Stick Card
+       # Right Stick Card
         right_card = QFrame()
         right_card.setObjectName("GlassCard")
         right_layout = QVBoxLayout(right_card)
@@ -242,7 +264,7 @@ class TuningView(QWidget):
         lbl_r_title.setAlignment(Qt.AlignmentFlag.AlignCenter)
         right_layout.addWidget(lbl_r_title)
 
-        # Visualizers Row: Response Curve & Current Position
+        #Visualizers Row: Response Curve & Current Position
         vis_r_box = QHBoxLayout()
         self.curve_graph_right = CurveGraphWidget("Right Stick Curve")
         self.radar_right = JoystickVisualizerWidget("Right Stick Position")
@@ -251,17 +273,19 @@ class TuningView(QWidget):
         vis_r_box.addWidget(self.radar_right)
         right_layout.addLayout(vis_r_box)
 
-        # Sliders Grid
+        #Sliders Grid
         grid_r = QGridLayout()
         grid_r.setSpacing(6)
 
-        # 1. Deadzone
+        #1. Deadzone
         lbl_r_dz = QLabel("Deadzone")
         lbl_r_dz.setToolTip("Inner deadzone threshold (0.00 to 0.50). Inputs below this value are ignored to eliminate stick drift.")
         self.slider_r_dz = QSlider(Qt.Orientation.Horizontal)
         self.slider_r_dz.setRange(0, 50)
-        self.slider_r_dz.setSingleStep(1)
-        self.slider_r_dz.setPageStep(5)
+        self.slider_r_dz.setSingleStep(10)
+        #0, 50)
+        self.slider_r_dz.setPageStep(10)
+        #0, 50)
         self.slider_r_dz.setToolTip("Inner deadzone threshold (0.00 to 0.50).")
         self.lbl_val_r_dz = QLabel("0.00")
         self.lbl_val_r_dz.setFixedWidth(40)
@@ -270,11 +294,15 @@ class TuningView(QWidget):
         grid_r.addWidget(self.slider_r_dz, 0, 1)
         grid_r.addWidget(self.lbl_val_r_dz, 0, 2)
 
-        # 2. Anti-Deadzone
+        #2. Anti-Deadzone
         lbl_r_adz = QLabel("Anti-Deadzone")
         lbl_r_adz.setToolTip("Anti-deadzone boost (0.00 to 0.30) to bypass game engine deadzones.")
         self.slider_r_adz = QSlider(Qt.Orientation.Horizontal)
         self.slider_r_adz.setRange(0, 30)
+        self.slider_r_adz.setSingleStep(10)
+        #0, 30)
+        self.slider_r_adz.setPageStep(10)
+        #0, 30)
         self.slider_r_adz.setToolTip("Anti-deadzone boost (0.00 to 0.30).")
         self.lbl_val_r_adz = QLabel("0.00")
         self.lbl_val_r_adz.setFixedWidth(40)
@@ -283,11 +311,15 @@ class TuningView(QWidget):
         grid_r.addWidget(self.slider_r_adz, 1, 1)
         grid_r.addWidget(self.lbl_val_r_adz, 1, 2)
 
-        # 3. Rest Deadzone
+        #3. Rest Deadzone
         lbl_r_rdz = QLabel("Rest Deadzone")
         lbl_r_rdz.setToolTip("Resting state deadzone centered around zero (0.00 to 0.20).")
         self.slider_r_rdz = QSlider(Qt.Orientation.Horizontal)
         self.slider_r_rdz.setRange(0, 30)
+        self.slider_r_rdz.setSingleStep(10)
+        #0, 30)
+        self.slider_r_rdz.setPageStep(10)
+        #0, 30)
         self.slider_r_rdz.setToolTip("Resting state deadzone centered around zero (0.00 to 0.20).")
         self.lbl_val_r_rdz = QLabel("0.00")
         self.lbl_val_r_rdz.setFixedWidth(40)
@@ -296,11 +328,15 @@ class TuningView(QWidget):
         grid_r.addWidget(self.slider_r_rdz, 2, 1)
         grid_r.addWidget(self.lbl_val_r_rdz, 2, 2)
 
-        # 4. Warp Threshold
+        #4. Warp Threshold
         lbl_r_warp = QLabel("Warp Threshold")
         lbl_r_warp.setToolTip("Warp threshold power scaling (0.00 to 0.50) for fine-grained inner movement curve adjustment.")
         self.slider_r_warp = QSlider(Qt.Orientation.Horizontal)
         self.slider_r_warp.setRange(50, 100)
+        self.slider_r_warp.setSingleStep(10)
+        #50, 100)
+        self.slider_r_warp.setPageStep(10)
+        #50, 100)
         self.slider_r_warp.setValue(100)
         self.slider_r_warp.setToolTip("Warp threshold power scaling (0.00 to 0.50).")
         self.lbl_val_r_warp = QLabel("1.00")
@@ -310,11 +346,15 @@ class TuningView(QWidget):
         grid_r.addWidget(self.slider_r_warp, 3, 1)
         grid_r.addWidget(self.lbl_val_r_warp, 3, 2)
 
-        # 5. Curve Factor
+        #5. Curve Factor
         lbl_r_cf = QLabel("Curve Factor")
         lbl_r_cf.setToolTip("Response curve scaling factor multiplier (0.10 to 3.00).")
         self.slider_r_cf = QSlider(Qt.Orientation.Horizontal)
         self.slider_r_cf.setRange(10, 50)
+        self.slider_r_cf.setSingleStep(1)
+        #10, 50)
+        self.slider_r_cf.setPageStep(5)
+        #10, 50)
         self.slider_r_cf.setValue(10)
         self.slider_r_cf.setToolTip("Response curve scaling factor multiplier.")
         self.lbl_val_r_cf = QLabel("1.00")
@@ -324,11 +364,15 @@ class TuningView(QWidget):
         grid_r.addWidget(self.slider_r_cf, 4, 1)
         grid_r.addWidget(self.lbl_val_r_cf, 4, 2)
 
-        # 6. Sensitivity
+        #6. Sensitivity
         lbl_r_sens = QLabel("Sensitivity")
         lbl_r_sens.setToolTip("Output sensitivity multiplier scaling total stick reach (0.50 to 2.00).")
         self.slider_r_sens = QSlider(Qt.Orientation.Horizontal)
         self.slider_r_sens.setRange(5, 20)
+        self.slider_r_sens.setSingleStep(1)
+        #5, 20)
+        self.slider_r_sens.setPageStep(5)
+        #5, 20)
         self.slider_r_sens.setValue(10)
         self.slider_r_sens.setToolTip("Output sensitivity multiplier scaling total stick reach.")
         self.lbl_val_r_sens = QLabel("1.00")
@@ -340,7 +384,7 @@ class TuningView(QWidget):
 
         right_layout.addLayout(grid_r)
 
-        # Curve Type & Export Row
+        #Curve Type & Export Row
         ctype_r_box = QHBoxLayout()
         lbl_r_ctype = QLabel("Curve Type:")
         lbl_r_ctype.setToolTip("Select response curve mapping algorithm.")
@@ -358,7 +402,7 @@ class TuningView(QWidget):
         ctype_r_box.addWidget(btn_exp_r, stretch=1)
         right_layout.addLayout(ctype_r_box)
 
-        # Custom Equation Input
+        #Custom Equation Input
         self.edit_r_custom_eq = QLineEdit()
         self.edit_r_custom_eq.setObjectName("OutlinedEdit")
         self.edit_r_custom_eq.setPlaceholderText("Fill text box with equation (e.g. x**2 + 0.1*x)")
@@ -366,13 +410,13 @@ class TuningView(QWidget):
         self.edit_r_custom_eq.editingFinished.connect(lambda: self.save_opt("analog_right", "custom_eq", self.edit_r_custom_eq.text()))
         right_layout.addWidget(self.edit_r_custom_eq)
 
-        # Reset Button
+        #Reset Button
         btn_reset_r = QPushButton("Reset")
         btn_reset_r.setObjectName("PrimaryBtn")
         btn_reset_r.clicked.connect(lambda: self.reset_stick_defaults("analog_right"))
         right_layout.addWidget(btn_reset_r)
 
-        # Bottom Circularity Row
+        #Bottom Circularity Row
         circ_r_box = QHBoxLayout()
         self.combo_r_circ = QComboBox()
         self.combo_r_circ.addItems(["disabled", "before", "after"])
@@ -395,13 +439,13 @@ class TuningView(QWidget):
         stick_split.addWidget(right_card)
         scroll_layout.addLayout(stick_split)
 
-        # ---------------------------------------------------------------------
-        # SECTION 2: DUAL TRIGGER TUNING (Left Trigger & Right Trigger Side-by-Side)
-        # ---------------------------------------------------------------------
+       # ---------------------------------------------------------------------
+       # SECTION 2: DUAL TRIGGER TUNING (Left Trigger & Right Trigger Side-by-Side)
+       # ---------------------------------------------------------------------
         trig_split = QHBoxLayout()
         trig_split.setSpacing(14)
 
-        # Left Trigger Card
+       # Left Trigger Card
         lt_card = QFrame()
         lt_card.setObjectName("GlassCard")
         lt_layout = QVBoxLayout(lt_card)
@@ -412,7 +456,7 @@ class TuningView(QWidget):
         lbl_lt_title.setAlignment(Qt.AlignmentFlag.AlignCenter)
         lt_layout.addWidget(lbl_lt_title)
 
-        # Visualizers Row: Response Curve & Trigger Pull Vertical Bars
+        #Visualizers Row: Response Curve & Trigger Pull Vertical Bars
         vis_lt_box = QHBoxLayout()
         self.curve_graph_lt = CurveGraphWidget("Left Trigger Curve")
         self.bar_lt = TriggerPullWidget("Left Trigger Pull")
@@ -420,17 +464,19 @@ class TuningView(QWidget):
         vis_lt_box.addWidget(self.bar_lt)
         lt_layout.addLayout(vis_lt_box)
 
-        # Sliders Grid
+        #Sliders Grid
         grid_lt = QGridLayout()
         grid_lt.setSpacing(6)
 
-        # 1. Deadzone
+        #1. Deadzone
         lbl_lt_dz = QLabel("Deadzone")
         lbl_lt_dz.setToolTip("Inner deadzone threshold (0.00 to 0.50). Inputs below this value are ignored to eliminate trigger drift.")
         self.slider_lt_dz = QSlider(Qt.Orientation.Horizontal)
         self.slider_lt_dz.setRange(0, 50)
-        self.slider_lt_dz.setSingleStep(1)
-        self.slider_lt_dz.setPageStep(5)
+        self.slider_lt_dz.setSingleStep(10)
+        #0, 50)
+        self.slider_lt_dz.setPageStep(10)
+        #0, 50)
         self.slider_lt_dz.setToolTip("Inner deadzone threshold (0.00 to 0.50).")
         self.lbl_val_lt_dz = QLabel("0.00")
         self.lbl_val_lt_dz.setFixedWidth(40)
@@ -439,11 +485,15 @@ class TuningView(QWidget):
         grid_lt.addWidget(self.slider_lt_dz, 0, 1)
         grid_lt.addWidget(self.lbl_val_lt_dz, 0, 2)
 
-        # 2. Anti-Deadzone
+        #2. Anti-Deadzone
         lbl_lt_adz = QLabel("Anti-Deadzone")
         lbl_lt_adz.setToolTip("Anti-deadzone boost (0.00 to 0.30) to bypass game engine deadzones.")
         self.slider_lt_adz = QSlider(Qt.Orientation.Horizontal)
         self.slider_lt_adz.setRange(0, 30)
+        self.slider_lt_adz.setSingleStep(10)
+        #0, 30)
+        self.slider_lt_adz.setPageStep(10)
+        #0, 30)
         self.slider_lt_adz.setToolTip("Anti-deadzone boost (0.00 to 0.30).")
         self.lbl_val_lt_adz = QLabel("0.00")
         self.lbl_val_lt_adz.setFixedWidth(40)
@@ -452,11 +502,15 @@ class TuningView(QWidget):
         grid_lt.addWidget(self.slider_lt_adz, 1, 1)
         grid_lt.addWidget(self.lbl_val_lt_adz, 1, 2)
 
-        # 3. Rest Deadzone
+        #3. Rest Deadzone
         lbl_lt_rdz = QLabel("Rest Deadzone")
         lbl_lt_rdz.setToolTip("Resting state deadzone centered around zero (0.00 to 0.20).")
         self.slider_lt_rdz = QSlider(Qt.Orientation.Horizontal)
         self.slider_lt_rdz.setRange(0, 30)
+        self.slider_lt_rdz.setSingleStep(10)
+        #0, 30)
+        self.slider_lt_rdz.setPageStep(10)
+        #0, 30)
         self.slider_lt_rdz.setToolTip("Resting state deadzone centered around zero (0.00 to 0.20).")
         self.lbl_val_lt_rdz = QLabel("0.00")
         self.lbl_val_lt_rdz.setFixedWidth(40)
@@ -465,11 +519,15 @@ class TuningView(QWidget):
         grid_lt.addWidget(self.slider_lt_rdz, 2, 1)
         grid_lt.addWidget(self.lbl_val_lt_rdz, 2, 2)
 
-        # 4. Exponent (Curve Power)
+        #4. Exponent (Curve Power)
         lbl_lt_exp = QLabel("Exponent (Curve Power)")
         lbl_lt_exp.setToolTip("Response curve exponent power (0.10 to 5.00). Values > 1.0 increase trigger pull curve response.")
         self.slider_lt_exp = QSlider(Qt.Orientation.Horizontal)
         self.slider_lt_exp.setRange(10, 50)
+        self.slider_lt_exp.setSingleStep(1)
+        #10, 50)
+        self.slider_lt_exp.setPageStep(5)
+        #10, 50)
         self.slider_lt_exp.setValue(10)
         self.slider_lt_exp.setToolTip("Response curve exponent power (0.10 to 5.00).")
         self.lbl_val_lt_exp = QLabel("1.00")
@@ -479,11 +537,15 @@ class TuningView(QWidget):
         grid_lt.addWidget(self.slider_lt_exp, 3, 1)
         grid_lt.addWidget(self.lbl_val_lt_exp, 3, 2)
 
-        # 5. Sensitivity
+        #5. Sensitivity
         lbl_lt_sens = QLabel("Sensitivity")
         lbl_lt_sens.setToolTip("Output sensitivity multiplier scaling total trigger pull reach (0.50 to 2.00).")
         self.slider_lt_sens = QSlider(Qt.Orientation.Horizontal)
         self.slider_lt_sens.setRange(5, 20)
+        self.slider_lt_sens.setSingleStep(1)
+        #5, 20)
+        self.slider_lt_sens.setPageStep(5)
+        #5, 20)
         self.slider_lt_sens.setValue(10)
         self.slider_lt_sens.setToolTip("Output sensitivity multiplier scaling total trigger pull reach.")
         self.lbl_val_lt_sens = QLabel("1.00")
@@ -495,7 +557,7 @@ class TuningView(QWidget):
 
         lt_layout.addLayout(grid_lt)
 
-        # Curve Type & Export Row
+        #Curve Type & Export Row
         ctype_lt_box = QHBoxLayout()
         lbl_lt_ctype = QLabel("Curve Type:")
         lbl_lt_ctype.setToolTip("Select trigger response curve mapping algorithm.")
@@ -513,13 +575,13 @@ class TuningView(QWidget):
         ctype_lt_box.addWidget(btn_exp_lt, stretch=1)
         lt_layout.addLayout(ctype_lt_box)
 
-        # Reset Button
+        #Reset Button
         btn_reset_lt = QPushButton("Reset")
         btn_reset_lt.setObjectName("PrimaryBtn")
         btn_reset_lt.clicked.connect(lambda: self.reset_trigger_defaults("trigger_left"))
         lt_layout.addWidget(btn_reset_lt)
 
-        # Digital Trigger Checkbox
+        #Digital Trigger Checkbox
         self.chk_dig_lt = QCheckBox("Digital Trigger Mode")
         self.chk_dig_lt.setToolTip("Instantly outputs 100% trigger pull when actuated beyond deadzone.")
         self.chk_dig_lt.stateChanged.connect(lambda s: self.save_opt("settings", "digital_lt", str(s == Qt.CheckState.Checked.value or s == 2 or s is True).lower()))
@@ -527,7 +589,7 @@ class TuningView(QWidget):
 
         trig_split.addWidget(lt_card)
 
-        # Right Trigger Card
+       # Right Trigger Card
         rt_card = QFrame()
         rt_card.setObjectName("GlassCard")
         rt_layout = QVBoxLayout(rt_card)
@@ -538,7 +600,7 @@ class TuningView(QWidget):
         lbl_rt_title.setAlignment(Qt.AlignmentFlag.AlignCenter)
         rt_layout.addWidget(lbl_rt_title)
 
-        # Visualizers Row: Response Curve & Trigger Pull Vertical Bars
+        #Visualizers Row: Response Curve & Trigger Pull Vertical Bars
         vis_rt_box = QHBoxLayout()
         self.curve_graph_rt = CurveGraphWidget("Right Trigger Curve")
         self.bar_rt = TriggerPullWidget("Right Trigger Pull")
@@ -546,17 +608,19 @@ class TuningView(QWidget):
         vis_rt_box.addWidget(self.bar_rt)
         rt_layout.addLayout(vis_rt_box)
 
-        # Sliders Grid
+        #Sliders Grid
         grid_rt = QGridLayout()
         grid_rt.setSpacing(6)
 
-        # 1. Deadzone
+        #1. Deadzone
         lbl_rt_dz = QLabel("Deadzone")
         lbl_rt_dz.setToolTip("Inner deadzone threshold (0.00 to 0.50). Inputs below this value are ignored to eliminate trigger drift.")
         self.slider_rt_dz = QSlider(Qt.Orientation.Horizontal)
         self.slider_rt_dz.setRange(0, 50)
-        self.slider_rt_dz.setSingleStep(1)
-        self.slider_rt_dz.setPageStep(5)
+        self.slider_rt_dz.setSingleStep(10)
+        #0, 50)
+        self.slider_rt_dz.setPageStep(10)
+        #0, 50)
         self.slider_rt_dz.setToolTip("Inner deadzone threshold (0.00 to 0.50).")
         self.lbl_val_rt_dz = QLabel("0.00")
         self.lbl_val_rt_dz.setFixedWidth(40)
@@ -565,11 +629,15 @@ class TuningView(QWidget):
         grid_rt.addWidget(self.slider_rt_dz, 0, 1)
         grid_rt.addWidget(self.lbl_val_rt_dz, 0, 2)
 
-        # 2. Anti-Deadzone
+        #2. Anti-Deadzone
         lbl_rt_adz = QLabel("Anti-Deadzone")
         lbl_rt_adz.setToolTip("Anti-deadzone boost (0.00 to 0.30) to bypass game engine deadzones.")
         self.slider_rt_adz = QSlider(Qt.Orientation.Horizontal)
         self.slider_rt_adz.setRange(0, 30)
+        self.slider_rt_adz.setSingleStep(10)
+        #0, 30)
+        self.slider_rt_adz.setPageStep(10)
+        #0, 30)
         self.slider_rt_adz.setToolTip("Anti-deadzone boost (0.00 to 0.30).")
         self.lbl_val_rt_adz = QLabel("0.00")
         self.lbl_val_rt_adz.setFixedWidth(40)
@@ -578,11 +646,15 @@ class TuningView(QWidget):
         grid_rt.addWidget(self.slider_rt_adz, 1, 1)
         grid_rt.addWidget(self.lbl_val_rt_adz, 1, 2)
 
-        # 3. Rest Deadzone
+        #3. Rest Deadzone
         lbl_rt_rdz = QLabel("Rest Deadzone")
         lbl_rt_rdz.setToolTip("Resting state deadzone centered around zero (0.00 to 0.20).")
         self.slider_rt_rdz = QSlider(Qt.Orientation.Horizontal)
         self.slider_rt_rdz.setRange(0, 30)
+        self.slider_rt_rdz.setSingleStep(10)
+        #0, 30)
+        self.slider_rt_rdz.setPageStep(10)
+        #0, 30)
         self.slider_rt_rdz.setToolTip("Resting state deadzone centered around zero (0.00 to 0.20).")
         self.lbl_val_rt_rdz = QLabel("0.00")
         self.lbl_val_rt_rdz.setFixedWidth(40)
@@ -591,11 +663,15 @@ class TuningView(QWidget):
         grid_rt.addWidget(self.slider_rt_rdz, 2, 1)
         grid_rt.addWidget(self.lbl_val_rt_rdz, 2, 2)
 
-        # 4. Exponent (Curve Power)
+        #4. Exponent (Curve Power)
         lbl_rt_exp = QLabel("Exponent (Curve Power)")
         lbl_rt_exp.setToolTip("Response curve exponent power (0.10 to 5.00). Values > 1.0 increase trigger pull curve response.")
         self.slider_rt_exp = QSlider(Qt.Orientation.Horizontal)
         self.slider_rt_exp.setRange(10, 50)
+        self.slider_rt_exp.setSingleStep(1)
+        #10, 50)
+        self.slider_rt_exp.setPageStep(5)
+        #10, 50)
         self.slider_rt_exp.setValue(10)
         self.slider_rt_exp.setToolTip("Response curve exponent power (0.10 to 5.00).")
         self.lbl_val_rt_exp = QLabel("1.00")
@@ -605,11 +681,15 @@ class TuningView(QWidget):
         grid_rt.addWidget(self.slider_rt_exp, 3, 1)
         grid_rt.addWidget(self.lbl_val_rt_exp, 3, 2)
 
-        # 5. Sensitivity
+        #5. Sensitivity
         lbl_rt_sens = QLabel("Sensitivity")
         lbl_rt_sens.setToolTip("Output sensitivity multiplier scaling total trigger pull reach (0.50 to 2.00).")
         self.slider_rt_sens = QSlider(Qt.Orientation.Horizontal)
         self.slider_rt_sens.setRange(5, 20)
+        self.slider_rt_sens.setSingleStep(1)
+        #5, 20)
+        self.slider_rt_sens.setPageStep(5)
+        #5, 20)
         self.slider_rt_sens.setValue(10)
         self.slider_rt_sens.setToolTip("Output sensitivity multiplier scaling total trigger pull reach.")
         self.lbl_val_rt_sens = QLabel("1.00")
@@ -621,7 +701,7 @@ class TuningView(QWidget):
 
         rt_layout.addLayout(grid_rt)
 
-        # Curve Type & Export Row
+        #Curve Type & Export Row
         ctype_rt_box = QHBoxLayout()
         lbl_rt_ctype = QLabel("Curve Type:")
         lbl_rt_ctype.setToolTip("Select trigger response curve mapping algorithm.")
@@ -639,13 +719,13 @@ class TuningView(QWidget):
         ctype_rt_box.addWidget(btn_exp_rt, stretch=1)
         rt_layout.addLayout(ctype_rt_box)
 
-        # Reset Button
+        #Reset Button
         btn_reset_rt = QPushButton("Reset")
         btn_reset_rt.setObjectName("PrimaryBtn")
         btn_reset_rt.clicked.connect(lambda: self.reset_trigger_defaults("trigger_right"))
         rt_layout.addWidget(btn_reset_rt)
 
-        # Digital Trigger Checkbox
+        #Digital Trigger Checkbox
         self.chk_dig_rt = QCheckBox("Digital Trigger Mode")
         self.chk_dig_rt.stateChanged.connect(lambda s: self.save_opt("settings", "digital_rt", str(s == Qt.CheckState.Checked.value or s == 2 or s is True).lower()))
         rt_layout.addWidget(self.chk_dig_rt)
@@ -657,6 +737,34 @@ class TuningView(QWidget):
         scroll.setWidget(scroll_content)
         main_layout.addWidget(scroll)
 
+
+    def update_curve_graph_l(self):
+        self.curve_graph_left.set_curve_params(
+            self.combo_l_ctype.currentText(), self.slider_l_cf.value() / 10.0, self.edit_l_custom_eq.text(),
+            self.slider_l_dz.value() / 100.0, self.slider_l_adz.value() / 100.0, self.slider_l_rdz.value() / 100.0,
+            self.slider_l_warp.value() / 100.0, self.slider_l_sens.value() / 10.0, False
+        )
+
+    def update_curve_graph_r(self):
+        self.curve_graph_right.set_curve_params(
+            self.combo_r_ctype.currentText(), self.slider_r_cf.value() / 10.0, self.edit_r_custom_eq.text(),
+            self.slider_r_dz.value() / 100.0, self.slider_r_adz.value() / 100.0, self.slider_r_rdz.value() / 100.0,
+            self.slider_r_warp.value() / 100.0, self.slider_r_sens.value() / 10.0, False
+        )
+
+    def update_curve_graph_lt(self):
+        self.curve_graph_lt.set_curve_params(
+            self.combo_lt_ctype.currentText(), self.slider_lt_exp.value() / 10.0, "",
+            self.slider_lt_dz.value() / 100.0, self.slider_lt_adz.value() / 100.0, self.slider_lt_rdz.value() / 100.0,
+            1.0, self.slider_lt_sens.value() / 10.0, True
+        )
+
+    def update_curve_graph_rt(self):
+        self.curve_graph_rt.set_curve_params(
+            self.combo_rt_ctype.currentText(), self.slider_rt_exp.value() / 10.0, "",
+            self.slider_rt_dz.value() / 100.0, self.slider_rt_adz.value() / 100.0, self.slider_rt_rdz.value() / 100.0,
+            1.0, self.slider_rt_sens.value() / 10.0, True
+        )
     # ---------------------------------------------------------------------
     # Left Stick Event Handlers
     # ---------------------------------------------------------------------
@@ -664,42 +772,47 @@ class TuningView(QWidget):
         val = v / 100.0
         self.lbl_val_l_dz.setText(f"{val:.2f}")
         self.radar_left.set_deadzone(v)
+        self.update_curve_graph_l()
         self.save_opt("analog_left", "deadzone", val)
 
     def on_l_adz_changed(self, v):
         val = v / 100.0
         self.lbl_val_l_adz.setText(f"{val:.2f}")
+        self.update_curve_graph_l()
         self.save_opt("analog_left", "anti_deadzone", val)
 
     def on_l_rdz_changed(self, v):
         val = v / 100.0
         self.lbl_val_l_rdz.setText(f"{val:.2f}")
+        self.update_curve_graph_l()
         self.save_opt("analog_left", "rest_deadzone", val)
 
     def on_l_warp_changed(self, v):
         val = v / 100.0
         self.lbl_val_l_warp.setText(f"{val:.2f}")
+        self.update_curve_graph_l()
         self.save_opt("analog_left", "outer_max", val)
 
     def on_l_cf_changed(self, v):
         val = v / 10.0
         self.lbl_val_l_cf.setText(f"{val:.2f}")
-        self.curve_graph_left.set_curve_params(self.combo_l_ctype.currentText(), val, self.edit_l_custom_eq.text())
+        self.update_curve_graph_l()
         self.save_opt("analog_left", "exp_factor", val)
 
     def on_l_sens_changed(self, v):
         val = v / 10.0
         self.lbl_val_l_sens.setText(f"{val:.2f}")
+        self.update_curve_graph_l()
         self.save_opt("analog_left", "sensitivity", val)
 
     def on_l_ctype_changed(self, ctype):
         is_custom = (ctype == "custom")
         self.edit_l_custom_eq.setVisible(is_custom)
-        self.curve_graph_left.set_curve_params(ctype, self.slider_l_cf.value() / 10.0, self.edit_l_custom_eq.text())
+        self.update_curve_graph_l()
         self.save_opt("analog_left", "curve", ctype)
 
     def on_l_custom_eq_changed(self, text):
-        self.curve_graph_left.set_curve_params(self.combo_l_ctype.currentText(), self.slider_l_cf.value() / 10.0, text)
+        self.update_curve_graph_l()
 
     def on_l_circ_changed(self, mode):
         self.radar_left.set_circularity_mode(mode)
@@ -735,42 +848,47 @@ class TuningView(QWidget):
         val = v / 100.0
         self.lbl_val_r_dz.setText(f"{val:.2f}")
         self.radar_right.set_deadzone(v)
+        self.update_curve_graph_r()
         self.save_opt("analog_right", "deadzone", val)
 
     def on_r_adz_changed(self, v):
         val = v / 100.0
         self.lbl_val_r_adz.setText(f"{val:.2f}")
+        self.update_curve_graph_r()
         self.save_opt("analog_right", "anti_deadzone", val)
 
     def on_r_rdz_changed(self, v):
         val = v / 100.0
         self.lbl_val_r_rdz.setText(f"{val:.2f}")
+        self.update_curve_graph_r()
         self.save_opt("analog_right", "rest_deadzone", val)
 
     def on_r_warp_changed(self, v):
         val = v / 100.0
         self.lbl_val_r_warp.setText(f"{val:.2f}")
+        self.update_curve_graph_r()
         self.save_opt("analog_right", "outer_max", val)
 
     def on_r_cf_changed(self, v):
         val = v / 10.0
         self.lbl_val_r_cf.setText(f"{val:.2f}")
-        self.curve_graph_right.set_curve_params(self.combo_r_ctype.currentText(), val, self.edit_r_custom_eq.text())
+        self.update_curve_graph_r()
         self.save_opt("analog_right", "exp_factor", val)
 
     def on_r_sens_changed(self, v):
         val = v / 10.0
         self.lbl_val_r_sens.setText(f"{val:.2f}")
+        self.update_curve_graph_r()
         self.save_opt("analog_right", "sensitivity", val)
 
     def on_r_ctype_changed(self, ctype):
         is_custom = (ctype == "custom")
         self.edit_r_custom_eq.setVisible(is_custom)
-        self.curve_graph_right.set_curve_params(ctype, self.slider_r_cf.value() / 10.0, self.edit_r_custom_eq.text())
+        self.update_curve_graph_r()
         self.save_opt("analog_right", "curve", ctype)
 
     def on_r_custom_eq_changed(self, text):
-        self.curve_graph_right.set_curve_params(self.combo_r_ctype.currentText(), self.slider_r_cf.value() / 10.0, text)
+        self.update_curve_graph_r()
 
     # ---------------------------------------------------------------------
     # Left Trigger Event Handlers
@@ -778,35 +896,35 @@ class TuningView(QWidget):
     def on_lt_dz_changed(self, v):
         val = v / 100.0
         self.lbl_val_lt_dz.setText(f"{val:.2f}")
-        self.curve_graph_lt.set_curve_params(self.combo_lt_ctype.currentText(), self.slider_lt_exp.value() / 10.0)
+        self.update_curve_graph_lt()
         self.save_opt("trigger_left", "deadzone", val)
 
     def on_lt_adz_changed(self, v):
         val = v / 100.0
         self.lbl_val_lt_adz.setText(f"{val:.2f}")
-        self.curve_graph_lt.set_curve_params(self.combo_lt_ctype.currentText(), self.slider_lt_exp.value() / 10.0)
+        self.update_curve_graph_lt()
         self.save_opt("trigger_left", "anti_deadzone", val)
 
     def on_lt_rdz_changed(self, v):
         val = v / 100.0
         self.lbl_val_lt_rdz.setText(f"{val:.2f}")
-        self.curve_graph_lt.set_curve_params(self.combo_lt_ctype.currentText(), self.slider_lt_exp.value() / 10.0)
+        self.update_curve_graph_lt()
         self.save_opt("trigger_left", "rest_deadzone", val)
 
     def on_lt_exp_changed(self, v):
         val = v / 10.0
         self.lbl_val_lt_exp.setText(f"{val:.2f}")
-        self.curve_graph_lt.set_curve_params(self.combo_lt_ctype.currentText(), val)
+        self.update_curve_graph_lt()
         self.save_opt("trigger_left", "exp_factor", val)
 
     def on_lt_sens_changed(self, v):
         val = v / 10.0
         self.lbl_val_lt_sens.setText(f"{val:.2f}")
-        self.curve_graph_lt.set_curve_params(self.combo_lt_ctype.currentText(), self.slider_lt_exp.value() / 10.0)
+        self.update_curve_graph_lt()
         self.save_opt("trigger_left", "sensitivity", val)
 
     def on_lt_ctype_changed(self, ctype):
-        self.curve_graph_lt.set_curve_params(ctype, self.slider_lt_exp.value() / 10.0)
+        self.update_curve_graph_lt()
         self.save_opt("trigger_left", "curve", ctype)
 
     def reset_trigger_defaults(self, section):
@@ -831,35 +949,35 @@ class TuningView(QWidget):
     def on_rt_dz_changed(self, v):
         val = v / 100.0
         self.lbl_val_rt_dz.setText(f"{val:.2f}")
-        self.curve_graph_rt.set_curve_params(self.combo_rt_ctype.currentText(), self.slider_rt_exp.value() / 10.0)
+        self.update_curve_graph_rt()
         self.save_opt("trigger_right", "deadzone", val)
 
     def on_rt_adz_changed(self, v):
         val = v / 100.0
         self.lbl_val_rt_adz.setText(f"{val:.2f}")
-        self.curve_graph_rt.set_curve_params(self.combo_rt_ctype.currentText(), self.slider_rt_exp.value() / 10.0)
+        self.update_curve_graph_rt()
         self.save_opt("trigger_right", "anti_deadzone", val)
 
     def on_rt_rdz_changed(self, v):
         val = v / 100.0
         self.lbl_val_rt_rdz.setText(f"{val:.2f}")
-        self.curve_graph_rt.set_curve_params(self.combo_rt_ctype.currentText(), self.slider_rt_exp.value() / 10.0)
+        self.update_curve_graph_rt()
         self.save_opt("trigger_right", "rest_deadzone", val)
 
     def on_rt_exp_changed(self, v):
         val = v / 10.0
         self.lbl_val_rt_exp.setText(f"{val:.2f}")
-        self.curve_graph_rt.set_curve_params(self.combo_rt_ctype.currentText(), val)
+        self.update_curve_graph_rt()
         self.save_opt("trigger_right", "exp_factor", val)
 
     def on_rt_sens_changed(self, v):
         val = v / 10.0
         self.lbl_val_rt_sens.setText(f"{val:.2f}")
-        self.curve_graph_rt.set_curve_params(self.combo_rt_ctype.currentText(), self.slider_rt_exp.value() / 10.0)
+        self.update_curve_graph_rt()
         self.save_opt("trigger_right", "sensitivity", val)
 
     def on_rt_ctype_changed(self, ctype):
-        self.curve_graph_rt.set_curve_params(ctype, self.slider_rt_exp.value() / 10.0)
+        self.update_curve_graph_rt()
         self.save_opt("trigger_right", "curve", ctype)
 
     def save_opt(self, section, option, val):
@@ -873,7 +991,7 @@ class TuningView(QWidget):
         if not config:
             return
 
-        # 1. Left Stick (Symmetrical Load)
+        #1. Left Stick (Symmetrical Load)
         dz_l = int(config.getfloat("analog_left", "deadzone", 0.05) * 100)
         self.slider_l_dz.setValue(dz_l)
         self.radar_left.set_deadzone(dz_l)
@@ -901,7 +1019,7 @@ class TuningView(QWidget):
         self.combo_l_circ.setCurrentText(circ_l)
         self.radar_left.set_circularity_mode(circ_l)
 
-        # 2. Right Stick (Symmetrical Load)
+        #2. Right Stick (Symmetrical Load)
         dz_r = int(config.getfloat("analog_right", "deadzone", 0.05) * 100)
         self.slider_r_dz.setValue(dz_r)
         self.radar_right.set_deadzone(dz_r)
@@ -929,7 +1047,7 @@ class TuningView(QWidget):
         self.combo_r_circ.setCurrentText(circ_r)
         self.radar_right.set_circularity_mode(circ_r)
 
-        # 3. Left Trigger (Symmetrical Load)
+        #3. Left Trigger (Symmetrical Load)
         dz_lt = int(config.getfloat("trigger_left", "deadzone", 0.05) * 100)
         self.slider_lt_dz.setValue(dz_lt)
 
@@ -948,7 +1066,7 @@ class TuningView(QWidget):
         ctype_lt = config.get("trigger_left", "curve", fallback="linear").lower()
         self.combo_lt_ctype.setCurrentText(ctype_lt)
 
-        # 4. Right Trigger (Symmetrical Load)
+        #4. Right Trigger (Symmetrical Load)
         dz_rt = int(config.getfloat("trigger_right", "deadzone", 0.05) * 100)
         self.slider_rt_dz.setValue(dz_rt)
 
@@ -967,7 +1085,7 @@ class TuningView(QWidget):
         ctype_rt = config.get("trigger_right", "curve", fallback="linear").lower()
         self.combo_rt_ctype.setCurrentText(ctype_rt)
 
-        # Digital Trigger Checkboxes
+        #Digital Trigger Checkboxes
         self.chk_dig_lt.setChecked(config.getboolean("settings", "digital_lt", False))
         self.chk_dig_rt.setChecked(config.getboolean("settings", "digital_rt", False))
 
@@ -993,7 +1111,7 @@ class TuningView(QWidget):
         lt = controller_state.lt or 0.0
         rt = controller_state.rt or 0.0
 
-        # Compute tuned stick outputs using math_utils
+        #Compute tuned stick outputs using math_utils
         dz_l = self.slider_l_dz.value() / 100.0
         adz_l = self.slider_l_adz.value() / 100.0
         rdz_l = self.slider_l_rdz.value() / 100.0
@@ -1004,7 +1122,7 @@ class TuningView(QWidget):
         custom_l = self.edit_l_custom_eq.text()
 
         mod_lx, mod_ly = math_utils.process_analog_stick(
-            lx, ly, dz_l, adz_l, ctype_l, cf_l, rest_dz=rdz_l, sensitivity=sens_l, custom_eq=custom_l
+            lx, ly, dz_l, adz_l, ctype_l, cf_l, warp_l, rest_dz=rdz_l, sensitivity=sens_l, custom_eq=custom_l
         )
 
         dz_r = self.slider_r_dz.value() / 100.0
@@ -1017,7 +1135,7 @@ class TuningView(QWidget):
         custom_r = self.edit_r_custom_eq.text()
 
         mod_rx, mod_ry = math_utils.process_analog_stick(
-            rx, ry, dz_r, adz_r, ctype_r, cf_r, rest_dz=rdz_r, sensitivity=sens_r, custom_eq=custom_r
+            rx, ry, dz_r, adz_r, ctype_r, cf_r, warp_r, rest_dz=rdz_r, sensitivity=sens_r, custom_eq=custom_r
         )
 
         dz_lt = self.slider_lt_dz.value() / 100.0
@@ -1040,14 +1158,14 @@ class TuningView(QWidget):
         if self.chk_dig_rt.isChecked() and mod_rt > 0:
             mod_rt = 1.0
 
-        # Update Position Radars
+        #Update Position Radars
         self.radar_left.set_stick_position(mod_lx, mod_ly, raw_x=lx, raw_y=ly)
         self.curve_graph_left.set_live_input_output(math.hypot(lx, ly), math.hypot(mod_lx, mod_ly))
 
         self.radar_right.set_stick_position(mod_rx, mod_ry, raw_x=rx, raw_y=ry)
         self.curve_graph_right.set_live_input_output(math.hypot(rx, ry), math.hypot(mod_rx, mod_ry))
 
-        # Update Trigger Pull Vertical Bars
+        #Update Trigger Pull Vertical Bars
         self.bar_lt.set_values(lt, mod_lt)
         self.curve_graph_lt.set_live_input_output(lt, mod_lt)
 

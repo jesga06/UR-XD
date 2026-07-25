@@ -206,7 +206,7 @@ class DashboardView(QWidget):
         base_buttons = [
             "A", "B", "X", "Y", "LB", "RB", "LT", "RT",
             "L3", "R3", "DPAD_UP", "DPAD_DOWN", "DPAD_LEFT", "DPAD_RIGHT",
-            "SELECT", "START", "HOME", "L4", "R4"
+            "SELECT", "START", "HOME"
         ]
 
         config = getattr(self.app, 'controller_config', None)

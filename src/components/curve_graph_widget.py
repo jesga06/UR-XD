@@ -51,11 +51,17 @@ class CurveGraphWidget(QWidget):
         self.mod_val = max(0.0, min(1.0, abs(mod_val)))
         self.update()
 
-    def set_curve_params(self, curve_type: str, power: float = 2.0, custom_eq: str = ""):
-        """Set curve type, sensitivity factor, and custom math equation."""
+    def set_curve_params(self, curve_type: str, power: float = 2.0, custom_eq: str = "", dz: float = 0.0, adz: float = 0.0, rdz: float = 0.0, warp: float = 1.0, sens: float = 1.0, is_trigger: bool = False):
+        """Set curve type, sensitivity factor, custom math equation, and all modifier bounds."""
         self.curve_preset = curve_type.lower()
         self.power = power
         self.custom_eq = custom_eq
+        self.dz = dz
+        self.adz = adz
+        self.rdz = rdz
+        self.warp = warp
+        self.sens = sens
+        self.is_trigger = is_trigger
 
         if self.curve_preset == "linear":
             self.control_points = [QPointF(0.0, 0.0), QPointF(0.25, 0.25), QPointF(0.5, 0.5), QPointF(0.75, 0.75), QPointF(1.0, 1.0)]
@@ -129,14 +135,24 @@ class CurveGraphWidget(QWidget):
         painter.setPen(QPen(QColor(255, 255, 255, 40), 1, Qt.PenStyle.DotLine))
         painter.drawLine(QPointF(margin, height - margin), QPointF(width - margin, margin))
 
+        import math_utils
+
         # Evaluate and Draw Full Curve Path (100 steps)
         path = QPainterPath()
-        start_y = curves.evaluate_curve(0.0, self.curve_preset, self.power, self.custom_eq)
+        
+        def calc_y(x_norm):
+            if getattr(self, 'is_trigger', False):
+                return math_utils.process_trigger(x_norm, getattr(self, 'dz', 0.0), getattr(self, 'adz', 0.0), self.curve_preset, self.power, getattr(self, 'rdz', 0.0), getattr(self, 'sens', 1.0))
+            else:
+                y, _ = math_utils.process_analog_stick(x_norm, 0.0, getattr(self, 'dz', 0.0), getattr(self, 'adz', 0.0), self.curve_preset, self.power, getattr(self, 'warp', 1.0), getattr(self, 'rdz', 0.0), getattr(self, 'sens', 1.0), self.custom_eq)
+                return y
+
+        start_y = calc_y(0.0)
         path.moveTo(margin, (height - margin) - (start_y * h))
 
         for step in range(1, 101):
             x_norm = step / 100.0
-            y_norm = curves.evaluate_curve(x_norm, self.curve_preset, self.power, self.custom_eq)
+            y_norm = calc_y(x_norm)
             px = margin + (x_norm * w)
             py = (height - margin) - (y_norm * h)
             path.lineTo(px, py)

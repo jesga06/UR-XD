@@ -23,8 +23,8 @@ from PySide6.QtCore import Qt
 
 ALL_GAMEPAD_BUTTONS = [
     "A", "B", "X", "Y", "LB", "RB", "LT", "RT",
-    "LS", "RS", "DPAD_UP", "DPAD_DOWN", "DPAD_LEFT", "DPAD_RIGHT",
-    "SELECT", "START", "HOME", "M1", "M2", "L4", "R4"
+    "L3", "R3", "DPAD_UP", "DPAD_DOWN", "DPAD_LEFT", "DPAD_RIGHT",
+    "SELECT", "START", "HOME"
 ]
 
 SPECIAL_KEY_MAP = {
@@ -385,7 +385,16 @@ class RemappingView(QWidget):
         grid.addWidget(card_dpad, 1, 0)
 
         # Group 4: System & Extras
-        card_system = self.create_button_group_card("System & Extras", ["SELECT", "START", "HOME", "M1", "M2", "L4", "R4"])
+        extra_targets = []
+        config = getattr(self.app, 'controller_config', None)
+        if config:
+            chords = config.data.get("hardware_chords", [])
+            for c in chords:
+                t = c.get("action", "").strip().upper()
+                if t and t not in ALL_GAMEPAD_BUTTONS and t not in extra_targets:
+                    extra_targets.append(t)
+        sys_btns = ["SELECT", "START", "HOME"] + extra_targets
+        card_system = self.create_button_group_card("System & Extras", sys_btns)
         grid.addWidget(card_system, 1, 1)
 
         scroll_layout.addLayout(grid)

@@ -280,6 +280,8 @@ This release introduces major UI Customizations, Utilities, and Core Profile fea
 - **Tuning Tab Radar Parameter Swap & Freezing Fix:** Corrected argument order passed to `math_utils.process_analog_stick()` in `TuningView.update_state()`, eliminating a float-to-string parameter swap (`AttributeError: 'float' object has no attribute 'lower'`), fixing stick freezing outside circularity zone, and enabling full real-time movement tracking of green tuned output dots across radar visualizers.
 - **Dynamic Dashboard Button Indicators & Hardware Chords Telemetry:** Updated `DashboardView` to dynamically populate button indicator cards from calibrated physical inputs (`DPAD_UP`, `DPAD_DOWN`, `DPAD_LEFT`, `DPAD_RIGHT`, `A`, `B`, `X`, `Y`, `LB`, `RB`, `LT`, `RT`, `L3`, `R3`, `SELECT`, `START`, `HOME`, `L4`, `R4`) PLUS any virtual chord target buttons defined in `hardware_chords` (e.g. `Virtual Paddle M1`, `M2`), and added an Active Hardware Chords Telemetry status panel.
 - **Recording Modal Rebuild & Notch Amount UI:** Rebuilt `KeyRecorderDialog` with native Qt key events for rock-solid combo capture (`ctrl+shift+a`, `alt+tab`) without modifier loss or "last input only" bugs, replaced global mouse hooks with explicit Quick Mouse buttons (`+ Left Click`, `+ Right Click`, `+ Middle`, `+ X1`, `+ X2`) to prevent accidental UI click captures, and restored the full Notch Amount UI (Notches spinbox, Direction combo, Mode radio, Delay spinbox).
+- **Advanced Key Sequence Recording:** `KeyRecorderDialog` now robustly supports multi-key chording (e.g., `A+H+UP`) and sequential chaining (e.g., `alt_l+up, release, j+o+g`), tracking active key states across complete releases to properly construct comma-separated chains for backend execution.
+- **Spatial Dashboard Layout:** Replaced the grid-based dashboard layout with a strict coordinate-based spatial layout representing physical gamepad proportions, accurately rendering extra dynamic buttons like `L4` or `M1` without shifting adjacent elements.
 - **Cell Editor Ghost Text Elimination:** Replaced table item rendering in `AdvancedView` Hardware Chords table with explicit `QLineEdit#OutlinedEdit` cell widgets (`setCellWidget`), ensuring opaque background fill and zero ghost text.
 - **Reset Deadzone Default to 0:** Updated `reset_stick_defaults()` and `reset_trigger_defaults()` to set deadzone reset to `0` (`0.00`).
 - **Mandatory 1.5px Text Box Outlines:** Applied mandatory `border: 1.5px solid {theme['card_hover_border']}` and focus `border: 1.5px solid {theme['glow']}` QSS styling across EVERY singular `QLineEdit`, `QPlainTextEdit`, `QSpinBox`, `QDoubleSpinBox`, and `QTableWidget` cell editor in the entire GUI.
@@ -296,8 +298,11 @@ This release introduces major UI Customizations, Utilities, and Core Profile fea
 ### ⚙️ Under-the-Hood Changes
 - **Tuning View Math Utility Call Alignment:** Fixed a `TypeError` in `TuningView.update_state()` by correcting the argument signature and order passed to `math_utils.process_trigger()` and `math_utils.process_analog_stick()`, passing anti-deadzone, curve factor, rest deadzone, and sensitivity parameters properly.
 
-
-
-
-
-
+## [2.3.3] - 2026-07-25
+### 🎮 User-Facing Changes
+- **Hardware Chords Engine Fix**: Fixed `hardware_chords.py` to correctly parse `config.data['hardware_chords']` directly as a dictionary list instead of attempting to parse legacy INI string formatting (`trigger=...;action=...`). Hardware chords will now correctly suppress native inputs and trigger their remapped targets.
+- **Dynamic Extra Buttons**: Removed the hardcoded UI elements for `L4`, `R4`, `M1`, and `M2` buttons from `dashboard_view.py` and `remapping_view.py`. The "System & Extras" card and the Dashboard Button Grid now dynamically read `hardware_chords` and populate any custom hardware chord target as a valid button (e.g., if you create a chord that outputs `L4`, `L4` will automatically appear in the remap menu and dashboard grid).
+- **Dashboard Layout Fix**: Completely ditched the broken spatial layout in `dashboard_view.py` and restored a simple grid flow of active controller inputs, ensuring the interface remains functional and readable.
+- **KeyRecorder Overhaul**: Refactored `KeyRecorderDialog` in `remapping_view.py` to utilize a single unified "Save" button and decoupled it from hardcoded standard/shift logic, passing the result via a simple callback to the appropriate `QLineEdit`.
+- **Placeholder Text Fix**: Ensured the 'gamepad default' and 'unmapped' texts are visible by explicitly styling `QLineEdit::placeholder` in `theme_manager.py`.
+- **Advanced View Layout**: Fixed a visual bug in `advanced_view.py` where hardware chord cards would expand to fill the entire vertical space. Cards now stack neatly from the top.

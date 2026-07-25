@@ -43,10 +43,10 @@ Run the settings panel using `run_wrapper.bat` (and select "Open Config" in the 
 * **7 Theme Color Presets & Customization:** Theme Selector supporting `Purple`, `Blue`, `Green`, `Red`, `Yellow`, `Orange`, and `White` presets with custom UI font family selection (`Inter`, `Outfit`, `Segoe UI`, `Arial`) and live QSS theme preview.
 * **Interactive Button Layout Builder (`technical-stuff/interactive_layout_builder.py`):** Standalone drag-and-drop builder to visually customize gamepad button layouts with a configurable background grid slider (5px to 20px) and automatic snap-to-grid positioning.
 * **Interactive Recorder Modal:**
-  * **Keyboard Combos:** Records complex multi-key combinations (e.g., `Ctrl + Shift + Alt + Z`) as you press them.
-  * **Mouse Clicks:** Captures clicks for Middle, Left, Right, Mouse4, and Mouse5. Left-clicks inside the recorder are ignored for UI protection.
-  * **Mouse Scroll Wheel:** Records scroll direction.
-  * **Target Layer Saving:** Explicit **"Save Standard"** and **"Save Shift Map"** buttons to cleanly redirect recorded inputs.
+  * **Keyboard Combos:** Records complex multi-key combinations and chained sequences (e.g., `Ctrl + Shift + Alt + Z`, `alt_l+up, j+o+g`) explicitly tracking key states across complete releases.
+  * **Mouse Clicks:** Captures clicks for Middle, Left, Right, Mouse4, and Mouse5 via Quick Mouse buttons to prevent accidental UI click captures.
+  * **Mouse Scroll Wheel:** Records scroll direction, notches, mode, and timing delay via the interactive Notch UI.
+  * **Target Layer Saving:** A unified "Save" button automatically routes recorded sequences to the correct Standard or Shift mapping input.
 * **Multiple Shift Remapping Layers:**
   * **Layer Selector & Management:** Create, name, and switch between multiple custom shift layers (`Shift 1`, `Shift 2`, etc.) with tab-based navigation in the Remapping UI.
   * **Activation Chords & Strict Order Logic:** Activate shift layers using a primary shift key or a primary shift key + modifier button combination (e.g. `LB + RB`). Requires strict press timing (primary shift key pressed before or simultaneously with modifier) and consumes inputs to prevent unintended base layer triggers.

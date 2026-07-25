@@ -501,6 +501,25 @@ class RemappingView(QWidget):
 
         return card
 
+    def refresh_system_extras_card(self):
+        if hasattr(self, 'card_system') and self.card_system is not None:
+            self.card_system.setParent(None)
+            self.card_system.deleteLater()
+
+        extra_targets = []
+        config = getattr(self.app, 'controller_config', None)
+        if config:
+            chords = config.data.get("hardware_chords", [])
+            for c in chords:
+                t = c.get("action", "").strip().upper()
+                if t and t not in ALL_GAMEPAD_BUTTONS and t not in extra_targets:
+                    extra_targets.append(t)
+        sys_btns = ["SELECT", "START", "HOME"] + extra_targets
+        self.card_system = self.create_button_group_card("System & Extras", sys_btns)
+        if hasattr(self, 'grid'):
+            self.grid.addWidget(self.card_system, 1, 1)
+        self.load_config_values()
+
     def refresh_shift_layer_combobox(self):
         self.combo_layers.blockSignals(True)
         self.combo_layers.clear()

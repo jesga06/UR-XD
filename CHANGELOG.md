@@ -252,3 +252,13 @@ This release introduces major UI Customizations, Utilities, and Core Profile fea
 
 
 
+## [2.4.0] - 2026-07-25
+### 🗑️ Deprecations & Removals
+- **CustomTkinter GUI Purge:** Completely removed all traces of the legacy CustomTkinter GUI, custom Tkinter modals (circularity calibration), and obsolete visual themes (`src/themes/*.json`) to prepare for a clean PySide6 reconstruction.
+- **Removed Layout Builder:** Removed the Tkinter-based Interactive Layout Builder from the diagnostic tools menu.
+- **Removed Tkinter Unit Tests:** Removed `test_circularity.py` and `test_tooltip.py` as they relied on mocking the deprecated GUI components.
+
+### ⚙️ Under-the-Hood Changes
+- **PySide6 Bootstrap Stub:** Implemented a minimal PySide6 bootstrap stub in `src/gui.py` to verify the event loop hooks up properly to the backend daemon environment.
+- **Daemon CLI Arguments Cleaned:** Updated `src/main.py` system tray trigger to launch the new PySide6 GUI cleanly without legacy `--append-log` arguments.
+- **Dependency Migration:** Swapped `customtkinter` for `PySide6` in `requirements.txt`.

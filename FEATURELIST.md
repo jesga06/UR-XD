@@ -153,7 +153,7 @@ A completely generic, foolproof, and automated diagnostic suite to troubleshoot 
 
 ## 🎨 UI & Customization Features
 * **Theme Manager:** Dynamically switch the entire application's color palette (White, Orange, Red, Yellow, Green, Blue, Purple) and immediately preview changes.
-* **System Font Override:** Supports overriding the default CustomTkinter font with any built-in system font (e.g. Arial, Consolas).
+
 * **Enforced Global Dark Mode:** Global dark mode enforcement to prevent rendering artifacts and ensure optimal canvas contrast.
 
 ---
@@ -170,6 +170,6 @@ A completely generic, foolproof, and automated diagnostic suite to troubleshoot 
 * **Synthetic Wrapper Benchmark:** Floods the translation pipeline with artificial HID packets to measure the maximum theoretical throughput of the software without hardware bottlenecks.
 * **Dashboard Fidelity:** Solved rendering bugs causing dashboard buttons to flicker and fail to display live UDP button data.
 * **XInput Calibration Safety:** Implemented string matching to safely recommend the correct endpoint interface for XInput controllers during calibration.
-* **Static Gray Box Fix:** Resolved a UI overlapping issue in CustomTkinter where `extra_frame` created a static gray box overlaying the dashboard buttons by packing it outside the main layout canvas.
+
 * **Virtual Controller Latching Fix:** Resolved a critical bug where the wrapper daemon would accidentally latch onto the virtual Xbox 360 controller spawned by `vgamepad` instead of the physical controller, causing inputs to fail silently.
 * **Virtual Controller Tuned Output Pipeline:** Fixed raw input override in `VirtualPad.process()`, ensuring all configured stick circularity corrections, response curves, deadzones, and digital triggers properly pass to the virtual controller.

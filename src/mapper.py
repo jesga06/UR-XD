@@ -156,6 +156,25 @@ class Mapper:
         if self.macro_executor:
             self.macro_executor.execute_or_toggle(macro_name)
 
+    def _get_pynput_key(self, key_name: str):
+        k_lower = key_name.lower().strip()
+        key_map = {
+            'alt': Key.alt, 'alt_l': Key.alt_l, 'alt_r': Key.alt_r,
+            'ctrl': Key.ctrl, 'ctrl_l': Key.ctrl_l, 'ctrl_r': Key.ctrl_r,
+            'shift': Key.shift, 'shift_l': Key.shift_l, 'shift_r': Key.shift_r,
+            'space': Key.space, 'tab': Key.tab, 'enter': Key.enter, 'backspace': Key.backspace,
+            'esc': Key.esc, 'escape': Key.esc, 'delete': Key.delete,
+            'up': Key.up, 'down': Key.down, 'left': Key.left, 'right': Key.right,
+            'win': Key.cmd, 'cmd': Key.cmd, 'super': Key.cmd,
+        }
+        if k_lower in key_map:
+            return key_map[k_lower]
+        if hasattr(Key, k_lower):
+            return getattr(Key, k_lower)
+        if len(k_lower) == 1:
+            return KeyCode.from_char(k_lower)
+        return KeyCode.from_char(k_lower[0]) if k_lower else None
+
     def _press_key_sequence(self, keys):
         currently_pressed = set()
         for key_name in keys:
@@ -164,20 +183,18 @@ class Mapper:
                 continue
             if key_name in currently_pressed:
                 try:
-                    if hasattr(Key, key_name):
-                        self.keyboard.release(getattr(Key, key_name))
-                    else:
-                        self.keyboard.release(KeyCode.from_char(key_name))
+                    pk = self._get_pynput_key(key_name)
+                    if pk:
+                        self.keyboard.release(pk)
                 except Exception:
                     pass
                 time.sleep(0.015)
 
             try:
-                if hasattr(Key, key_name):
-                    self.keyboard.press(getattr(Key, key_name))
-                else:
-                    self.keyboard.press(KeyCode.from_char(key_name))
-                currently_pressed.add(key_name)
+                pk = self._get_pynput_key(key_name)
+                if pk:
+                    self.keyboard.press(pk)
+                    currently_pressed.add(key_name)
             except Exception as e:
                 logger.error(f"Failed to press key {key_name}: {e}", exc_info=True)
 
@@ -188,11 +205,10 @@ class Mapper:
             if not key_name or key_name in released:
                 continue
             try:
-                if hasattr(Key, key_name):
-                    self.keyboard.release(getattr(Key, key_name))
-                else:
-                    self.keyboard.release(KeyCode.from_char(key_name))
-                released.add(key_name)
+                pk = self._get_pynput_key(key_name)
+                if pk:
+                    self.keyboard.release(pk)
+                    released.add(key_name)
             except Exception as e:
                 logger.error(f"Failed to release key {key_name}: {e}", exc_info=True)
 
@@ -417,21 +433,14 @@ class Mapper:
 
             self.active_layer = target_layer
 
-            # Trigger haptic vibration feedback for layer transition
-            if hasattr(self, 'haptic_engine') and self.haptic_engine:
-                if hasattr(self, 'config') and hasattr(self.config, 'get_haptic_enabled') and self.config.get_haptic_enabled():
-                    # Returning to layer_base plays Shift 1 feedback as intended
-                    target_profile_layer = 'shift_1' if target_layer == 'layer_base' else target_layer
-                    if hasattr(self.config, 'get_effective_layer_haptic_profile'):
-                        prof_str = self.config.get_effective_layer_haptic_profile(target_profile_layer)
-                        if prof_str:
-                            self.haptic_engine.play_profile(prof_str)
-
             # Trigger press actions for buttons currently held down in the new active layer
             active_map = self.mappings.get(self.active_layer, {})
+            base_map = self.mappings.get('layer_base', {})
             for b_pressed, is_down in all_buttons.items():
                 if is_down and b_pressed not in consumed_shift_buttons:
                     mapping = active_map.get(b_pressed)
+                    if not mapping:
+                        mapping = base_map.get(b_pressed)
                     if mapping and mapping != 'guide':
                         self._press(mapping)
                         self.active_holds[b_pressed] = mapping
@@ -474,6 +483,8 @@ class Mapper:
 
             if is_pressed != prev_pressed:
                 mapping = active_map.get(btn_lower)
+                if not mapping:
+                    mapping = base_map.get(btn_lower)
                 
                 if is_pressed:
                     # Delay Buffer Mode

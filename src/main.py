@@ -257,7 +257,22 @@ def main():
         test_xinput = XInputBackend()
         if test_xinput.initialize():
             logger.info(f"XInput controller detected on slot {test_xinput.connected_slot} (no DInput HID map required).")
-            device_name = "XInput Gamepad"
+            # Query physical HID devices to resolve the real product string instead of generic "XInput Gamepad"
+            detected_name = None
+            for d in devices:
+                prod = d.get('product_string')
+                vid = d.get('vendor_id', 0)
+                pid = d.get('product_id', 0)
+                # Exclude virtual Xbox 360 controller spawned by vgamepad (0x045E:0x028E)
+                if vid == 0x045E and pid == 0x028E:
+                    continue
+                if prod and not any(kw in prod.upper() for kw in ("KEYBOARD", "MOUSE", "KB")):
+                    clean_name = prod
+                    if clean_name.startswith("Controller (") and clean_name.endswith(")"):
+                        clean_name = clean_name[12:-1]
+                    detected_name = clean_name
+                    break
+            device_name = detected_name or "XInput Gamepad"
             hid_map_path = None
         else:
             logger.warning("No connected devices with a saved HID map or XInput slot found.")

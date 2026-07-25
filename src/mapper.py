@@ -433,14 +433,9 @@ class Mapper:
 
             self.active_layer = target_layer
 
-            # Reset prev_state for all non-shift buttons so the next frame's
-            # edge-detection loop fires natural press/release events cleanly.
-            # DO NOT manually fire _press() here — active_holds already cleared
-            # above, so the next iteration will re-detect is_pressed edge and
-            # call _press() with proper tracking.
-            for b in list(self.prev_state.keys()):
-                if b not in consumed_shift_buttons:
-                    self.prev_state[b] = False
+            # Clear any delayed/pending inputs from the previous layer to prevent
+            # stale presses bleeding into the new layer's mapping context.
+            self.pending_inputs.clear()
         
         # Pre-process analog sticks
         active_map = self.mappings.get(self.active_layer, {})

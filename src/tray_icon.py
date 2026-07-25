@@ -50,7 +50,7 @@ class TrayManager:
         self.app = QApplication.instance()
         
         self.tray = QSystemTrayIcon(create_tray_icon(), self.app)
-        self.tray.setToolTip("Ultimate 2C DInput Fix")
+        self.tray.setToolTip("UR-XD")
         
         # Setup Context Menu
         self.menu = QMenu()

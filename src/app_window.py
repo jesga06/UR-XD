@@ -15,6 +15,7 @@ from PySide6.QtCore import Qt
 
 sys.path.append(os.path.abspath(os.path.dirname(__file__)))
 from gui_v2.views.dashboard_view import DashboardView
+from gui_v2.views.remapping_view import RemappingView
 from ipc_threads import UDPTelemetryWorker, FilePollerWorker
 
 
@@ -22,11 +23,27 @@ class MainWindow(QMainWindow):
     """
     The primary application window for UR-XD.
     """
-    def __init__(self):
+    def __init__(self, controller_config=None):
         super().__init__()
-        
+
         self.setWindowTitle("UR-XD")
+        if controller_config is None:
+            config = configparser.ConfigParser()
+            profile_path = None
+            if os.path.exists("config.ini"):
+                config.read("config.ini", encoding="utf-8")
+                if config.has_section("controller") and config.has_option("controller", "last_device"):
+                    dev_name = config.get("controller", "last_device")
+                    if dev_name:
+                        from config_manager import get_sanitized_filename
+                        profile_path = os.path.join("profiles", get_sanitized_filename(dev_name))
+            from config_manager import ControllerConfig
+            self.controller_config = ControllerConfig(profile_path)
+        else:
+            self.controller_config = controller_config
+
         self.dashboard_view: DashboardView | None = None
+        self.remapping_view: RemappingView | None = None
         self.udp_worker: UDPTelemetryWorker | None = None
         self.file_worker: FilePollerWorker | None = None
 
@@ -84,6 +101,13 @@ class MainWindow(QMainWindow):
                 self.dashboard_view = DashboardView()
                 scroll_area.setWidget(self.dashboard_view)
                 self.tab_widget.addTab(scroll_area, name)
+            elif name == "Remapping":
+                if self.controller_config is not None:
+                    self.remapping_view = RemappingView(self.controller_config)
+                    self.tab_widget.addTab(self.remapping_view, name)
+                else:
+                    tab = self._create_scrollable_tab(name)
+                    self.tab_widget.addTab(tab, name)
             else:
                 tab = self._create_scrollable_tab(name)
                 self.tab_widget.addTab(tab, name)

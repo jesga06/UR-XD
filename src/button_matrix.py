@@ -309,19 +309,19 @@ if __name__ == "__main__":
 
     # Simulate button press toggling
     from PySide6.QtCore import QTimer
-    step = 0
+    step = [0]
 
     def tick():
-        nonlocal step
-        step += 1
+        step[0] += 1
+        s = step[0]
         state = {
-            "a": 1 if step % 2 == 0 else 0,
-            "b": 1 if step % 3 == 0 else 0,
-            "lb": 1 if step % 4 == 0 else 0,
+            "a": 1 if s % 2 == 0 else 0,
+            "b": 1 if s % 3 == 0 else 0,
+            "lb": 1 if s % 4 == 0 else 0,
             "extra_inputs": {
-                "m1": 1 if step % 2 == 1 else 0,
-                "m2": 1 if step % 3 == 1 else 0,
-                "l4": 1 if step % 5 == 0 else 0
+                "m1": 1 if s % 2 == 1 else 0,
+                "m2": 1 if s % 3 == 1 else 0,
+                "l4": 1 if s % 5 == 0 else 0
             }
         }
         matrix.update_button_states(state)

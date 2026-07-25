@@ -166,24 +166,23 @@ if __name__ == "__main__":
 
     # Simulate trigger pressure sweep
     from PySide6.QtCore import QTimer
-    val = 0.0
-    dir_up = True
+    val = [0.0]
+    dir_up = [True]
 
     def tick():
-        nonlocal val, dir_up
-        if dir_up:
-            val += 0.02
-            if val >= 1.0:
-                val = 1.0
-                dir_up = False
+        if dir_up[0]:
+            val[0] += 0.02
+            if val[0] >= 1.0:
+                val[0] = 1.0
+                dir_up[0] = False
         else:
-            val -= 0.02
-            if val <= 0.0:
-                val = 0.0
-                dir_up = True
+            val[0] -= 0.02
+            if val[0] <= 0.0:
+                val[0] = 0.0
+                dir_up[0] = True
 
-        trig_left.update_level(val)
-        trig_right.update_level(1.0 - val)
+        trig_left.update_level(val[0])
+        trig_right.update_level(1.0 - val[0])
 
     timer = QTimer()
     timer.timeout.connect(tick)

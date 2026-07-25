@@ -204,12 +204,11 @@ if __name__ == "__main__":
 
     # Simulate 60Hz telemetry updates
     from PySide6.QtCore import QTimer
-    angle = 0.0
+    angle = [0.0]
 
     def tick():
-        nonlocal angle
-        angle += 0.05
-        radar.update_telemetry(math.cos(angle) * 0.8, math.sin(angle) * 0.8)
+        angle[0] += 0.05
+        radar.update_telemetry(math.cos(angle[0]) * 0.8, math.sin(angle[0]) * 0.8)
 
     timer = QTimer()
     timer.timeout.connect(tick)

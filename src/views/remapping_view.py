@@ -69,15 +69,15 @@ class ScrollTesterWidget(QFrame):
 class KeyRecorderDialog(QDialog):
     """
     Modal dialog to capture keyboard press/combo, mouse buttons, or scroll wheel notch settings.
-    Uses native Qt key events for rock-solid combo recording (no modifier loss / last input bug)
-    and explicit mouse action buttons (no accidental mouse_left captures when clicking UI).
-    Restores complete Notch Amount UI from legacy GUI.
+    Records sequences (e.g., alt_l+up, j+o+g) by tracking keypresses and complete releases.
     """
-
     def __init__(self, button_name, parent=None):
         super().__init__(parent)
         self.button_name = button_name
         self.recorded_binding = ""
+        self.recorded_sequences = []
+        self.active_keys = set()
+        self.current_chord_keys = set()
 
         self.setWindowTitle(f"Record Input for [{button_name}]")
         self.resize(460, 340)
@@ -98,9 +98,7 @@ class KeyRecorderDialog(QDialog):
         self.lbl_key.setAlignment(Qt.AlignmentFlag.AlignCenter)
         layout.addWidget(self.lbl_key)
 
-        # ---------------------------------------------------------------------
-        # Mouse Actions Section (Explicit Buttons to prevent accidental capture)
-        # ---------------------------------------------------------------------
+        # Mouse Actions
         mouse_box = QFrame()
         mouse_box.setStyleSheet("background: rgba(0,0,0,0.3); border: 1px solid rgba(255,255,255,0.1); border-radius: 6px; padding: 6px;")
         m_layout = QVBoxLayout(mouse_box)
@@ -119,9 +117,7 @@ class KeyRecorderDialog(QDialog):
         m_layout.addLayout(m_btn_row)
         layout.addWidget(mouse_box)
 
-        # ---------------------------------------------------------------------
-        # Scroll Wheel Notch Amount UI (Matching Legacy GUI 1:1)
-        # ---------------------------------------------------------------------
+        # Scroll Wheel Notch UI
         scroll_box = QFrame()
         scroll_box.setStyleSheet("background: rgba(0,0,0,0.3); border: 1px solid rgba(255,255,255,0.1); border-radius: 6px; padding: 6px;")
         s_layout = QVBoxLayout(scroll_box)
@@ -137,14 +133,12 @@ class KeyRecorderDialog(QDialog):
         grid_notch.addWidget(QLabel("Direction:"), 0, 0)
         self.combo_scroll_dir = QComboBox()
         self.combo_scroll_dir.addItems(["Scroll Up", "Scroll Down"])
-        self.combo_scroll_dir.currentIndexChanged.connect(self.update_scroll_binding)
         grid_notch.addWidget(self.combo_scroll_dir, 0, 1)
 
         grid_notch.addWidget(QLabel("Notches:"), 0, 2)
         self.spin_notches = QSpinBox()
         self.spin_notches.setRange(1, 50)
         self.spin_notches.setValue(1)
-        self.spin_notches.valueChanged.connect(self.update_scroll_binding)
         grid_notch.addWidget(self.spin_notches, 0, 3)
 
         grid_notch.addWidget(QLabel("Mode:"), 1, 0)
@@ -152,8 +146,6 @@ class KeyRecorderDialog(QDialog):
         self.radio_oneshot = QRadioButton("Oneshot")
         self.radio_continuous = QRadioButton("Continuous")
         self.radio_oneshot.setChecked(True)
-        self.radio_oneshot.toggled.connect(self.update_scroll_binding)
-        self.radio_continuous.toggled.connect(self.update_scroll_binding)
         mode_box.addWidget(self.radio_oneshot)
         mode_box.addWidget(self.radio_continuous)
         grid_notch.addLayout(mode_box, 1, 1)
@@ -163,7 +155,6 @@ class KeyRecorderDialog(QDialog):
         self.spin_delay.setRange(0.01, 2.00)
         self.spin_delay.setSingleStep(0.05)
         self.spin_delay.setValue(0.05)
-        self.spin_delay.valueChanged.connect(self.update_scroll_binding)
         grid_notch.addWidget(self.spin_delay, 1, 3)
 
         s_layout.addLayout(grid_notch)
@@ -172,13 +163,14 @@ class KeyRecorderDialog(QDialog):
         btn_apply_scroll.setObjectName("SecondaryBtn")
         btn_apply_scroll.clicked.connect(self.update_scroll_binding)
         s_layout.addWidget(btn_apply_scroll)
-
         layout.addWidget(scroll_box)
 
-        # ---------------------------------------------------------------------
-        # Dialog Action Buttons (Matching Legacy Screenshot 3 Dual Save Buttons)
-        # ---------------------------------------------------------------------
+        # Buttons
         btn_box = QHBoxLayout()
+        btn_clear = QPushButton("Clear")
+        btn_clear.setObjectName("SecondaryBtn")
+        btn_clear.clicked.connect(self.clear_bindings)
+        
         self.btn_save_std = QPushButton("Save Standard")
         self.btn_save_std.setObjectName("PrimaryBtn")
         self.btn_save_std.setEnabled(False)
@@ -193,6 +185,7 @@ class KeyRecorderDialog(QDialog):
         btn_cancel.setObjectName("SecondaryBtn")
         btn_cancel.clicked.connect(self.reject)
 
+        btn_box.addWidget(btn_clear)
         btn_box.addWidget(self.btn_save_std)
         btn_box.addWidget(self.btn_save_shift)
         btn_box.addWidget(btn_cancel)
@@ -203,69 +196,89 @@ class KeyRecorderDialog(QDialog):
         self.accept()
 
     def set_direct_binding(self, code: str):
-        self.recorded_binding = code
-        self.lbl_key.setText(f"[ {code} ]")
-        self.btn_save_std.setEnabled(True)
-        self.btn_save_shift.setEnabled(True)
+        self.recorded_sequences.append(code)
+        self._update_display()
+
+    def clear_bindings(self):
+        self.recorded_sequences.clear()
+        self.active_keys.clear()
+        self.current_chord_keys.clear()
+        self._update_display()
 
     def update_scroll_binding(self):
         s_dir = "scroll_up" if self.combo_scroll_dir.currentIndex() == 0 else "scroll_down"
         notches = self.spin_notches.value()
         mode = "oneshot" if self.radio_oneshot.isChecked() else "continuous"
         delay = self.spin_delay.value()
-        self.recorded_binding = f"{s_dir}:{notches}:{mode}:{delay:.2f}"
-        self.lbl_key.setText(f"[ {self.recorded_binding} ]")
-        self.btn_save_std.setEnabled(True)
-        self.btn_save_shift.setEnabled(True)
+        self.recorded_sequences.append(f"{s_dir}:{notches}:{mode}:{delay:.2f}")
+        self._update_display()
+
+    def _update_display(self):
+        display_str = ""
+        if self.recorded_sequences:
+            display_str = ", ".join(self.recorded_sequences)
+        
+        if self.active_keys:
+            active_str = "keyboard:" + "+".join(sorted(list(self.active_keys)))
+            if display_str:
+                display_str += f", {active_str}..."
+            else:
+                display_str = f"{active_str}..."
+                
+        if not display_str:
+            display_str = "⚡ Press key / combo or use Notch UI below"
+            self.recorded_binding = ""
+            self.btn_save_std.setEnabled(False)
+            self.btn_save_shift.setEnabled(False)
+        else:
+            self.recorded_binding = ", ".join(self.recorded_sequences)
+            self.btn_save_std.setEnabled(True)
+            self.btn_save_shift.setEnabled(True)
+            
+        self.lbl_key.setText(f"[ {display_str} ]")
+
+    def _qt_key_to_string(self, key, text):
+        key_map = {
+            Qt.Key.Key_Space: "space", Qt.Key.Key_Return: "enter", Qt.Key.Key_Enter: "enter",
+            Qt.Key.Key_Tab: "tab", Qt.Key.Key_Backspace: "backspace", Qt.Key.Key_Escape: "escape",
+            Qt.Key.Key_Delete: "delete", Qt.Key.Key_Up: "up", Qt.Key.Key_Down: "down",
+            Qt.Key.Key_Left: "left", Qt.Key.Key_Right: "right", Qt.Key.Key_Shift: "shift",
+            Qt.Key.Key_Control: "ctrl", Qt.Key.Key_Alt: "alt_l", Qt.Key.Key_Meta: "win"
+        }
+        if key in key_map:
+            return key_map[key]
+        for i in range(1, 13):
+            if key == getattr(Qt.Key, f"Key_F{i}"):
+                return f"f{i}"
+        if text and text.strip() and text not in ("\r", "\n", "\t"):
+            return text.lower().strip()
+        return None
 
     def keyPressEvent(self, event):
         key = event.key()
-        if key in (Qt.Key.Key_Control, Qt.Key.Key_Shift, Qt.Key.Key_Alt, Qt.Key.Key_Meta):
+        key_str = self._qt_key_to_string(key, event.text())
+        if not key_str:
+            super().keyPressEvent(event)
             return
 
-        mods = []
-        qt_mods = event.modifiers()
-        if qt_mods & Qt.KeyboardModifier.ControlModifier:
-            mods.append("ctrl")
-        if qt_mods & Qt.KeyboardModifier.ShiftModifier:
-            mods.append("shift")
-        if qt_mods & Qt.KeyboardModifier.AltModifier:
-            mods.append("alt")
-        if qt_mods & Qt.KeyboardModifier.MetaModifier:
-            mods.append("win")
+        self.active_keys.add(key_str)
+        self.current_chord_keys.add(key_str)
+        self._update_display()
 
-        key_str = ""
-        text = event.text().lower()
-        if text and text.strip() and text not in ("\r", "\n", "\t"):
-            key_str = text.strip()
-        else:
-            key_map = {
-                Qt.Key.Key_Space: "space",
-                Qt.Key.Key_Return: "enter",
-                Qt.Key.Key_Enter: "enter",
-                Qt.Key.Key_Tab: "tab",
-                Qt.Key.Key_Backspace: "backspace",
-                Qt.Key.Key_Escape: "escape",
-                Qt.Key.Key_Delete: "delete",
-                Qt.Key.Key_Up: "up",
-                Qt.Key.Key_Down: "down",
-                Qt.Key.Key_Left: "left",
-                Qt.Key.Key_Right: "right",
-                Qt.Key.Key_F1: "f1", Qt.Key.Key_F2: "f2", Qt.Key.Key_F3: "f3", Qt.Key.Key_F4: "f4",
-                Qt.Key.Key_F5: "f5", Qt.Key.Key_F6: "f6", Qt.Key.Key_F7: "f7", Qt.Key.Key_F8: "f8",
-                Qt.Key.Key_F9: "f9", Qt.Key.Key_F10: "f10", Qt.Key.Key_F11: "f11", Qt.Key.Key_F12: "f12",
-            }
-            key_str = key_map.get(key, "")
+    def keyReleaseEvent(self, event):
+        key = event.key()
+        key_str = self._qt_key_to_string(key, "")
+        
+        if key_str in self.active_keys:
+            self.active_keys.remove(key_str)
+            
+        if not self.active_keys and self.current_chord_keys:
+            chord = "keyboard:" + "+".join(sorted(list(self.current_chord_keys)))
+            self.recorded_sequences.append(chord)
+            self.current_chord_keys.clear()
+            self._update_display()
 
-        if key_str:
-            combo = "+".join(mods + [key_str]) if mods else key_str
-            self.set_direct_binding(combo)
-        else:
-            super().keyPressEvent(event)
-
-    def closeEvent(self, event):
-        super().closeEvent(event)
-        super().closeEvent(event)
+        super().keyReleaseEvent(event)
 
 
 class RemappingView(QWidget):

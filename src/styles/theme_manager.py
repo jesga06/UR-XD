@@ -236,12 +236,12 @@ class ThemeManager:
 
         /* Dropdown Menus (QComboBox) with Thin Outlines */
         QComboBox {{
-            background-color: rgba(16, 12, 28, 0.95);
-            border: 1px solid {theme['card_border']};
+            background-color: rgba(255, 255, 255, 0.05);
+            border: 1.5px solid {theme['card_border']};
             border-radius: 6px;
-            padding: 5px 10px;
+            padding: 6px 12px;
             color: {theme['text_main']};
-            font-weight: 600;
+            min-width: 120px;
         }}
 
         QComboBox:hover, QComboBox:focus {{
@@ -250,7 +250,7 @@ class ThemeManager:
         }}
 
         QComboBox QAbstractItemView {{
-            background-color: {theme['base_bg']};
+            background-color: rgba(255, 255, 255, 0.05);
             border: 1px solid {theme['card_hover_border']};
             selection-background-color: {theme['primary']};
             selection-color: #ffffff;
@@ -260,7 +260,7 @@ class ThemeManager:
 
         /* Mandatory 1.5px Outlines Across EVERY Typable Text Box in the GUI */
         QLineEdit, QPlainTextEdit, QSpinBox, QDoubleSpinBox, QLineEdit#OutlinedEdit {{
-            background-color: rgba(10, 7, 18, 0.95) !important;
+            background-color: rgba(255, 255, 255, 0.05) !important;
             border: 1.5px solid {theme['glow']} !important;
             border-radius: 6px;
             padding: 6px 10px;

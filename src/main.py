@@ -64,7 +64,7 @@ def open_config(icon, item):
     try:
         script_dir = os.path.dirname(os.path.abspath(__file__))
         gui_path = os.path.join(script_dir, 'gui.py')
-        cmd = [sys.executable, gui_path, '--append-log']
+        cmd = [sys.executable, gui_path]
         if is_debug_mode:
             cmd.append('--debug')
         if logger:

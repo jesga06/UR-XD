@@ -168,6 +168,8 @@ class Mapper:
                         'mode': mode,
                         'layer': 'layer_base'
                     })
+                    if action not in self.mappings['layer_base']:
+                        self.mappings['layer_base'][action] = ''
 
     def _mouse_interpolation_loop(self):
         # Runs at 250Hz for smooth mouse movement

@@ -9,13 +9,14 @@ def process_analog_stick(
     anti_dz: float,
     curve_type: str,
     power: float,
+    warp_threshold: float = 1.0,
     rest_dz: float = 0.0,
     sensitivity: float = 1.0,
     custom_eq: str = ""
 ) -> Tuple[float, float]:
     """
     Processes an analog stick's X and Y coordinates.
-    Applies a radial inner deadzone.
+    Applies a radial inner deadzone and outer warp threshold.
     Applies a rest deadzone (secondary buffer to prevent anti-deadzone from activating on drift).
     Applies a mathematical response curve to the magnitude to preserve circular diagonals.
     Applies an anti-deadzone offset to the magnitude.
@@ -26,11 +27,11 @@ def process_analog_stick(
     if magnitude < inner_dz:
         return 0.0, 0.0
         
-    # Cap magnitude at 1.0 (outer deadzone essentially 1.0)
-    magnitude = min(magnitude, 1.0)
+    # Cap magnitude at outer deadzone
+    magnitude = min(magnitude, warp_threshold)
     
-    # Normalize magnitude between inner_dz and 1.0 to [0.0, 1.0]
-    norm_mag = (magnitude - inner_dz) / (1.0 - inner_dz) if inner_dz < 1.0 else 0.0
+    # Normalize magnitude between inner_dz and warp_threshold to [0.0, 1.0]
+    norm_mag = (magnitude - inner_dz) / (warp_threshold - inner_dz) if inner_dz < warp_threshold else 0.0
     
     # Rest deadzone: if the normalized magnitude is below this threshold,
     # treat it as zero to prevent drift from activating the anti-deadzone.

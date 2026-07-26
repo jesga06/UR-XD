@@ -5,23 +5,36 @@ instantiates the main window and native system tray integration.
 """
 
 import sys
+import argparse
 from PySide6.QtWidgets import QApplication
 
+from logger_setup import setup_gui_loggers
 from theme import GLOBAL_QSS
 from app_window import MainWindow
 from tray_icon import TrayManager
+
 
 def main():
     """
     Main execution hook for the GUI process.
     Initializes non-blocking Qt execution loop.
     """
+    # Parse --debug before doing anything else so loggers are ready
+    parser = argparse.ArgumentParser()
+    parser.add_argument('--debug', '-d', action='store_true',
+                        help='Enable verbose debug logging')
+    args, _ = parser.parse_known_args()
+
+    # Wire all GUI module loggers to the shared wrapper.log (append so daemon
+    # entries and GUI entries appear in one file in chronological order)
+    setup_gui_loggers('wrapper.log', args.debug)
+
     # Create the application
     app = QApplication(sys.argv)
-    
-    # Enable quitting on last window closed? 
+
+    # Enable quitting on last window closed?
     # No, we want the system tray to keep it alive even if window is closed,
-    # but the prompt implies hiding it toggles visibility. 
+    # but the prompt implies hiding it toggles visibility.
     # So we don't quit on last window closed.
     app.setQuitOnLastWindowClosed(False)
 

@@ -26,7 +26,7 @@ from backend_xinput import XInputBackend
 import ctypes
 import argparse
 import subprocess
-from logger_setup import setup_logger
+from logger_setup import setup_logger, setup_telemetry_logger
 from single_instance import ensure_single_instance
 
 is_debug_mode = False
@@ -138,6 +138,7 @@ def main():
 
     is_debug_mode = args.debug
     logger = setup_logger('main', 'wrapper.log', is_debug_mode)
+    telemetry_logger = setup_telemetry_logger('wrapper_telemetry.log')
 
     hide_console()
     write_status("Starting...")
@@ -376,8 +377,8 @@ def main():
         nonlocal last_log_time
         current_time = time.time()
 
-        if is_debug_mode and (current_time - last_log_time) >= 0.5:
-            logger.debug(f"[DATA HANDLER] Throttle boundary reached. DECODED STATE: {state}")
+        if is_debug_mode and (current_time - last_log_time) >= 1.0:
+            telemetry_logger.debug(f"[DECODED STATE] {state}")
             last_log_time = current_time
 
         # Pipeline: Hardware Chords -> Mapper -> VirtualPad

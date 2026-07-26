@@ -460,6 +460,19 @@ class Mapper:
             # stale presses bleeding into the new layer's mapping context.
             self.pending_inputs.clear()
             logger.debug(f"[MAPPER] LAYER TRANSITION complete. Now in {self.active_layer!r}")
+
+            # Replay press actions for buttons physically held at the moment of transition.
+            # Without this, a button held through a layer switch has no edge in the new layer
+            # and its new mapping never fires until a release+re-press cycle.
+            new_active_map = self.mappings.get(self.active_layer, {})
+            for b_pressed, is_down in all_buttons.items():
+                if is_down and b_pressed not in consumed_shift_buttons:
+                    mapping = new_active_map.get(b_pressed)
+                    if mapping and mapping != 'guide':
+                        logger.debug(f"[MAPPER]   Replaying held btn={b_pressed!r} -> {mapping!r} in new layer")
+                        self._press(mapping)
+                        self.active_holds[b_pressed] = mapping
+
         
         # Pre-process analog sticks
         active_map = self.mappings.get(self.active_layer, {})

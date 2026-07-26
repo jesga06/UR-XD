@@ -5,28 +5,26 @@ import sys
 def setup_logger(name: str, log_file: str, is_debug: bool, append: bool = False) -> logging.Logger:
     """
     Configures and returns a logging.Logger instance with file handler.
-    Also sets the root logger level so all child getLogger() loggers inherit it.
+    Also adds a root-level handler as a catch-all so every child logger
+    (mapper, decoder, etc.) that uses getLogger('name') propagates here.
     """
     level = logging.DEBUG if is_debug else logging.INFO
-
-    # Propagate level to root so child loggers (mapper, decoder, etc.) are
-    # gated at the same level without needing individual setup calls.
-    logging.getLogger().setLevel(level)
-
-    logger = logging.getLogger(name)
-    logger.setLevel(level)
-
-    if logger.handlers:
-        return logger
-
     formatter = logging.Formatter(
         '%(asctime)s - %(name)s - %(levelname)s - %(message)s')
 
-    file_handler = logging.FileHandler(
-        log_file, mode='a' if append else 'w', encoding='utf-8')
-    file_handler.setFormatter(formatter)
-    logger.addHandler(file_handler)
+    # Wire root logger so all child loggers that propagate land in this file
+    root = logging.getLogger()
+    root.setLevel(level)
+    if not any(isinstance(h, logging.FileHandler) and getattr(h, 'baseFilename', '').endswith(log_file)
+               for h in root.handlers):
+        root_fh = logging.FileHandler(log_file, mode='w', encoding='utf-8')
+        root_fh.setFormatter(formatter)
+        root.addHandler(root_fh)
 
+    # Named logger for 'main' (or whatever the caller uses)
+    logger = logging.getLogger(name)
+    logger.setLevel(level)
+    # Named logger can propagate to root — no separate handler needed
     return logger
 
 
@@ -56,22 +54,14 @@ def setup_gui_loggers(log_file: str, is_debug: bool) -> None:
     Called once at GUI startup after parsing --debug.
     """
     level = logging.DEBUG if is_debug else logging.INFO
-    logging.getLogger().setLevel(level)
 
-    gui_modules = [
-        'remapping_view', 'key_recorder_dialog', 'mapper',
-        'config_manager', 'app_window', 'tray_icon',
-        'dashboard_view', 'haptic_engine', 'macro_executor',
-    ]
-
+    # Wire root so every logger in the GUI process lands in the file
+    root = logging.getLogger()
+    root.setLevel(level)
     formatter = logging.Formatter(
         '%(asctime)s - %(name)s - %(levelname)s - %(message)s')
-
-    for mod_name in gui_modules:
-        mod_logger = logging.getLogger(mod_name)
-        if mod_logger.handlers:
-            continue
-        mod_logger.setLevel(level)
-        fh = logging.FileHandler(log_file, mode='a', encoding='utf-8')
-        fh.setFormatter(formatter)
-        mod_logger.addHandler(fh)
+    if not any(isinstance(h, logging.FileHandler) and getattr(h, 'baseFilename', '').endswith(log_file)
+               for h in root.handlers):
+        root_fh = logging.FileHandler(log_file, mode='a', encoding='utf-8')
+        root_fh.setFormatter(formatter)
+        root.addHandler(root_fh)

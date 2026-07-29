@@ -410,7 +410,6 @@ class Mapper:
 
             if mode == 'toggle':
                 if l_id in self.toggled_shift_layers:
-                    logger.debug(f"[MAPPER] Chord shift layer {l_id!r} ACTIVE (toggle) trig={trig!r} mod={mod!r}")
                     target_layer = l_id
                     consumed_shift_buttons.add(trig)
                     consumed_shift_buttons.add(mod)
@@ -418,7 +417,6 @@ class Mapper:
                     break
             else: # hold
                 if all_buttons.get(trig, False) and all_buttons.get(mod, False):
-                    logger.debug(f"[MAPPER] Chord shift layer {l_id!r} ACTIVE (hold) trig={trig!r} mod={mod!r}")
                     target_layer = l_id
                     consumed_shift_buttons.add(trig)
                     consumed_shift_buttons.add(mod)
@@ -434,13 +432,11 @@ class Mapper:
 
                 if mode == 'toggle':
                     if l_id in self.toggled_shift_layers:
-                        logger.debug(f"[MAPPER] Single shift layer {l_id!r} ACTIVE (toggle) trig={trig!r}")
                         target_layer = l_id
                         consumed_shift_buttons.add(trig)
                         break
                 else: # hold
                     if all_buttons.get(trig, False):
-                        logger.debug(f"[MAPPER] Single shift layer {l_id!r} ACTIVE (hold) trig={trig!r}")
                         target_layer = l_id
                         consumed_shift_buttons.add(trig)
                         break

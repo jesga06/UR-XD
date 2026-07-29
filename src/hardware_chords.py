@@ -96,6 +96,12 @@ class HardwareChordEngine:
     def process(self, state: ControllerState) -> ControllerState:
         now = time.time()
         
+        # Reset all managed hardware chord action states to False before evaluating current frame state
+        for chord in self.chords:
+            action = chord.get('action')
+            if action:
+                self._set_button_state(state, action, False)
+
         # Track currently pressed buttons for this frame using zero-allocation set reuse
         current_pressed = self._current_pressed
         current_pressed.clear()

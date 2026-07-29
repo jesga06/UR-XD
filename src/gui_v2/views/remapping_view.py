@@ -125,9 +125,11 @@ _BTN_LABEL = "color: #a855f7; font-weight: bold; font-size: 12px;"
 
 class RemappingView(QWidget):
     """
-    Primary remapping tab view.  Exposes shift layer management and
+    Primary remapping tab view. Exposes shift layer management and
     per-button mapping, block, and shift-map controls.
     """
+
+    _has_shown_block_warning: bool = False
 
     def __init__(self, config_manager: Any, parent=None):
         super().__init__(parent)
@@ -174,7 +176,7 @@ class RemappingView(QWidget):
         inner_layout.setContentsMargins(0, 0, 0, 0)
         inner_layout.setSpacing(12)
 
-        # 1. Shift layer management card
+        # 1. Shift layer management card (compact 2-row layout)
         inner_layout.addWidget(self._build_shift_layer_panel())
 
         # 2. Button mapping grids (2-column layout)
@@ -210,19 +212,21 @@ class RemappingView(QWidget):
         outer.addWidget(scroll)
 
     def _build_shift_layer_panel(self) -> QGroupBox:
-        """Builds the shift layer configuration card."""
+        """Builds the shift layer configuration card (compact 2-row layout)."""
         group = QGroupBox("SHIFT LAYERS CONFIGURATION & MANAGEMENT")
         group.setStyleSheet(_CARD_STYLE)
         layout = QVBoxLayout(group)
-        layout.setSpacing(8)
+        layout.setContentsMargins(10, 6, 10, 8)
+        layout.setSpacing(4)
 
         # Row 1: Layer selector + management buttons
         row1 = QHBoxLayout()
+        row1.setSpacing(6)
         row1.addWidget(QLabel("Active Layer:"))
 
         self.layer_selector = QComboBox()
         self.layer_selector.setStyleSheet(_INPUT_STYLE)
-        self.layer_selector.setMinimumWidth(200)
+        self.layer_selector.setMinimumWidth(180)
         self._populate_layer_selector()
         self.layer_selector.currentIndexChanged.connect(self._on_layer_changed)
         row1.addWidget(self.layer_selector)
@@ -244,8 +248,9 @@ class RemappingView(QWidget):
         row1.addStretch()
         layout.addLayout(row1)
 
-        # Row 2: Trigger + Modifier buttons
+        # Row 2: Trigger + Modifier + Mode (consolidated layout)
         row2 = QHBoxLayout()
+        row2.setSpacing(6)
         row2.addWidget(QLabel("Shift Trigger Key:"))
 
         trigger_items = list(BASE_TRIGGER_BUTTONS)
@@ -260,7 +265,7 @@ class RemappingView(QWidget):
         self.trigger_combo.currentTextChanged.connect(self._on_trigger_changed)
         row2.addWidget(self.trigger_combo)
 
-        row2.addSpacing(20)
+        row2.addSpacing(10)
         row2.addWidget(QLabel("Shift Modifier:"))
 
         self.modifier_combo = QComboBox()
@@ -268,12 +273,9 @@ class RemappingView(QWidget):
         self.modifier_combo.setStyleSheet(_INPUT_STYLE)
         self.modifier_combo.currentTextChanged.connect(self._on_modifier_changed)
         row2.addWidget(self.modifier_combo)
-        row2.addStretch()
-        layout.addLayout(row2)
 
-        # Row 3: Trigger Mode radio buttons
-        row3 = QHBoxLayout()
-        row3.addWidget(QLabel("Shift Trigger Mode:"))
+        row2.addSpacing(10)
+        row2.addWidget(QLabel("Shift Mode:"))
 
         self._mode_group = QButtonGroup(self)
         rb_toggle = QRadioButton("Toggle")
@@ -285,10 +287,10 @@ class RemappingView(QWidget):
         rb_hold.setChecked(True)
 
         self._mode_group.idToggled.connect(self._on_mode_changed)
-        row3.addWidget(rb_toggle)
-        row3.addWidget(rb_hold)
-        row3.addStretch()
-        layout.addLayout(row3)
+        row2.addWidget(rb_toggle)
+        row2.addWidget(rb_hold)
+        row2.addStretch()
+        layout.addLayout(row2)
 
         # Sync UI to current layer
         self._sync_layer_settings()
@@ -452,6 +454,55 @@ class RemappingView(QWidget):
         logger.debug(f"[REMAP] _set_shift_mapping({key!r}, {value!r}) — layer={layer.get('id')!r} mappings={layer.get('mappings')}")
 
     # ------------------------------------------------------------------
+    # Auto-blocking & Warning Notification
+    # ------------------------------------------------------------------
+    def _show_double_input_warning_once(self) -> None:
+        """Shows double input warning notice once per GUI session."""
+        if not RemappingView._has_shown_block_warning:
+            RemappingView._has_shown_block_warning = True
+            QMessageBox.information(
+                self,
+                "Block XInput Auto-Activated",
+                "Block XInput has been automatically enabled for this remapped button.\n\n"
+                "If Block XInput is disabled on a remapped button, games will receive "
+                "both native controller input and remapped key/macro input simultaneously (double inputs)."
+            )
+
+    def _auto_enable_block(self, key: str) -> None:
+        """Automatically checks Block XInput for remapped key if not already checked."""
+        widgets = self._row_widgets.get(key.lower(), {})
+        blk_cb: Optional[QCheckBox] = widgets.get("blk")
+        if blk_cb and not blk_cb.isChecked():
+            blk_cb.blockSignals(True)
+            blk_cb.setChecked(True)
+            blk_cb.blockSignals(False)
+            self._set_block_state(key, True)
+            self.mark_config_dirty()
+            self._show_double_input_warning_once()
+
+    # ------------------------------------------------------------------
+    # Shift Key Home Button + Hold Warning
+    # ------------------------------------------------------------------
+    def _is_home_hold_warning_condition(self) -> bool:
+        """Returns True if the active shift layer trigger is Home/Guide and mode is Hold."""
+        layer = self._active_layer()
+        if layer is None:
+            return False
+        trig = str(layer.get("trigger_button", "")).strip().lower()
+        mode = str(layer.get("mode", "")).strip().lower()
+        return trig in ("home", "guide") and mode == "hold"
+
+    def _check_home_hold_warning(self) -> None:
+        """Shows warning notice if shift trigger is Home/Guide in Hold mode."""
+        if self._is_home_hold_warning_condition():
+            QMessageBox.warning(
+                self,
+                "Recommended Setting Notice",
+                "Holding the Home button for several seconds may force turn off your controller or trigger OS shortcuts.\n\n"
+                "It is strongly recommended to set the Shift Mode to 'toggle' instead of 'hold' when using the Home button as your Shift Key."
+            )
+
+    # ------------------------------------------------------------------
     # Debounced save
     # ------------------------------------------------------------------
     def mark_config_dirty(self) -> None:
@@ -473,18 +524,29 @@ class RemappingView(QWidget):
     # ------------------------------------------------------------------
     @Slot(str)
     def _on_std_mapping_changed(self, key: str, text: str) -> None:
-        self._set_base_mapping(key, text.strip())
+        clean_text = text.strip()
+        self._set_base_mapping(key, clean_text)
         self.mark_config_dirty()
+        if clean_text:
+            self._auto_enable_block(key)
 
     @Slot(int)
     def _on_block_changed(self, key: str, checked: bool) -> None:
         self._set_block_state(key, checked)
         self.mark_config_dirty()
+        if not checked:
+            base_map = self._get_base_mapping(key)
+            shift_map = self._get_shift_mapping(key)
+            if base_map or shift_map:
+                self._show_double_input_warning_once()
 
     @Slot(str)
     def _on_shift_mapping_changed(self, key: str, text: str) -> None:
-        self._set_shift_mapping(key, text.strip())
+        clean_text = text.strip()
+        self._set_shift_mapping(key, clean_text)
         self.mark_config_dirty()
+        if clean_text:
+            self._auto_enable_block(key)
 
     # ------------------------------------------------------------------
     # Key recorder dialog
@@ -511,6 +573,7 @@ class RemappingView(QWidget):
                     std_edit.blockSignals(True)
                     std_edit.setText(mapping_str)
                     std_edit.blockSignals(False)
+            self._auto_enable_block(button_name.lower())
             self.mark_config_dirty()
 
         dlg.input_recorded.connect(_handle_recorded)
@@ -543,40 +606,35 @@ class RemappingView(QWidget):
         self.layer_selector.clear()
         for layer in self.config.get_shift_layers():
             self.layer_selector.addItem(
-                layer.get("name", layer.get("id", "?")),
-                userData=layer.get("id")
+                layer.get("name", layer.get("id", "")),
+                userData=layer["id"]
             )
-        # Restore previous selection if still valid
-        new_count = self.layer_selector.count()
-        target = max(0, min(prev_idx, new_count - 1))
-        self.layer_selector.setCurrentIndex(target)
+        target_idx = max(0, min(prev_idx, self.layer_selector.count() - 1))
+        self.layer_selector.setCurrentIndex(target_idx)
         self.layer_selector.blockSignals(False)
 
     def _sync_layer_settings(self) -> None:
-        """Syncs trigger / modifier / mode UI to the currently selected layer."""
+        """Updates Trigger, Modifier, Mode, and shift mapping fields for active layer."""
         layer = self._active_layer()
         if layer is None:
             return
 
-        trigger = layer.get("trigger_button", "") or ""
-        modifier = layer.get("modifier_button", "") or ""
-        mode = layer.get("mode", "hold") or "hold"
-
-        # Trigger combo
-        idx = self.trigger_combo.findText(trigger)
+        trig = layer.get("trigger_button", "")
         self.trigger_combo.blockSignals(True)
-        self.trigger_combo.setCurrentIndex(max(0, idx))
+        idx = self.trigger_combo.findText(trig, Qt.MatchFlag.MatchExactly)
+        self.trigger_combo.setCurrentIndex(idx if idx >= 0 else 0)
         self.trigger_combo.blockSignals(False)
 
-        # Modifier combo
-        idx2 = self.modifier_combo.findText(modifier)
+        mod = layer.get("modifier_button", "")
         self.modifier_combo.blockSignals(True)
-        self.modifier_combo.setCurrentIndex(max(0, idx2))
+        idx = self.modifier_combo.findText(mod, Qt.MatchFlag.MatchExactly)
+        self.modifier_combo.setCurrentIndex(idx if idx >= 0 else 0)
         self.modifier_combo.blockSignals(False)
 
-        # Mode radio
+        mode = layer.get("mode", "hold")
+        btn_id = 0 if mode == "toggle" else 1
         self._mode_group.blockSignals(True)
-        btn = self._mode_group.button(0 if mode == "toggle" else 1)
+        btn = self._mode_group.button(btn_id)
         if btn:
             btn.setChecked(True)
         self._mode_group.blockSignals(False)
@@ -599,6 +657,7 @@ class RemappingView(QWidget):
         if layer is not None:
             layer["trigger_button"] = text
             self.mark_config_dirty()
+            self._check_home_hold_warning()
 
     @Slot(str)
     def _on_modifier_changed(self, text: str) -> None:
@@ -615,6 +674,7 @@ class RemappingView(QWidget):
         if layer is not None:
             layer["mode"] = "toggle" if btn_id == 0 else "hold"
             self.mark_config_dirty()
+            self._check_home_hold_warning()
 
     def _add_layer(self) -> None:
         name, ok = QInputDialog.getText(self, "Add Shift Layer", "Layer name:")

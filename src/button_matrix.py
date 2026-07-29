@@ -221,6 +221,64 @@ class ExtraButtonArray(QFrame):
             pill.set_active(is_pressed)
 
 
+def get_extra_button_actions(config_data: Dict[str, Any]) -> List[str]:
+    """
+    Extracts human-configured extra button actions (e.g. L4, R4, M1, M2)
+    from extra_buttons, settings.extra_inputs, and hardware_chords.
+    Never includes internal rule keys (e.g. hw_0, hw_1).
+    """
+    if not isinstance(config_data, dict):
+        return []
+
+    extra_buttons: List[str] = []
+
+    # 1. Direct extra_buttons dictionary
+    eb_dict = config_data.get("extra_buttons", {})
+    if isinstance(eb_dict, dict) and eb_dict:
+        for k in eb_dict.keys():
+            k_lower = str(k).strip().lower()
+            if k_lower and k_lower not in extra_buttons:
+                extra_buttons.append(k_lower)
+    else:
+        eb_settings = config_data.get("settings", {}).get("extra_inputs", [])
+        if isinstance(eb_settings, list):
+            for x in eb_settings:
+                x_lower = str(x).strip().lower()
+                if x_lower and x_lower not in extra_buttons:
+                    extra_buttons.append(x_lower)
+        elif isinstance(eb_settings, dict):
+            for k in eb_settings.keys():
+                k_lower = str(k).strip().lower()
+                if k_lower and k_lower not in extra_buttons:
+                    extra_buttons.append(k_lower)
+
+    # 2. Extract target button action names from hardware_chords
+    hw_chords = config_data.get("hardware_chords", {})
+    chord_items = []
+    if isinstance(hw_chords, dict):
+        chord_items = list(hw_chords.values())
+    elif isinstance(hw_chords, list):
+        chord_items = hw_chords
+
+    import re
+    for item in chord_items:
+        action_name = None
+        if isinstance(item, dict):
+            action_name = item.get("action")
+        elif isinstance(item, str):
+            # Format: "chord=lb + select; action=L4; mode=auto; delayed=select"
+            m = re.search(r"action\s*=\s*([^;]+)", item, re.IGNORECASE)
+            if m:
+                action_name = m.group(1).strip()
+
+        if action_name:
+            act_lower = str(action_name).strip().lower()
+            if act_lower and act_lower not in extra_buttons:
+                extra_buttons.append(act_lower)
+
+    return extra_buttons
+
+
 class ButtonMatrix(QWidget):
     """
     Master widget containing StandardButtonArray and ExtraButtonArray inside a vertical layout.
@@ -248,7 +306,7 @@ class ButtonMatrix(QWidget):
 
     def load_profile_schema(self, config_obj: Any, backend_mode: str = "auto") -> None:
         """
-        Parses configuration object, identifies extra inputs based on backend mode,
+        Parses configuration object, identifies extra inputs,
         and triggers dynamic rebuilding of ExtraButtonArray.
         """
         config_data = {}
@@ -257,33 +315,7 @@ class ButtonMatrix(QWidget):
         elif isinstance(config_obj, dict):
             config_data = config_obj
 
-        extra_buttons: List[str] = []
-
-        mode_str = str(backend_mode).lower()
-        if mode_str == "xinput":
-            # In XInput mode, native extra endpoints are restricted; resolve via hardware chords
-            hw_chords = config_data.get("hardware_chords", {})
-            if isinstance(hw_chords, dict):
-                extra_buttons = list(hw_chords.keys())
-        else:
-            # DInput / HID / Auto mode: inspect extra_buttons or settings.extra_inputs
-            eb_dict = config_data.get("extra_buttons", {})
-            if isinstance(eb_dict, dict) and eb_dict:
-                extra_buttons = list(eb_dict.keys())
-            else:
-                eb_settings = config_data.get("settings", {}).get("extra_inputs", [])
-                if isinstance(eb_settings, list):
-                    extra_buttons = [str(x) for x in eb_settings]
-                elif isinstance(eb_settings, dict):
-                    extra_buttons = list(eb_settings.keys())
-
-            # Also combine any configured hardware chords
-            hw_chords = config_data.get("hardware_chords", {})
-            if isinstance(hw_chords, dict):
-                for chord_name in hw_chords.keys():
-                    if chord_name not in extra_buttons:
-                        extra_buttons.append(chord_name)
-
+        extra_buttons = get_extra_button_actions(config_data)
         self.extra_array.rebuild_extra_buttons(extra_buttons)
 
 

@@ -27,10 +27,18 @@ class DashboardView(QWidget):
     Primary live telemetry dashboard view for PySide6 interface.
     Receives high-frequency UDP telemetry signals and 1Hz/2Hz status/diagnostics signals.
     """
-    def __init__(self, parent=None):
+    def __init__(self, controller_config=None, parent=None):
         super().__init__(parent)
+        self.controller_config = controller_config
         self.last_active_chord: str = ""
         self.setup_ui()
+        if self.controller_config and hasattr(self, 'button_matrix'):
+            self.button_matrix.load_profile_schema(self.controller_config)
+
+    def set_config(self, controller_config) -> None:
+        self.controller_config = controller_config
+        if self.controller_config and hasattr(self, 'button_matrix'):
+            self.button_matrix.load_profile_schema(self.controller_config)
 
     def setup_ui(self) -> None:
         """
@@ -266,6 +274,13 @@ class DashboardView(QWidget):
             """)
 
         self.device_label.setText(f"🎮 {device}")
+
+        if self.controller_config and hasattr(self, 'button_matrix'):
+            try:
+                self.controller_config.load()
+            except Exception:
+                pass
+            self.button_matrix.load_profile_schema(self.controller_config)
 
     @Slot(dict)
     def update_diagnostics(self, diag_data: Dict[str, Any]) -> None:

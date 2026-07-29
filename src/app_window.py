@@ -98,7 +98,7 @@ class MainWindow(QMainWindow):
             if name == "Dashboard":
                 scroll_area = QScrollArea()
                 scroll_area.setWidgetResizable(True)
-                self.dashboard_view = DashboardView()
+                self.dashboard_view = DashboardView(controller_config=self.controller_config)
                 scroll_area.setWidget(self.dashboard_view)
                 self.tab_widget.addTab(scroll_area, name)
             elif name == "Remapping":

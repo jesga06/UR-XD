@@ -164,6 +164,8 @@ class KeyRecorderDialog(QDialog):
         self._kb_listener = None
         self._ms_listener = None
 
+        self.setFocusPolicy(Qt.StrongFocus)
+        self.setFocus()
         self._build_ui()
         self.start_listeners()
 
@@ -207,6 +209,7 @@ class KeyRecorderDialog(QDialog):
             ("Mouse 5", "mouse5"),
         ]:
             b = QPushButton(label)
+            b.setFocusPolicy(Qt.NoFocus)
             b.setStyleSheet(_BTN_ACCENT)
             b.clicked.connect(lambda checked=False, a=action: self._set_result(a))
             mouse_row.addWidget(b)
@@ -222,18 +225,22 @@ class KeyRecorderDialog(QDialog):
         btn_row.setSpacing(8)
 
         clear_btn = QPushButton("Clear")
+        clear_btn.setFocusPolicy(Qt.NoFocus)
         clear_btn.setStyleSheet(_BTN_CLEAR)
         clear_btn.clicked.connect(self._clear)
 
         save_std = QPushButton("Save Standard")
+        save_std.setFocusPolicy(Qt.NoFocus)
         save_std.setStyleSheet(_BTN_SAVE)
         save_std.clicked.connect(lambda: self._save_and_close("standard"))
 
         save_shift = QPushButton("Save Shift Map")
+        save_shift.setFocusPolicy(Qt.NoFocus)
         save_shift.setStyleSheet(_BTN_SHIFT)
         save_shift.clicked.connect(lambda: self._save_and_close("shift"))
 
         cancel_btn = QPushButton("Cancel")
+        cancel_btn.setFocusPolicy(Qt.NoFocus)
         cancel_btn.setStyleSheet(_BTN_CANCEL)
         cancel_btn.clicked.connect(self._cancel)
 
@@ -261,6 +268,8 @@ class KeyRecorderDialog(QDialog):
         self._scroll_mode_group.addButton(self._scroll_oneshot, 0)
         self._scroll_mode_group.addButton(self._scroll_continuous, 1)
         self._scroll_oneshot.toggled.connect(self._on_scroll_mode_changed)
+        self._scroll_oneshot.setFocusPolicy(Qt.NoFocus)
+        self._scroll_continuous.setFocusPolicy(Qt.NoFocus)
         for rb in (self._scroll_oneshot, self._scroll_continuous):
             rb.setStyleSheet("color: #ffffff;")
             mode_row.addWidget(rb)
@@ -271,6 +280,7 @@ class KeyRecorderDialog(QDialog):
         interval_row = QHBoxLayout()
         interval_row.addWidget(QLabel("Interval (sec):"))
         self._scroll_interval = QDoubleSpinBox()
+        self._scroll_interval.setFocusPolicy(Qt.NoFocus)
         self._scroll_interval.setRange(0.01, 5.0)
         self._scroll_interval.setSingleStep(0.01)
         self._scroll_interval.setValue(0.05)
@@ -292,6 +302,7 @@ class KeyRecorderDialog(QDialog):
         notch_row.addStretch()
 
         reset_btn = QPushButton("Reset")
+        reset_btn.setFocusPolicy(Qt.NoFocus)
         reset_btn.setStyleSheet(_BTN_ACCENT)
         reset_btn.setFixedWidth(60)
         reset_btn.clicked.connect(self._reset_notches)
@@ -397,24 +408,46 @@ class KeyRecorderDialog(QDialog):
     @Slot(dict)
     def update_telemetry(self, telemetry: dict) -> None:
         """
-        Receives live UDP telemetry. Captures any button pressed that is NOT
-        the button being configured (to avoid self-mapping).
+        Receives live UDP telemetry (ControllerState dict). Captures any button pressed
+        that is NOT the button being configured (to avoid self-mapping).
         Only active while the listeners are running (capture_active).
         """
-        if not self._capture_active:
+        if not self._capture_active or not isinstance(telemetry, dict):
             return
-        if not isinstance(telemetry, dict):
-            logger.debug(f"[RECORDER] update_telemetry: bad type {type(telemetry)}")
-            return
-        buttons = telemetry.get("buttons", {})
-        if not isinstance(buttons, dict):
-            return
-        for btn_name, is_pressed in buttons.items():
-            if is_pressed and str(btn_name).lower() != self.button_name.lower():
-                action_str = f"gamepad:{str(btn_name).lower()}"
+
+        std_buttons = [
+            'a', 'b', 'x', 'y', 'lb', 'rb', 'select', 'start',
+            'home', 'l3', 'r3', 'dpad_up', 'dpad_down', 'dpad_left', 'dpad_right'
+        ]
+
+        # Check standard digital buttons
+        for btn_name in std_buttons:
+            val = telemetry.get(btn_name, False)
+            if bool(val) and btn_name.lower() != self.button_name.lower():
+                action_str = f"gamepad:{btn_name.lower()}"
                 logger.debug(f"[RECORDER] gamepad button captured: {action_str!r} (button_name={self.button_name!r})")
                 self._set_result(action_str)
-                break
+                return
+
+        # Check analog triggers
+        for trg_name in ('lt', 'rt'):
+            val = telemetry.get(trg_name, 0.0)
+            if isinstance(val, (int, float)) and val > 0.5 and trg_name.lower() != self.button_name.lower():
+                action_str = f"gamepad:{trg_name.lower()}"
+                logger.debug(f"[RECORDER] gamepad trigger captured: {action_str!r} (button_name={self.button_name!r})")
+                self._set_result(action_str)
+                return
+
+        # Check dynamic extra inputs
+        extra = telemetry.get("extra_inputs", {})
+        if isinstance(extra, dict):
+            for eb_name, eb_val in extra.items():
+                is_pressed = bool(eb_val > 0.1 if isinstance(eb_val, (int, float)) else eb_val)
+                if is_pressed and str(eb_name).lower() != self.button_name.lower():
+                    action_str = f"gamepad:{str(eb_name).lower()}"
+                    logger.debug(f"[RECORDER] gamepad extra button captured: {action_str!r} (button_name={self.button_name!r})")
+                    self._set_result(action_str)
+                    return
 
     # ------------------------------------------------------------------
     # Scroll settings helpers

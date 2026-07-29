@@ -28,6 +28,7 @@ from PySide6.QtCore import Qt, Slot, QTimer
 sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "..")))
 
 from gui_v2.dialogs.key_recorder_dialog import KeyRecorderDialog
+from button_matrix import get_extra_button_actions
 
 logger = logging.getLogger('remapping_view')
 
@@ -149,27 +150,8 @@ class RemappingView(QWidget):
         Dynamically inspects config data to resolve extra hardware buttons
         or hardware chords (e.g. M1, M2, L4, R4).
         """
-        extra_buttons: List[str] = []
         data = getattr(self.config, 'data', {}) if self.config else {}
-        if not isinstance(data, dict):
-            return extra_buttons
-
-        eb_dict = data.get("extra_buttons", {})
-        if isinstance(eb_dict, dict) and eb_dict:
-            extra_buttons.extend(list(eb_dict.keys()))
-        else:
-            eb_settings = data.get("settings", {}).get("extra_inputs", [])
-            if isinstance(eb_settings, list):
-                extra_buttons.extend([str(x) for x in eb_settings])
-            elif isinstance(eb_settings, dict):
-                extra_buttons.extend(list(eb_settings.keys()))
-
-        hw_chords = data.get("hardware_chords", {})
-        if isinstance(hw_chords, dict):
-            for chord_name in hw_chords.keys():
-                if chord_name not in extra_buttons:
-                    extra_buttons.append(chord_name)
-
+        extra_buttons = get_extra_button_actions(data)
         logger.debug(f"[REMAP] _get_dynamic_extra_buttons() -> {extra_buttons}")
         return extra_buttons
 

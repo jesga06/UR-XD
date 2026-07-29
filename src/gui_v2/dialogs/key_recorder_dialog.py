@@ -2,10 +2,10 @@
 Key Recorder Dialog for PySide6 UI (gui_v2).
 
 Recording logic is a 1:1 port of v2.3-beta's start_recording() method.
-- Keyboard: persistent listener, appends unique key names to a list
+- Keyboard: persistent listener & Qt event filter, appends unique key names to a list
 - Mouse click: captures button name, stops both listeners immediately
 - Mouse scroll: stops both listeners, shows scroll settings panel
-- Gamepad: captures live UDP telemetry button presses (new for v2.3 GUI)
+- Gamepad: captures live UDP telemetry rising-edge button presses
 
 All pynput events are dispatched to the Qt main thread via QTimer.singleShot(0).
 Listener teardown is guaranteed via try/finally on save/cancel.
@@ -13,7 +13,7 @@ Listener teardown is guaranteed via try/finally on save/cancel.
 
 import threading
 import logging
-from typing import Optional, List
+from typing import Optional, List, Set
 
 logger = logging.getLogger('key_recorder_dialog')
 
@@ -23,6 +23,7 @@ from PySide6.QtWidgets import (
     QButtonGroup, QFrame, QSizePolicy
 )
 from PySide6.QtCore import Qt, Signal, Slot, QTimer
+from PySide6.QtGui import QKeyEvent
 
 try:
     import pynput
@@ -34,7 +35,7 @@ except ImportError:
 
 
 # ---------------------------------------------------------------------------
-# Styling — unchanged from previous version
+# Styling
 # ---------------------------------------------------------------------------
 _CARD_STYLE = """
 QGroupBox {
@@ -159,6 +160,7 @@ class KeyRecorderDialog(QDialog):
         self._detected_scroll_dir: Optional[str] = None
         self._accumulated_notches: int = 1
         self._capture_active: bool = False
+        self._prev_gamepad_active: Set[str] = set()
 
         # pynput listeners
         self._kb_listener = None
@@ -312,7 +314,91 @@ class KeyRecorderDialog(QDialog):
         return grp
 
     # ------------------------------------------------------------------
-    # pynput listeners  — exact beta logic, ported to PySide6
+    # Key normalization & accumulation
+    # ------------------------------------------------------------------
+    @staticmethod
+    def _pynput_key_to_str(key) -> str:
+        """Converts a pynput Key or KeyCode to a normalized string name."""
+        if key is None:
+            return ""
+        if hasattr(key, 'name') and key.name:
+            name = key.name.lower()
+            if name.startswith('ctrl'): return 'ctrl'
+            if name.startswith('alt'): return 'alt'
+            if name.startswith('shift'): return 'shift'
+            if name in ('cmd', 'win', 'super'): return 'win'
+            return name
+        if hasattr(key, 'char') and key.char:
+            c = key.char
+            if len(c) == 1:
+                if 1 <= ord(c) <= 26:
+                    return chr(ord(c) + 96)
+                return c.lower()
+        if hasattr(key, 'vk') and key.vk:
+            vk = key.vk
+            if 65 <= vk <= 90:
+                return chr(vk).lower()
+            if 48 <= vk <= 57:
+                return chr(vk)
+            if 96 <= vk <= 105:
+                return chr(vk - 48)
+        return ""
+
+    def _add_recorded_key(self, key_name: str) -> None:
+        """Appends a normalized key name to accumulated keys and updates preview."""
+        if not key_name:
+            return
+        key_name = key_name.lower().strip()
+        if key_name and key_name not in self._recorded_keys:
+            self._recorded_keys.append(key_name)
+            combo = "keyboard:" + "+".join(self._recorded_keys)
+            self._result = combo
+            self._hide_scroll_settings()
+            self.preview_label.setText(combo)
+
+    def keyPressEvent(self, event: QKeyEvent) -> None:
+        """Qt keyPressEvent fallback to capture keys directly in PySide6 dialog."""
+        if not self._capture_active:
+            super().keyPressEvent(event)
+            return
+
+        key = event.key()
+        qt_key_map = {
+            Qt.Key_Control: 'ctrl',
+            Qt.Key_Alt: 'alt',
+            Qt.Key_Shift: 'shift',
+            Qt.Key_Meta: 'win',
+            Qt.Key_Space: 'space',
+            Qt.Key_Return: 'enter',
+            Qt.Key_Enter: 'enter',
+            Qt.Key_Backspace: 'backspace',
+            Qt.Key_Tab: 'tab',
+            Qt.Key_Escape: 'esc',
+            Qt.Key_Delete: 'delete',
+            Qt.Key_Up: 'up',
+            Qt.Key_Down: 'down',
+            Qt.Key_Left: 'left',
+            Qt.Key_Right: 'right',
+        }
+
+        key_name = ""
+        if key in qt_key_map:
+            key_name = qt_key_map[key]
+        elif event.text():
+            key_name = event.text().lower()
+        elif 65 <= key <= 90:
+            key_name = chr(key).lower()
+        elif 48 <= key <= 57:
+            key_name = chr(key)
+
+        if key_name:
+            self._add_recorded_key(key_name)
+            event.accept()
+        else:
+            super().keyPressEvent(event)
+
+    # ------------------------------------------------------------------
+    # pynput listeners
     # ------------------------------------------------------------------
     def start_listeners(self) -> None:
         """Start keyboard and mouse pynput listeners."""
@@ -327,17 +413,10 @@ class KeyRecorderDialog(QDialog):
             """Accumulates key names — does NOT stop listener (beta behaviour)."""
             if not self._capture_active:
                 return
-            try:
-                key_name = key.char
-            except AttributeError:
-                key_name = key.name
-
+            key_name = self._pynput_key_to_str(key)
             logger.debug(f"[RECORDER] pynput key_press raw={key!r} resolved={key_name!r} recorded_so_far={self._recorded_keys}")
-            if key_name and key_name not in self._recorded_keys:
-                self._recorded_keys.append(key_name)
-                combo = "keyboard:" + "+".join(self._recorded_keys)
-                logger.debug(f"[RECORDER] keyboard combo updated: {combo!r}")
-                QTimer.singleShot(0, lambda c=combo: self._set_result(c))
+            if key_name:
+                QTimer.singleShot(0, lambda k=key_name: self._add_recorded_key(k))
 
         def _on_click(x, y, button, pressed):
             """On button press: capture, stop both listeners (beta behaviour)."""
@@ -403,17 +482,19 @@ class KeyRecorderDialog(QDialog):
         logger.debug("[RECORDER] listeners stopped")
 
     # ------------------------------------------------------------------
-    # Gamepad telemetry slot (new for v2.3 GUI — not in beta)
+    # Gamepad telemetry slot
     # ------------------------------------------------------------------
     @Slot(dict)
     def update_telemetry(self, telemetry: dict) -> None:
         """
-        Receives live UDP telemetry (ControllerState dict). Captures any button pressed
-        that is NOT the button being configured (to avoid self-mapping).
+        Receives live UDP telemetry (ControllerState dict). Captures newly pressed gamepad buttons
+        (rising edge) that are NOT the button being configured (to avoid self-mapping).
         Only active while the listeners are running (capture_active).
         """
         if not self._capture_active or not isinstance(telemetry, dict):
             return
+
+        current_active: Set[str] = set()
 
         std_buttons = [
             'a', 'b', 'x', 'y', 'lb', 'rb', 'select', 'start',
@@ -422,21 +503,14 @@ class KeyRecorderDialog(QDialog):
 
         # Check standard digital buttons
         for btn_name in std_buttons:
-            val = telemetry.get(btn_name, False)
-            if bool(val) and btn_name.lower() != self.button_name.lower():
-                action_str = f"gamepad:{btn_name.lower()}"
-                logger.debug(f"[RECORDER] gamepad button captured: {action_str!r} (button_name={self.button_name!r})")
-                self._set_result(action_str)
-                return
+            if bool(telemetry.get(btn_name, False)) and btn_name.lower() != self.button_name.lower():
+                current_active.add(btn_name.lower())
 
         # Check analog triggers
         for trg_name in ('lt', 'rt'):
             val = telemetry.get(trg_name, 0.0)
             if isinstance(val, (int, float)) and val > 0.5 and trg_name.lower() != self.button_name.lower():
-                action_str = f"gamepad:{trg_name.lower()}"
-                logger.debug(f"[RECORDER] gamepad trigger captured: {action_str!r} (button_name={self.button_name!r})")
-                self._set_result(action_str)
-                return
+                current_active.add(trg_name.lower())
 
         # Check dynamic extra inputs
         extra = telemetry.get("extra_inputs", {})
@@ -444,10 +518,17 @@ class KeyRecorderDialog(QDialog):
             for eb_name, eb_val in extra.items():
                 is_pressed = bool(eb_val > 0.1 if isinstance(eb_val, (int, float)) else eb_val)
                 if is_pressed and str(eb_name).lower() != self.button_name.lower():
-                    action_str = f"gamepad:{str(eb_name).lower()}"
-                    logger.debug(f"[RECORDER] gamepad extra button captured: {action_str!r} (button_name={self.button_name!r})")
-                    self._set_result(action_str)
-                    return
+                    current_active.add(str(eb_name).lower())
+
+        # Check rising edge
+        newly_pressed = current_active - self._prev_gamepad_active
+        self._prev_gamepad_active = current_active
+
+        if newly_pressed:
+            btn = next(iter(newly_pressed))
+            action_str = f"gamepad:{btn}"
+            logger.debug(f"[RECORDER] gamepad button captured (rising edge): {action_str!r}")
+            self._set_result(action_str)
 
     # ------------------------------------------------------------------
     # Scroll settings helpers
@@ -490,14 +571,16 @@ class KeyRecorderDialog(QDialog):
     # ------------------------------------------------------------------
     def _set_result(self, value: str) -> None:
         """Update the result string and preview label."""
-        logger.debug(f"[RECORDER] _set_result({value!r}) — hiding scroll, updating preview")
+        logger.debug(f"[RECORDER] _set_result({value!r})")
+        if not value.startswith("keyboard:"):
+            self._recorded_keys.clear()
         self._result = value
         self._hide_scroll_settings()
         self.preview_label.setText(value)
 
     def _clear(self) -> None:
         self._result = ""
-        self._recorded_keys = []
+        self._recorded_keys.clear()
         self._hide_scroll_settings()
         self._reset_notches()
         self.preview_label.setText("Waiting for input…")

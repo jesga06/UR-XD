@@ -156,8 +156,11 @@ class Mapper:
         if self.macro_executor:
             self.macro_executor.execute_or_toggle(macro_name)
 
-    def _get_pynput_key(self, key_name: str):  # noqa: logging not needed here
-        k_lower = key_name.lower().strip()
+    def _get_pynput_key(self, key_name: str):
+        key_str = key_name.strip()
+        if not key_str:
+            return None
+        k_lower = key_str.lower()
         key_map = {
             'alt': Key.alt, 'alt_l': Key.alt_l, 'alt_r': Key.alt_r,
             'ctrl': Key.ctrl, 'ctrl_l': Key.ctrl_l, 'ctrl_r': Key.ctrl_r,
@@ -169,11 +172,14 @@ class Mapper:
         }
         if k_lower in key_map:
             return key_map[k_lower]
+        if hasattr(Key, key_str):
+            return getattr(Key, key_str)
         if hasattr(Key, k_lower):
             return getattr(Key, k_lower)
-        if len(k_lower) == 1:
-            return KeyCode.from_char(k_lower)
-        return KeyCode.from_char(k_lower[0]) if k_lower else None
+        try:
+            return KeyCode.from_char(key_str)
+        except Exception:
+            return None
 
     def _press_key_sequence(self, keys):
         logger.debug(f"[MAPPER] _press_key_sequence keys={keys}")

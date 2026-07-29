@@ -4,8 +4,8 @@ Remapping View Module for PySide6 UI (gui_v2).
 Provides a complete button remapping interface with:
   - Shift layer management (add / rename / delete / select)
   - Categorised button mapping grids (Face, Shoulder, D-Pad, System)
-  - Per-button: standard mapping field, interactive key recorder, XInput
-    block checkbox, and per-shift-layer mapping field
+  - Per-button: standard mapping field, standard XInput block checkbox ("Blk"),
+    per-shift-layer mapping field, and shift XInput block checkbox ("S.Blk")
   - Debounced (300 ms) config disk writes
 
 All config mutations write through the live ControllerConfig instance.
@@ -125,8 +125,8 @@ _BTN_LABEL = "color: #a855f7; font-weight: bold; font-size: 12px;"
 
 class RemappingView(QWidget):
     """
-    Primary remapping tab view. Exposes shift layer management and
-    per-button mapping, block, and shift-map controls.
+    Primary remapping tab view. Exposes shift layer management,
+    per-button standard mapping/block, and shift mapping/block controls.
     """
 
     _has_shown_block_warning: bool = False
@@ -142,7 +142,7 @@ class RemappingView(QWidget):
         self.save_timer.timeout.connect(self._do_save)
 
         # Track per-button UI widget references for programmatic updates
-        # key → { 'std': QLineEdit, 'blk': QCheckBox, 'shift': QLineEdit }
+        # key → { 'std': QLineEdit, 'std_blk': QCheckBox, 'shift': QLineEdit, 'shift_blk': QCheckBox }
         self._row_widgets: Dict[str, Dict[str, QWidget]] = {}
 
         self.setup_ui()
@@ -297,7 +297,7 @@ class RemappingView(QWidget):
         return group
 
     def _build_mapping_grid(self, title: str, buttons: List[Tuple[str, str]]) -> QGroupBox:
-        """Builds a categorised grid card for a set of buttons."""
+        """Builds a categorised grid card for a set of buttons with dual block controls."""
         group = QGroupBox(title.upper())
         group.setStyleSheet(_CARD_STYLE)
 
@@ -307,7 +307,7 @@ class RemappingView(QWidget):
         layout.setColumnStretch(3, 3)
 
         # Header row
-        for col, text in enumerate(("Button", "Mapping", "Blk", "Shift Map")):
+        for col, text in enumerate(("Button", "Mapping", "Blk", "Shift Map", "S.Blk")):
             lbl = QLabel(text)
             lbl.setStyleSheet(_HEADER_LABEL)
             layout.addWidget(lbl, 0, col, Qt.AlignmentFlag.AlignCenter)
@@ -336,21 +336,22 @@ class RemappingView(QWidget):
             rec_btn = QPushButton("R")
             rec_btn.setFixedWidth(26)
             rec_btn.setStyleSheet(_BTN_STYLE)
-            rec_btn.setToolTip("Record key/mouse input")
+            rec_btn.setToolTip("Record standard key/mouse input")
             rec_btn.clicked.connect(
                 lambda checked, k=key: self.open_recorder_dialog(k, is_shift=False)
             )
             std_h.addWidget(rec_btn)
             layout.addWidget(std_container, row_idx, 1)
 
-            # Block XInput checkbox
-            blk_cb = QCheckBox()
-            blk_cb.setStyleSheet(_CB_STYLE)
-            blk_cb.setChecked(self._get_block_state(key))
-            blk_cb.stateChanged.connect(
-                lambda state, k=key: self._on_block_changed(k, bool(state))
+            # Standard Block XInput checkbox
+            std_blk_cb = QCheckBox()
+            std_blk_cb.setStyleSheet(_CB_STYLE)
+            std_blk_cb.setToolTip("Block XInput for standard mapping")
+            std_blk_cb.setChecked(self._get_base_block_state(key))
+            std_blk_cb.stateChanged.connect(
+                lambda state, k=key: self._on_std_block_changed(k, bool(state))
             )
-            layout.addWidget(blk_cb, row_idx, 2, Qt.AlignmentFlag.AlignCenter)
+            layout.addWidget(std_blk_cb, row_idx, 2, Qt.AlignmentFlag.AlignCenter)
 
             # Shift mapping field + record button
             shift_container = QWidget()
@@ -377,11 +378,22 @@ class RemappingView(QWidget):
             shift_h.addWidget(shift_rec_btn)
             layout.addWidget(shift_container, row_idx, 3)
 
+            # Shift Block XInput checkbox
+            shift_blk_cb = QCheckBox()
+            shift_blk_cb.setStyleSheet(_CB_STYLE)
+            shift_blk_cb.setToolTip("Block XInput for active shift layer mapping")
+            shift_blk_cb.setChecked(self._get_shift_block_state(key))
+            shift_blk_cb.stateChanged.connect(
+                lambda state, k=key: self._on_shift_block_changed(k, bool(state))
+            )
+            layout.addWidget(shift_blk_cb, row_idx, 4, Qt.AlignmentFlag.AlignCenter)
+
             # Store widget refs for later programmatic updates
             self._row_widgets[key] = {
                 "std": std_edit,
-                "blk": blk_cb,
+                "std_blk": std_blk_cb,
                 "shift": shift_edit,
+                "shift_blk": shift_blk_cb,
             }
 
         return group
@@ -398,7 +410,7 @@ class RemappingView(QWidget):
         return None
 
     def _get_base_mapping(self, key: str) -> str:
-        data = self.config.data
+        data = getattr(self.config, 'data', {})
         base_map: Dict[str, Any] = {}
         base_map.update(data.get("extra_buttons", {}))
         base_map.update(data.get("layer_base", {}))
@@ -406,12 +418,12 @@ class RemappingView(QWidget):
         logger.debug(f"[REMAP] _get_base_mapping({key!r}) -> {val!r}")
         return val
 
-    def _get_block_state(self, key: str) -> bool:
-        data = self.config.data
+    def _get_base_block_state(self, key: str) -> bool:
+        data = getattr(self.config, 'data', {})
         bx: Dict[str, Any] = data.get("block_xinput", {})
         val = bx.get(key.lower(), "false")
         blocked = str(val).lower() in ("true", "1", "yes")
-        logger.debug(f"[REMAP] _get_block_state({key!r}) -> {blocked} (raw={val!r})")
+        logger.debug(f"[REMAP] _get_base_block_state({key!r}) -> {blocked} (raw={val!r})")
         return blocked
 
     def _get_shift_mapping(self, key: str) -> str:
@@ -421,6 +433,16 @@ class RemappingView(QWidget):
             logger.debug(f"[REMAP] _get_shift_mapping({key!r}) layer={layer.get('id')!r} -> {val!r}")
             return val
         return ""
+
+    def _get_shift_block_state(self, key: str) -> bool:
+        layer = self._active_layer()
+        if layer:
+            bx: Dict[str, Any] = layer.get("block_xinput", {})
+            val = bx.get(key.lower(), "false")
+            blocked = str(val).lower() in ("true", "1", "yes")
+            logger.debug(f"[REMAP] _get_shift_block_state({key!r}) -> {blocked} (raw={val!r})")
+            return blocked
+        return False
 
     # ------------------------------------------------------------------
     # Config write helpers
@@ -434,11 +456,11 @@ class RemappingView(QWidget):
             self.config.data["layer_base"].pop(key.lower(), None)
         logger.debug(f"[REMAP] _set_base_mapping({key!r}, {value!r}) — layer_base={self.config.data.get('layer_base')}")
 
-    def _set_block_state(self, key: str, blocked: bool) -> None:
+    def _set_base_block_state(self, key: str, blocked: bool) -> None:
         if "block_xinput" not in self.config.data:
             self.config.data["block_xinput"] = {}
         self.config.data["block_xinput"][key.lower()] = "true" if blocked else "false"
-        logger.debug(f"[REMAP] _set_block_state({key!r}, {blocked}) — block_xinput={self.config.data.get('block_xinput')}")
+        logger.debug(f"[REMAP] _set_base_block_state({key!r}, {blocked}) — block_xinput={self.config.data.get('block_xinput')}")
 
     def _set_shift_mapping(self, key: str, value: str) -> None:
         layer = self._active_layer()
@@ -452,6 +474,16 @@ class RemappingView(QWidget):
         else:
             layer["mappings"].pop(key.lower(), None)
         logger.debug(f"[REMAP] _set_shift_mapping({key!r}, {value!r}) — layer={layer.get('id')!r} mappings={layer.get('mappings')}")
+
+    def _set_shift_block_state(self, key: str, blocked: bool) -> None:
+        layer = self._active_layer()
+        if layer is None:
+            logger.warning(f"[REMAP] _set_shift_block_state({key!r}) called but no active layer")
+            return
+        if "block_xinput" not in layer:
+            layer["block_xinput"] = {}
+        layer["block_xinput"][key.lower()] = "true" if blocked else "false"
+        logger.debug(f"[REMAP] _set_shift_block_state({key!r}, {blocked}) — layer={layer.get('id')!r} block_xinput={layer.get('block_xinput')}")
 
     # ------------------------------------------------------------------
     # Auto-blocking & Warning Notification
@@ -468,15 +500,27 @@ class RemappingView(QWidget):
                 "both native controller input and remapped key/macro input simultaneously (double inputs)."
             )
 
-    def _auto_enable_block(self, key: str) -> None:
-        """Automatically checks Block XInput for remapped key if not already checked."""
+    def _auto_enable_std_block(self, key: str) -> None:
+        """Auto-enables Standard Block XInput checkbox when base mapping is set."""
         widgets = self._row_widgets.get(key.lower(), {})
-        blk_cb: Optional[QCheckBox] = widgets.get("blk")
-        if blk_cb and not blk_cb.isChecked():
-            blk_cb.blockSignals(True)
-            blk_cb.setChecked(True)
-            blk_cb.blockSignals(False)
-            self._set_block_state(key, True)
+        std_blk_cb: Optional[QCheckBox] = widgets.get("std_blk")
+        if std_blk_cb and not std_blk_cb.isChecked():
+            std_blk_cb.blockSignals(True)
+            std_blk_cb.setChecked(True)
+            std_blk_cb.blockSignals(False)
+            self._set_base_block_state(key, True)
+            self.mark_config_dirty()
+            self._show_double_input_warning_once()
+
+    def _auto_enable_shift_block(self, key: str) -> None:
+        """Auto-enables Shift Block XInput checkbox when shift mapping is set."""
+        widgets = self._row_widgets.get(key.lower(), {})
+        shift_blk_cb: Optional[QCheckBox] = widgets.get("shift_blk")
+        if shift_blk_cb and not shift_blk_cb.isChecked():
+            shift_blk_cb.blockSignals(True)
+            shift_blk_cb.setChecked(True)
+            shift_blk_cb.blockSignals(False)
+            self._set_shift_block_state(key, True)
             self.mark_config_dirty()
             self._show_double_input_warning_once()
 
@@ -528,16 +572,15 @@ class RemappingView(QWidget):
         self._set_base_mapping(key, clean_text)
         self.mark_config_dirty()
         if clean_text:
-            self._auto_enable_block(key)
+            self._auto_enable_std_block(key)
 
     @Slot(int)
-    def _on_block_changed(self, key: str, checked: bool) -> None:
-        self._set_block_state(key, checked)
+    def _on_std_block_changed(self, key: str, checked: bool) -> None:
+        self._set_base_block_state(key, checked)
         self.mark_config_dirty()
         if not checked:
             base_map = self._get_base_mapping(key)
-            shift_map = self._get_shift_mapping(key)
-            if base_map or shift_map:
+            if base_map:
                 self._show_double_input_warning_once()
 
     @Slot(str)
@@ -546,7 +589,16 @@ class RemappingView(QWidget):
         self._set_shift_mapping(key, clean_text)
         self.mark_config_dirty()
         if clean_text:
-            self._auto_enable_block(key)
+            self._auto_enable_shift_block(key)
+
+    @Slot(int)
+    def _on_shift_block_changed(self, key: str, checked: bool) -> None:
+        self._set_shift_block_state(key, checked)
+        self.mark_config_dirty()
+        if not checked:
+            shift_map = self._get_shift_mapping(key)
+            if shift_map:
+                self._show_double_input_warning_once()
 
     # ------------------------------------------------------------------
     # Key recorder dialog
@@ -566,6 +618,7 @@ class RemappingView(QWidget):
                     shift_edit.blockSignals(True)
                     shift_edit.setText(mapping_str)
                     shift_edit.blockSignals(False)
+                self._auto_enable_shift_block(button_name.lower())
             else:
                 self._set_base_mapping(button_name.lower(), mapping_str)
                 std_edit: Optional[QLineEdit] = widgets.get("std")
@@ -573,7 +626,7 @@ class RemappingView(QWidget):
                     std_edit.blockSignals(True)
                     std_edit.setText(mapping_str)
                     std_edit.blockSignals(False)
-            self._auto_enable_block(button_name.lower())
+                self._auto_enable_std_block(button_name.lower())
             self.mark_config_dirty()
 
         dlg.input_recorded.connect(_handle_recorded)
@@ -614,7 +667,7 @@ class RemappingView(QWidget):
         self.layer_selector.blockSignals(False)
 
     def _sync_layer_settings(self) -> None:
-        """Updates Trigger, Modifier, Mode, and shift mapping fields for active layer."""
+        """Updates Trigger, Modifier, Mode, and shift mapping/block fields for active layer."""
         layer = self._active_layer()
         if layer is None:
             return
@@ -639,13 +692,19 @@ class RemappingView(QWidget):
             btn.setChecked(True)
         self._mode_group.blockSignals(False)
 
-        # Refresh shift mapping fields
+        # Refresh shift mapping fields and shift block checkboxes
         for key, widgets in self._row_widgets.items():
             shift_edit: Optional[QLineEdit] = widgets.get("shift")
             if shift_edit:
                 shift_edit.blockSignals(True)
                 shift_edit.setText(self._get_shift_mapping(key))
                 shift_edit.blockSignals(False)
+
+            shift_blk_cb: Optional[QCheckBox] = widgets.get("shift_blk")
+            if shift_blk_cb:
+                shift_blk_cb.blockSignals(True)
+                shift_blk_cb.setChecked(self._get_shift_block_state(key))
+                shift_blk_cb.blockSignals(False)
 
     @Slot(int)
     def _on_layer_changed(self, idx: int) -> None:

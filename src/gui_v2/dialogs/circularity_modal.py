@@ -35,6 +35,28 @@ _MODAL_STYLE = "QDialog { background-color: #0f0a1e; color: #ffffff; }"
 # ---------------------------------------------------------------------------
 # QSS Styling Tokens
 # ---------------------------------------------------------------------------
+_BTN_ACCENT = """
+QPushButton {
+    background-color: rgba(168, 85, 247, 0.2);
+    border: 1px solid rgba(168, 85, 247, 0.5);
+    border-radius: 6px;
+    color: #ffffff;
+    padding: 6px 14px;
+    font-size: 11px;
+    font-weight: bold;
+}
+QPushButton:hover {
+    background-color: rgba(168, 85, 247, 0.4);
+    border: 1px solid #a855f7;
+}
+QPushButton:pressed { background-color: #7500ab; }
+QPushButton:disabled {
+    background-color: rgba(60, 60, 60, 0.2);
+    border: 1px solid rgba(80, 80, 80, 0.3);
+    color: #666666;
+}
+"""
+
 _BTN_SAVE = """
 QPushButton {
     background-color: rgba(34, 197, 94, 0.2);

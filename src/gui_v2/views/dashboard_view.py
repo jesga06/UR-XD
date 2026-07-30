@@ -54,11 +54,12 @@ class DashboardView(QWidget):
             accent_1 = tm.get_color("accent_1")
             
             accent_2 = tm.get_color("accent_2")
+            accent_2_bright = accent_2.lighter(115)
+            accent_2_bright_hex = color_to_hex8(accent_2_bright)
             
             bg_glass = color_to_rgba_str(bg_color, alpha_override=0.85)
             border_glass = color_to_rgba_str(accent_1, alpha_override=0.35)
             accent_1_hex = color_to_hex8(accent_1)
-            accent_2_hex = color_to_hex8(accent_2)
 
             card_style = f"""
                 QFrame#glass_card {{
@@ -74,9 +75,9 @@ class DashboardView(QWidget):
                     card.setStyleSheet(card_style)
 
             if hasattr(self, 'left_readout'):
-                self.left_readout.setStyleSheet(f"color: {accent_2_hex}; font-family: 'JetBrains Mono', 'Consolas', monospace; font-size: 11px; font-weight: bold;")
+                self.left_readout.setStyleSheet(f"color: {accent_2_bright_hex}; font-family: 'JetBrains Mono', 'Consolas', monospace; font-size: 11px; font-weight: bold;")
             if hasattr(self, 'right_readout'):
-                self.right_readout.setStyleSheet(f"color: {accent_2_hex}; font-family: 'JetBrains Mono', 'Consolas', monospace; font-size: 11px; font-weight: bold;")
+                self.right_readout.setStyleSheet(f"color: {accent_2_bright_hex}; font-family: 'JetBrains Mono', 'Consolas', monospace; font-size: 11px; font-weight: bold;")
             if hasattr(self, 'chords_header'):
                 self.chords_header.setStyleSheet(f"color: {accent_1_hex}; font-weight: bold; font-size: 10px;")
         except RuntimeError:

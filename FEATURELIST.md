@@ -154,10 +154,12 @@ A completely generic, foolproof, and automated diagnostic suite to troubleshoot 
 ## 🎨 UI & Customization Features
 * **Dynamic Theme Engine & Customization View (`src/gui_v2/views/customization_view.py`):**
   - **Live Dynamic Color Customization:** Pick and tune custom 8-character Hex + Alpha colors for Accent #1 (Input Color), Accent #2 (Output Color), and Base Background Color.
+  - **Pre-Built Theme Presets:** Instant selection between curated system presets (`themes/presets/`): Default Neon Purple, Cyber Orange, Emerald Mint, Crimson Red, Ocean Blue, Midnight White, and Solar Yellow.
+  - **Theme Management Toolbar (CRUD):** Save custom themes (`themes/user/`), rename, copy, and delete user themes directly from the Customization tab, with deletion/rename protection for built-in system presets.
   - **Alpha-Capable Color Pickers:** Native `QColorDialog` with `ShowAlphaChannel` enabled for fine transparency adjustments.
   - **JSON Theme Import & Export:** Save and load custom `.json` theme files cleanly with automatic fallback defaults for missing keys.
   - **Interactive Preview Panel:** Instant real-time previewing of response curves, stick radars (with distinct non-overlapping input and output vector points), remapping sample rows, interactive sliders, buttons, and outlined text fields.
-  - **Global Theme Propagation:** Live application-wide Qt Style Sheet (QSS) propagation across all views, visualizers (`stick_radar`, `trigger_bar`), and dialogs.
+  - **Global Theme & Dashboard Propagation:** Live application-wide Qt Style Sheet (QSS) propagation across all views, Dashboard cards, Button Matrix pills (`button_matrix.py`), visualizers (`stick_radar`, `trigger_bar`), and dialogs.
   - **Persistence Sync:** Persistent custom theme settings saved to `themes/custom_theme.json` and synced with `config.ini`.
 
 * **Theme Manager:** Dynamically switch the entire application's color palette (White, Orange, Red, Yellow, Green, Blue, Purple) and immediately preview changes.

@@ -293,8 +293,14 @@ class DashboardView(QWidget):
         self.left_radar.update_telemetry(out_lx, out_ly)
         self.right_radar.update_telemetry(out_rx, out_ry)
 
-        self.left_readout.setText(f"Raw: ({lx:+.2f}, {ly:+.2f}) | Tuned: ({out_lx:+.2f}, {out_ly:+.2f})")
-        self.right_readout.setText(f"Raw: ({rx:+.2f}, {ry:+.2f}) | Tuned: ({out_rx:+.2f}, {out_ry:+.2f})")
+        l_str = f"Raw: ({lx:+.2f}, {ly:+.2f}) | Tuned: ({out_lx:+.2f}, {out_ly:+.2f})"
+        if self.left_readout.text() != l_str:
+            self.left_readout.setText(l_str)
+
+        r_str = f"Raw: ({rx:+.2f}, {ry:+.2f}) | Tuned: ({out_rx:+.2f}, {out_ry:+.2f})"
+        if self.right_readout.text() != r_str:
+            self.right_readout.setText(r_str)
+
 
         # 2. Update Triggers
         lt = float(state.get("lt", 0.0))

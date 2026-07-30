@@ -45,63 +45,83 @@ class ButtonPill(QFrame):
         """Connects to ThemeManager.theme_changed signal for live color token updates."""
         try:
             from gui_v2.services.theme_manager import ThemeManager
-            ThemeManager.get_instance().theme_changed.connect(self._safe_theme_update)
+            tm = ThemeManager.get_instance()
+            tm.theme_changed.connect(self._safe_theme_update)
+            self._update_qss_cache()
         except Exception:
-            pass
+            self._fallback_qss_cache()
+
+    def _fallback_qss_cache(self) -> None:
+        accent_1 = QColor("#a855f7")
+        bg_color = QColor("#161024")
+        self._rebuild_qss(bg_color, accent_1)
 
     @Slot(dict)
     def _safe_theme_update(self, tokens: dict = None) -> None:
         try:
-            self.update_style()
+            self._update_qss_cache()
+            self.apply_style()
         except RuntimeError:
             pass
 
-    def set_active(self, active: bool) -> None:
-        """Updates styling based on activation state."""
-        self._is_active = bool(active)
-        self.update_style()
-
-    def update_style(self) -> None:
-        """Fetches active color tokens and applies QSS styling."""
+    def _update_qss_cache(self) -> None:
         try:
-            from gui_v2.services.theme_manager import ThemeManager, color_to_rgba_str, color_to_hex8
+            from gui_v2.services.theme_manager import ThemeManager
             tm = ThemeManager.get_instance()
             accent_1 = tm.get_color("accent_1")
             bg_color = tm.get_color("background")
+            self._rebuild_qss(bg_color, accent_1)
         except Exception:
-            accent_1 = QColor("#a855f7")
-            bg_color = QColor("#161024")
+            self._fallback_qss_cache()
 
+    def _rebuild_qss(self, bg_color: QColor, accent_1: QColor) -> None:
+        from gui_v2.services.theme_manager import color_to_rgba_str
+        accent_active_bg = color_to_rgba_str(accent_1, alpha_override=0.65)
+        accent_border = color_to_rgba_str(accent_1, alpha_override=1.0)
+        self._active_qss = f"""
+            QFrame#button_pill {{
+                background-color: {accent_active_bg};
+                border: 1.5px solid {accent_border};
+                border-radius: 6px;
+            }}
+            QLabel {{
+                color: #ffffff;
+                font-weight: bold;
+                font-size: 11px;
+            }}
+        """
+        bg_card = color_to_rgba_str(bg_color, alpha_override=0.85)
+        border_glass = color_to_rgba_str(accent_1, alpha_override=0.25)
+        self._inactive_qss = f"""
+            QFrame#button_pill {{
+                background-color: {bg_card};
+                border: 1px solid {border_glass};
+                border-radius: 6px;
+            }}
+            QLabel {{
+                color: rgba(255, 255, 255, 0.55);
+                font-weight: bold;
+                font-size: 11px;
+            }}
+        """
+
+    def set_active(self, active: bool) -> None:
+        """Updates styling only when activation state actually changes."""
+        new_active = bool(active)
+        if self._is_active == new_active:
+            return
+        self._is_active = new_active
+        self.apply_style()
+
+    def apply_style(self) -> None:
+        """Applies pre-cached QSS stylesheet string."""
+        if not hasattr(self, '_active_qss'):
+            self._update_qss_cache()
         if self._is_active:
-            accent_active_bg = color_to_rgba_str(accent_1, alpha_override=0.65)
-            accent_border = color_to_rgba_str(accent_1, alpha_override=1.0)
-            self.setStyleSheet(f"""
-                QFrame#button_pill {{
-                    background-color: {accent_active_bg};
-                    border: 1.5px solid {accent_border};
-                    border-radius: 6px;
-                }}
-                QLabel {{
-                    color: #ffffff;
-                    font-weight: bold;
-                    font-size: 11px;
-                }}
-            """)
+            self.setStyleSheet(self._active_qss)
         else:
-            bg_card = color_to_rgba_str(bg_color, alpha_override=0.85)
-            border_glass = color_to_rgba_str(accent_1, alpha_override=0.25)
-            self.setStyleSheet(f"""
-                QFrame#button_pill {{
-                    background-color: {bg_card};
-                    border: 1px solid {border_glass};
-                    border-radius: 6px;
-                }}
-                QLabel {{
-                    color: rgba(255, 255, 255, 0.55);
-                    font-weight: bold;
-                    font-size: 11px;
-                }}
-            """)
+            self.setStyleSheet(self._inactive_qss)
+
 
 
 class StandardButtonArray(QFrame):

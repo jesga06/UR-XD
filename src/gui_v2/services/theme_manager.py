@@ -417,10 +417,38 @@ class ThemeManager(QObject):
 
         return f"""
 /* Global Base Window & Widgets */
-QMainWindow, QDialog, QWidget#main_container {{
+QMainWindow, QDialog, QWidget#main_container, QTabWidget, QTabWidget::pane, QScrollArea, QScrollArea > QWidget > QWidget {{
     background-color: {bg_solid};
     color: #ffffff;
     font-family: "Inter", "Outfit", "Segoe UI", sans-serif;
+}}
+
+/* QTabWidget & Tab Bar Styling */
+QTabWidget::pane {{
+    border: 1px solid {border_glass};
+    background-color: {bg_solid};
+}}
+
+QTabBar::tab {{
+    background-color: rgba(255, 255, 255, 0.05);
+    border: 1px solid {border_glass};
+    border-bottom: none;
+    border-top-left-radius: 6px;
+    border-top-right-radius: 6px;
+    padding: 8px 16px;
+    color: rgba(255, 255, 255, 0.7);
+    font-weight: bold;
+}}
+
+QTabBar::tab:selected {{
+    background-color: {accent_1_subtle};
+    border-bottom: 2px solid {accent_1_hex};
+    color: #ffffff;
+}}
+
+QTabBar::tab:hover:!selected {{
+    background-color: rgba(255, 255, 255, 0.10);
+    color: #ffffff;
 }}
 
 /* Glassmorphic Card Containers */

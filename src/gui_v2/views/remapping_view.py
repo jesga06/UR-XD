@@ -62,65 +62,8 @@ BASE_TRIGGER_BUTTONS = [
 
 
 # ---------------------------------------------------------------------------
-# QSS helpers
-# ---------------------------------------------------------------------------
-_CARD_STYLE = """
-QGroupBox {
-    background-color: rgba(22, 16, 36, 0.85);
-    border: 1px solid rgba(168, 85, 247, 0.35);
-    border-radius: 10px;
-    margin-top: 12px;
-    color: #a855f7;
-    font-weight: bold;
-    font-size: 11px;
-}
-QGroupBox::title {
-    subcontrol-origin: margin;
-    subcontrol-position: top left;
-    padding: 0 6px;
-}
-"""
-
-_INPUT_STYLE = """
-QLineEdit, QComboBox, QSpinBox {
-    background-color: #161024;
-    border: 1.5px solid #a855f7;
-    border-radius: 6px;
-    color: #ffffff;
-    padding: 3px 6px;
-}
-QLineEdit::placeholder { color: rgba(255,255,255,0.4); font-style: italic; }
-QComboBox::drop-down { border: none; }
-QComboBox QAbstractItemView { background: #161024; color: #ffffff; }
-"""
-
-_CB_STYLE = """
-QCheckBox { color: #64748b; }
-QCheckBox::indicator { width: 16px; height: 16px; border-radius: 4px;
-    border: 1px solid rgba(168,85,247,0.4); background: #161024; }
-QCheckBox::indicator:checked { background: #a855f7; border-color: #a855f7; }
-"""
-
-_BTN_STYLE = """
-QPushButton {
-    background-color: rgba(168, 85, 247, 0.2);
-    border: 1px solid rgba(168, 85, 247, 0.4);
-    border-radius: 5px; color: #ffffff; padding: 2px 8px; font-size: 11px;
-}
-QPushButton:hover { background-color: rgba(168, 85, 247, 0.4); }
-QPushButton:pressed { background-color: #7500ab; }
-"""
-
-_BTN_DANGER = """
-QPushButton {
-    background-color: rgba(220,38,38,0.2); border: 1px solid rgba(220,38,38,0.4);
-    border-radius: 5px; color: #ffffff; padding: 2px 8px; font-size: 11px;
-}
-QPushButton:hover { background-color: rgba(220,38,38,0.4); }
-"""
-
 _HEADER_LABEL = "color: rgba(255,255,255,0.5); font-size: 10px; font-weight: bold;"
-_BTN_LABEL = "color: #a855f7; font-weight: bold; font-size: 12px;"
+_BTN_DANGER = "QPushButton { background-color: rgba(220,38,38,0.2); border: 1px solid rgba(220,38,38,0.4); border-radius: 5px; color: #ffffff; padding: 2px 8px; font-size: 11px; } QPushButton:hover { background-color: rgba(220,38,38,0.4); }"
 
 
 class RemappingView(QWidget):
@@ -225,8 +168,16 @@ class RemappingView(QWidget):
             QPushButton:pressed {{ background-color: {accent_1_hex}; }}
             """
 
-            # Update QSS globally on child inputs & cards
-            self.setStyleSheet(input_qss + cb_qss + btn_qss)
+            btn_name_qss = f"""
+            QLabel#btn_name_label {{
+                color: {accent_1_hex};
+                font-weight: bold;
+                font-size: 12px;
+            }}
+            """
+
+            # Update QSS globally on child inputs, buttons, checkboxes & cards
+            self.setStyleSheet(input_qss + cb_qss + btn_qss + btn_name_qss)
         except RuntimeError:
             pass
 
@@ -298,7 +249,6 @@ class RemappingView(QWidget):
         """Builds the shift layer configuration card (compact 2-row layout)."""
         group = QGroupBox("SHIFT LAYERS CONFIGURATION & MANAGEMENT")
         self._cards.append(group)
-        group.setStyleSheet(_CARD_STYLE)
         layout = QVBoxLayout(group)
         layout.setContentsMargins(10, 6, 10, 8)
         layout.setSpacing(4)
@@ -309,18 +259,15 @@ class RemappingView(QWidget):
         row1.addWidget(QLabel("Active Layer:"))
 
         self.layer_selector = QComboBox()
-        self.layer_selector.setStyleSheet(_INPUT_STYLE)
         self.layer_selector.setMinimumWidth(180)
         self._populate_layer_selector()
         self.layer_selector.currentIndexChanged.connect(self._on_layer_changed)
         row1.addWidget(self.layer_selector)
 
         btn_add = QPushButton("＋ Add Layer")
-        btn_add.setStyleSheet(_BTN_STYLE)
         btn_add.clicked.connect(self._add_layer)
 
         btn_rename = QPushButton("✏️ Rename")
-        btn_rename.setStyleSheet(_BTN_STYLE)
         btn_rename.clicked.connect(self._rename_layer)
 
         btn_delete = QPushButton("🗑 Delete")
@@ -345,7 +292,6 @@ class RemappingView(QWidget):
 
         self.trigger_combo = QComboBox()
         self.trigger_combo.addItems(trigger_items)
-        self.trigger_combo.setStyleSheet(_INPUT_STYLE)
         self.trigger_combo.currentTextChanged.connect(self._on_trigger_changed)
         row2.addWidget(self.trigger_combo)
 
@@ -354,7 +300,6 @@ class RemappingView(QWidget):
 
         self.modifier_combo = QComboBox()
         self.modifier_combo.addItems(trigger_items)
-        self.modifier_combo.setStyleSheet(_INPUT_STYLE)
         self.modifier_combo.currentTextChanged.connect(self._on_modifier_changed)
         row2.addWidget(self.modifier_combo)
 
@@ -384,7 +329,6 @@ class RemappingView(QWidget):
         """Builds a categorised grid card for a set of buttons with dual block controls."""
         group = QGroupBox(title.upper())
         self._cards.append(group)
-        group.setStyleSheet(_CARD_STYLE)
 
         layout = QGridLayout(group)
         layout.setSpacing(4)
@@ -400,7 +344,7 @@ class RemappingView(QWidget):
         for row_idx, (key, display) in enumerate(buttons, start=1):
             # Button label
             btn_lbl = QLabel(display)
-            btn_lbl.setStyleSheet(_BTN_LABEL)
+            btn_lbl.setObjectName("btn_name_label")
             layout.addWidget(btn_lbl, row_idx, 0, Qt.AlignmentFlag.AlignCenter)
 
             # Standard mapping field + record button
@@ -411,7 +355,6 @@ class RemappingView(QWidget):
 
             std_edit = QLineEdit()
             std_edit.setPlaceholderText("none")
-            std_edit.setStyleSheet(_INPUT_STYLE)
             std_edit.setText(self._get_base_mapping(key))
             std_edit.textChanged.connect(
                 lambda text, k=key: self._on_std_mapping_changed(k, text)
@@ -420,7 +363,6 @@ class RemappingView(QWidget):
 
             rec_btn = QPushButton("R")
             rec_btn.setFixedWidth(26)
-            rec_btn.setStyleSheet(_BTN_STYLE)
             rec_btn.setToolTip("Record standard key/mouse input")
             rec_btn.clicked.connect(
                 lambda checked, k=key: self.open_recorder_dialog(k, is_shift=False)
@@ -430,7 +372,6 @@ class RemappingView(QWidget):
 
             # Standard Block XInput checkbox
             std_blk_cb = QCheckBox()
-            std_blk_cb.setStyleSheet(_CB_STYLE)
             std_blk_cb.setToolTip("Block XInput for standard mapping")
             std_blk_cb.setChecked(self._get_base_block_state(key))
             std_blk_cb.stateChanged.connect(
@@ -446,7 +387,6 @@ class RemappingView(QWidget):
 
             shift_edit = QLineEdit()
             shift_edit.setPlaceholderText("none")
-            shift_edit.setStyleSheet(_INPUT_STYLE)
             shift_edit.setText(self._get_shift_mapping(key))
             shift_edit.textChanged.connect(
                 lambda text, k=key: self._on_shift_mapping_changed(k, text)
@@ -455,7 +395,6 @@ class RemappingView(QWidget):
 
             shift_rec_btn = QPushButton("R")
             shift_rec_btn.setFixedWidth(26)
-            shift_rec_btn.setStyleSheet(_BTN_STYLE)
             shift_rec_btn.setToolTip("Record shift-layer key/mouse input")
             shift_rec_btn.clicked.connect(
                 lambda checked, k=key: self.open_recorder_dialog(k, is_shift=True)
@@ -465,7 +404,6 @@ class RemappingView(QWidget):
 
             # Shift Block XInput checkbox
             shift_blk_cb = QCheckBox()
-            shift_blk_cb.setStyleSheet(_CB_STYLE)
             shift_blk_cb.setToolTip("Block XInput for active shift layer mapping")
             shift_blk_cb.setChecked(self._get_shift_block_state(key))
             shift_blk_cb.stateChanged.connect(

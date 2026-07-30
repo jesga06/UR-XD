@@ -32,46 +32,9 @@ import math_utils
 # ---------------------------------------------------------------------------
 _MODAL_STYLE = "QDialog { background-color: #0f0a1e; color: #ffffff; }"
 
-_CARD_STYLE = """
-QGroupBox {
-    background-color: rgba(22, 16, 36, 0.85);
-    border: 1px solid rgba(168, 85, 247, 0.35);
-    border-radius: 10px;
-    margin-top: 10px;
-    color: #ffffff;
-    font-weight: bold;
-    font-size: 11px;
-}
-QGroupBox::title {
-    subcontrol-origin: margin;
-    subcontrol-position: top left;
-    padding: 0 6px;
-    color: #a855f7;
-}
-"""
-
-_BTN_ACCENT = """
-QPushButton {
-    background-color: rgba(168, 85, 247, 0.2);
-    border: 1px solid rgba(168, 85, 247, 0.5);
-    border-radius: 6px;
-    color: #ffffff;
-    padding: 6px 14px;
-    font-size: 11px;
-    font-weight: bold;
-}
-QPushButton:hover {
-    background-color: rgba(168, 85, 247, 0.4);
-    border: 1px solid #a855f7;
-}
-QPushButton:pressed { background-color: #7500ab; }
-QPushButton:disabled {
-    background-color: rgba(60, 60, 60, 0.2);
-    border: 1px solid rgba(80, 80, 80, 0.3);
-    color: #666666;
-}
-"""
-
+# ---------------------------------------------------------------------------
+# QSS Styling Tokens
+# ---------------------------------------------------------------------------
 _BTN_SAVE = """
 QPushButton {
     background-color: rgba(34, 197, 94, 0.2);
@@ -244,6 +207,19 @@ class CircularityCalibrationModal(QDialog):
         self.timer.start()
 
     def setup_ui(self) -> None:
+        try:
+            from gui_v2.services.theme_manager import ThemeManager, color_to_rgba_str, color_to_hex8
+            tm = ThemeManager.get_instance()
+            window_bg = tm.get_color("window_bg")
+            accent_1 = tm.get_color("accent_1")
+            win_bg_hex = color_to_rgba_str(window_bg, alpha_override=1.0)
+            acc1_hex = color_to_hex8(accent_1)
+        except Exception:
+            win_bg_hex = "#000000FF"
+            acc1_hex = "#A855F7FF"
+
+        self.setStyleSheet(f"QDialog {{ background-color: {win_bg_hex}; color: #ffffff; }}")
+
         root = QVBoxLayout(self)
         root.setContentsMargins(14, 14, 14, 14)
         root.setSpacing(10)
@@ -251,7 +227,7 @@ class CircularityCalibrationModal(QDialog):
         # Header Title Label
         title_text = f"🎯 CIRCULARITY SWEEP — {self.section_name.replace('_', ' ').upper()}"
         self.header_label = QLabel(title_text)
-        self.header_label.setStyleSheet("color: #a855f7; font-weight: bold; font-size: 13px;")
+        self.header_label.setStyleSheet(f"color: {acc1_hex}; font-weight: bold; font-size: 13px;")
         root.addWidget(self.header_label)
 
         # Polar Radar Canvas Widget
@@ -260,7 +236,6 @@ class CircularityCalibrationModal(QDialog):
 
         # Status & Readout Group
         status_grp = QGroupBox("CALIBRATION TELEMETRY & STATUS")
-        status_grp.setStyleSheet(_CARD_STYLE)
         status_layout = QVBoxLayout(status_grp)
         status_layout.setContentsMargins(10, 8, 10, 8)
         status_layout.setSpacing(4)

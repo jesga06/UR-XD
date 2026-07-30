@@ -168,15 +168,30 @@ class KeyRecorderDialog(QDialog):
 
         self.setFocusPolicy(Qt.StrongFocus)
         self.setFocus()
-        self._build_ui()
+        self.setup_ui()
         self.start_listeners()
 
     # ------------------------------------------------------------------
     # UI construction
     # ------------------------------------------------------------------
-    def _build_ui(self) -> None:
+    def setup_ui(self) -> None:
+        try:
+            from gui_v2.services.theme_manager import ThemeManager, color_to_rgba_str, color_to_hex8
+            tm = ThemeManager.get_instance()
+            window_bg = tm.get_color("window_bg")
+            accent_1 = tm.get_color("accent_1")
+            win_bg_hex = color_to_rgba_str(window_bg, alpha_override=1.0)
+            acc1_hex = color_to_hex8(accent_1)
+            acc1_subtle = color_to_rgba_str(accent_1, alpha_override=0.15)
+        except Exception:
+            win_bg_hex = "#000000FF"
+            acc1_hex = "#A855F7FF"
+            acc1_subtle = "rgba(168, 85, 247, 0.15)"
+
+        self.setStyleSheet(f"QDialog {{ background-color: {win_bg_hex}; color: #ffffff; }}")
+
         root = QVBoxLayout(self)
-        root.setContentsMargins(16, 16, 16, 16)
+        root.setContentsMargins(14, 14, 14, 14)
         root.setSpacing(10)
 
         # Instruction label
@@ -194,8 +209,8 @@ class KeyRecorderDialog(QDialog):
         self.preview_label = QLabel("Waiting for input…")
         self.preview_label.setAlignment(Qt.AlignCenter)
         self.preview_label.setStyleSheet(
-            "color: #a855f7; font-size: 15px; font-weight: bold; "
-            "background: rgba(168,85,247,0.08); border-radius: 6px; padding: 8px;"
+            f"color: {acc1_hex}; font-size: 15px; font-weight: bold; "
+            f"background: {acc1_subtle}; border-radius: 6px; padding: 8px;"
         )
         root.addWidget(self.preview_label)
 

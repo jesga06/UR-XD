@@ -54,8 +54,10 @@ class DashboardView(QWidget):
             accent_1 = tm.get_color("accent_1")
             
             accent_2 = tm.get_color("accent_2")
-            accent_2_bright = accent_2.lighter(115)
-            accent_2_bright_hex = color_to_hex8(accent_2_bright)
+            r = min(255, int(accent_2.red() * 1.15))
+            g = min(255, int(accent_2.green() * 1.15))
+            b = min(255, int(accent_2.blue() * 1.15))
+            accent_2_bright_hex = f"#{r:02X}{g:02X}{b:02X}FF"
             
             bg_glass = color_to_rgba_str(bg_color, alpha_override=0.85)
             border_glass = color_to_rgba_str(accent_1, alpha_override=0.35)

@@ -407,12 +407,10 @@ class Mapper:
         target_layer = 'layer_base'
         consumed_shift_buttons = set()
 
-        chord_layers = [l for l in self.shift_layers if l.get('trigger_button') and l.get('modifier_button')]
-        single_layers = [l for l in self.shift_layers if l.get('trigger_button') and not l.get('modifier_button')]
+        matched_chord = None
+        matched_single = None
 
-        # 1. Check chord shift layers first (higher precedence)
-        matched_chord = False
-        for l in chord_layers:
+        for l in self.shift_layers:
             trig = (l.get('trigger_button') or '').lower().strip()
             mod = (l.get('modifier_button') or '').lower().strip()
             l_id = l['id']
@@ -420,36 +418,30 @@ class Mapper:
 
             if mode == 'toggle':
                 if l_id in self.toggled_shift_layers:
-                    target_layer = l_id
-                    consumed_shift_buttons.add(trig)
-                    consumed_shift_buttons.add(mod)
-                    matched_chord = True
-                    break
+                    if mod and matched_chord is None:
+                        matched_chord = l
+                    elif not mod and matched_single is None:
+                        matched_single = l
             else: # hold
-                if all_buttons.get(trig, False) and all_buttons.get(mod, False):
-                    target_layer = l_id
-                    consumed_shift_buttons.add(trig)
-                    consumed_shift_buttons.add(mod)
-                    matched_chord = True
-                    break
+                trig_down = all_buttons.get(trig, False) if trig else False
+                mod_down = all_buttons.get(mod, False) if mod else False
 
-        # 2. If no chord layer matched, check single trigger shift layers
-        if not matched_chord:
-            for l in single_layers:
-                trig = (l.get('trigger_button') or '').lower().strip()
-                l_id = l['id']
-                mode = l.get('mode', 'hold')
+                if trig and mod:
+                    if trig_down and mod_down and matched_chord is None:
+                        matched_chord = l
+                elif trig:
+                    if trig_down and matched_single is None:
+                        matched_single = l
 
-                if mode == 'toggle':
-                    if l_id in self.toggled_shift_layers:
-                        target_layer = l_id
-                        consumed_shift_buttons.add(trig)
-                        break
-                else: # hold
-                    if all_buttons.get(trig, False):
-                        target_layer = l_id
-                        consumed_shift_buttons.add(trig)
-                        break
+        chosen_layer = matched_chord or matched_single
+        if chosen_layer:
+            target_layer = chosen_layer['id']
+            trig = (chosen_layer.get('trigger_button') or '').lower().strip()
+            mod = (chosen_layer.get('modifier_button') or '').lower().strip()
+            if trig:
+                consumed_shift_buttons.add(trig)
+            if mod:
+                consumed_shift_buttons.add(mod)
 
         # Handle Layer Change Transitions
         if self.active_layer != target_layer:
@@ -473,7 +465,7 @@ class Mapper:
             new_active_map = self.mappings.get(self.active_layer, {})
             for b_pressed, is_down in all_buttons.items():
                 if is_down and b_pressed not in consumed_shift_buttons:
-                    mapping = new_active_map.get(b_pressed)
+                    mapping = new_active_map.get(b_pressed) or (base_map.get(b_pressed) if self.active_layer != 'layer_base' else None)
                     if mapping and mapping != 'guide':
                         logger.debug(f"[MAPPER]   Replaying held btn={b_pressed!r} -> {mapping!r} in new layer")
                         self._press(mapping)
@@ -518,6 +510,8 @@ class Mapper:
 
             if is_pressed != prev_pressed:
                 mapping = active_map.get(btn_lower)
+                if not mapping and self.active_layer != 'layer_base':
+                    mapping = base_map.get(btn_lower)
                 logger.debug(
                     f"[MAPPER] BTN EDGE btn={btn_lower!r} pressed={is_pressed} prev={prev_pressed} "
                     f"mapping={mapping!r} layer={self.active_layer!r} "

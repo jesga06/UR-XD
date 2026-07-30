@@ -50,6 +50,45 @@ class TestShiftLayersConfig(unittest.TestCase):
         layers_after = cfg.get_shift_layers()
         self.assertEqual(len(layers_after), 1)
 
+    def test_duplicate_layer_id_deduplication(self):
+        with tempfile.NamedTemporaryFile('w', delete=False, suffix='.json') as f:
+            duplicate_id_data = {
+                "shift_layers": [
+                    {
+                        "id": "shift_2",
+                        "name": "First Shift 2",
+                        "trigger_button": "home",
+                        "modifier_button": "",
+                        "mode": "hold",
+                        "mappings": {"a": "keyboard:x"}
+                    },
+                    {
+                        "id": "shift_2",
+                        "name": "Second Shift 2",
+                        "trigger_button": "home",
+                        "modifier_button": "rb",
+                        "mode": "hold",
+                        "mappings": {"b": "keyboard:y"}
+                    }
+                ]
+            }
+            json.dump(duplicate_id_data, f)
+            temp_path = f.name
+
+        try:
+            cfg = ControllerConfig(temp_path)
+            layers = cfg.get_shift_layers()
+            self.assertEqual(len(layers), 2)
+            self.assertEqual(layers[0]['id'], 'shift_1')
+            self.assertEqual(layers[1]['id'], 'shift_2')
+
+            # Add layer after deletion scenario
+            new_layer = cfg.add_shift_layer(name="New Layer")
+            self.assertEqual(new_layer['id'], 'shift_3')
+        finally:
+            if os.path.exists(temp_path):
+                os.remove(temp_path)
+
 from src.mapper import Mapper
 from src.decoder import ControllerState
 import time

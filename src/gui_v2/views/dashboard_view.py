@@ -48,13 +48,34 @@ class DashboardView(QWidget):
     @Slot(dict)
     def on_theme_changed(self, tokens: dict):
         try:
-            accent_1 = tokens.get("accent_1", "#A855F7FF")
+            from gui_v2.services.theme_manager import ThemeManager, color_to_rgba_str, color_to_hex8
+            tm = ThemeManager.get_instance()
+            bg_color = tm.get_color("background")
+            accent_1 = tm.get_color("accent_1")
+            
+            bg_glass = color_to_rgba_str(bg_color, alpha_override=0.85)
+            border_glass = color_to_rgba_str(accent_1, alpha_override=0.35)
+            accent_1_hex = color_to_hex8(accent_1)
+
+            card_style = f"""
+                QFrame#glass_card {{
+                    background-color: {bg_glass};
+                    border: 1px solid {border_glass};
+                    border-radius: 12px;
+                }}
+            """
+            for card in [getattr(self, 'header_card', None), getattr(self, 'left_card', None),
+                         getattr(self, 'right_card', None), getattr(self, 'triggers_card', None),
+                         getattr(self, 'chords_card', None)]:
+                if card:
+                    card.setStyleSheet(card_style)
+
             if hasattr(self, 'left_readout'):
-                self.left_readout.setStyleSheet(f"color: {accent_1}; font-family: 'JetBrains Mono', 'Consolas', monospace; font-size: 11px; font-weight: bold;")
+                self.left_readout.setStyleSheet(f"color: {accent_1_hex}; font-family: 'JetBrains Mono', 'Consolas', monospace; font-size: 11px; font-weight: bold;")
             if hasattr(self, 'right_readout'):
-                self.right_readout.setStyleSheet(f"color: {accent_1}; font-family: 'JetBrains Mono', 'Consolas', monospace; font-size: 11px; font-weight: bold;")
+                self.right_readout.setStyleSheet(f"color: {accent_1_hex}; font-family: 'JetBrains Mono', 'Consolas', monospace; font-size: 11px; font-weight: bold;")
             if hasattr(self, 'chords_header'):
-                self.chords_header.setStyleSheet(f"color: {accent_1}; font-weight: bold; font-size: 10px;")
+                self.chords_header.setStyleSheet(f"color: {accent_1_hex}; font-weight: bold; font-size: 10px;")
         except RuntimeError:
             pass
 
@@ -82,16 +103,9 @@ class DashboardView(QWidget):
         main_layout.setSpacing(12)
 
         # 1. Header Banner & Connection Status Card
-        header_card = QFrame()
-        header_card.setObjectName("glass_card")
-        header_card.setStyleSheet("""
-            QFrame#glass_card {
-                background-color: rgba(22, 16, 36, 0.85);
-                border: 1px solid rgba(168, 85, 247, 0.35);
-                border-radius: 12px;
-            }
-        """)
-        header_layout = QHBoxLayout(header_card)
+        self.header_card = QFrame()
+        self.header_card.setObjectName("glass_card")
+        header_layout = QHBoxLayout(self.header_card)
         header_layout.setContentsMargins(14, 10, 14, 10)
 
         # Status Pill Badge
@@ -114,70 +128,47 @@ class DashboardView(QWidget):
         header_layout.addWidget(self.device_label)
         header_layout.addStretch()
 
-        main_layout.addWidget(header_card)
+        main_layout.addWidget(self.header_card)
 
         # 2. Dual Stick Radars Panel
         radars_layout = QHBoxLayout()
         radars_layout.setSpacing(12)
 
         # Left Stick Card
-        left_card = QFrame()
-        left_card.setObjectName("glass_card")
-        left_card.setStyleSheet("""
-            QFrame#glass_card {
-                background-color: rgba(22, 16, 36, 0.85);
-                border: 1px solid rgba(168, 85, 247, 0.35);
-                border-radius: 12px;
-            }
-        """)
-        left_card_layout = QVBoxLayout(left_card)
+        self.left_card = QFrame()
+        self.left_card.setObjectName("glass_card")
+        left_card_layout = QVBoxLayout(self.left_card)
         left_card_layout.setContentsMargins(12, 10, 12, 10)
 
         self.left_radar = StickRadarWidget("LEFT STICK RADAR")
         self.left_readout = QLabel("Raw: (+0.00, +0.00) | Tuned: (+0.00, +0.00)")
         self.left_readout.setAlignment(Qt.AlignmentFlag.AlignCenter)
-        self.left_readout.setStyleSheet("color: #a855f7; font-family: 'JetBrains Mono', 'Consolas', monospace; font-size: 11px; font-weight: bold;")
 
         left_card_layout.addWidget(self.left_radar)
         left_card_layout.addWidget(self.left_readout)
 
         # Right Stick Card
-        right_card = QFrame()
-        right_card.setObjectName("glass_card")
-        right_card.setStyleSheet("""
-            QFrame#glass_card {
-                background-color: rgba(22, 16, 36, 0.85);
-                border: 1px solid rgba(168, 85, 247, 0.35);
-                border-radius: 12px;
-            }
-        """)
-        right_card_layout = QVBoxLayout(right_card)
+        self.right_card = QFrame()
+        self.right_card.setObjectName("glass_card")
+        right_card_layout = QVBoxLayout(self.right_card)
         right_card_layout.setContentsMargins(12, 10, 12, 10)
 
         self.right_radar = StickRadarWidget("RIGHT STICK RADAR")
         self.right_readout = QLabel("Raw: (+0.00, +0.00) | Tuned: (+0.00, +0.00)")
         self.right_readout.setAlignment(Qt.AlignmentFlag.AlignCenter)
-        self.right_readout.setStyleSheet("color: #a855f7; font-family: 'JetBrains Mono', 'Consolas', monospace; font-size: 11px; font-weight: bold;")
 
         right_card_layout.addWidget(self.right_radar)
         right_card_layout.addWidget(self.right_readout)
 
-        radars_layout.addWidget(left_card)
-        radars_layout.addWidget(right_card)
+        radars_layout.addWidget(self.left_card)
+        radars_layout.addWidget(self.right_card)
 
         main_layout.addLayout(radars_layout)
 
         # 3. Analog Triggers Panel
-        triggers_card = QFrame()
-        triggers_card.setObjectName("glass_card")
-        triggers_card.setStyleSheet("""
-            QFrame#glass_card {
-                background-color: rgba(22, 16, 36, 0.85);
-                border: 1px solid rgba(168, 85, 247, 0.35);
-                border-radius: 12px;
-            }
-        """)
-        triggers_layout = QVBoxLayout(triggers_card)
+        self.triggers_card = QFrame()
+        self.triggers_card.setObjectName("glass_card")
+        triggers_layout = QVBoxLayout(self.triggers_card)
         triggers_layout.setContentsMargins(12, 10, 12, 10)
 
         trig_header = QLabel("ANALOG TRIGGERS")
@@ -195,34 +186,26 @@ class DashboardView(QWidget):
 
         triggers_layout.addLayout(trig_bars_layout)
 
-        main_layout.addWidget(triggers_card)
+        main_layout.addWidget(self.triggers_card)
 
         # 4. Controller Button Status Matrix Panel
         self.button_matrix = ButtonMatrixWidget()
         main_layout.addWidget(self.button_matrix)
 
         # 5. Active Hardware Chords Telemetry Card
-        chords_card = QFrame()
-        chords_card.setObjectName("glass_card")
-        chords_card.setStyleSheet("""
-            QFrame#glass_card {
-                background-color: rgba(22, 16, 36, 0.85);
-                border: 1px solid rgba(168, 85, 247, 0.35);
-                border-radius: 12px;
-            }
-        """)
-        chords_layout = QVBoxLayout(chords_card)
+        self.chords_card = QFrame()
+        self.chords_card.setObjectName("glass_card")
+        chords_layout = QVBoxLayout(self.chords_card)
         chords_layout.setContentsMargins(12, 10, 12, 10)
 
-        chords_header = QLabel("⚡ ACTIVE HARDWARE CHORDS TELEMETRY")
-        chords_header.setStyleSheet("color: #a855f7; font-weight: bold; font-size: 10px;")
-        chords_layout.addWidget(chords_header)
+        self.chords_header = QLabel("⚡ ACTIVE HARDWARE CHORDS TELEMETRY")
+        chords_layout.addWidget(self.chords_header)
 
         self.chords_status_label = QLabel("Status: Idle")
         self.chords_status_label.setStyleSheet("color: rgba(255, 255, 255, 0.8); font-family: 'JetBrains Mono', 'Consolas', monospace; font-size: 12px;")
         chords_layout.addWidget(self.chords_status_label)
 
-        main_layout.addWidget(chords_card)
+        main_layout.addWidget(self.chords_card)
 
         # 6. Telemetry Footer Bar
         self.footer_label = QLabel("TELEMETRY FOOTER: Polling Rate: -- Hz | Latency: <1.0 ms")

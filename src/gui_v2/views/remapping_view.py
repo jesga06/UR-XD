@@ -429,6 +429,11 @@ class RemappingView(QWidget):
         if not self.config or not hasattr(self.config, "get_shift_layers"):
             return None
         layers = self.config.get_shift_layers()
+        layer_id = self.layer_selector.currentData()
+        if layer_id:
+            for l in layers:
+                if l.get("id") == layer_id:
+                    return l
         idx = self.layer_selector.currentIndex()
         if 0 <= idx < len(layers):
             return layers[idx]

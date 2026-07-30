@@ -25,6 +25,7 @@ class Mapper:
         self.chords = []
         self.shift_layers = []
         self.toggled_shift_layers = set()
+        self.consumed_shift_buttons = set()
         self.active_layer = 'layer_base'
         self.shift_button = None
         self.shift_mode = 'hold'
@@ -66,6 +67,7 @@ class Mapper:
         self.chords = []
         self.shift_layers = []
         self.toggled_shift_layers = set()
+        self.consumed_shift_buttons = set()
         
         if config.has_section('settings'):
             self.chord_mode = config.get('settings', 'chord_mode', fallback='rollback').lower()
@@ -378,30 +380,40 @@ class Mapper:
                 new_releases.add(btn_lower)
 
         # Check edge transitions for toggle-mode shift layers
-        if new_presses or new_releases:
-            logger.debug(f"[MAPPER] Edge — new_presses={new_presses} new_releases={new_releases} | active_layer={self.active_layer}")
+        chord_toggled_triggers = set()
         for l in self.shift_layers:
             if l.get('mode') == 'toggle':
                 trig = (l.get('trigger_button') or '').lower().strip()
                 mod = (l.get('modifier_button') or '').lower().strip()
                 l_id = l.get('id')
-                if trig:
-                    if mod:
-                        if (trig in new_presses and all_buttons.get(mod, False)) or (mod in new_presses and all_buttons.get(trig, False)):
-                            toggled = l_id in self.toggled_shift_layers
-                            if toggled:
-                                self.toggled_shift_layers.remove(l_id)
-                            else:
-                                self.toggled_shift_layers.add(l_id)
-                            logger.debug(f"[MAPPER] Toggle shift layer {l_id!r}: {'OFF' if toggled else 'ON'} | toggled_set={self.toggled_shift_layers}")
-                    else:
-                        if trig in new_presses:
-                            toggled = l_id in self.toggled_shift_layers
-                            if toggled:
-                                self.toggled_shift_layers.remove(l_id)
-                            else:
-                                self.toggled_shift_layers.add(l_id)
-                            logger.debug(f"[MAPPER] Toggle shift layer {l_id!r}: {'OFF' if toggled else 'ON'} | toggled_set={self.toggled_shift_layers}")
+                if trig and mod:
+                    if (trig in new_presses and all_buttons.get(mod, False)) or (mod in new_presses and all_buttons.get(trig, False)):
+                        toggled = l_id in self.toggled_shift_layers
+                        if toggled:
+                            self.toggled_shift_layers.remove(l_id)
+                        else:
+                            self.toggled_shift_layers.add(l_id)
+                            for other in self.shift_layers:
+                                other_trig = (other.get('trigger_button') or '').lower().strip()
+                                other_mod = (other.get('modifier_button') or '').lower().strip()
+                                if other_trig == trig and not other_mod and other.get('id') in self.toggled_shift_layers:
+                                    self.toggled_shift_layers.remove(other.get('id'))
+                        chord_toggled_triggers.add(trig)
+                        logger.debug(f"[MAPPER] Toggle chord shift layer {l_id!r}: {'OFF' if toggled else 'ON'} | toggled_set={self.toggled_shift_layers}")
+
+        for l in self.shift_layers:
+            if l.get('mode') == 'toggle':
+                trig = (l.get('trigger_button') or '').lower().strip()
+                mod = (l.get('modifier_button') or '').lower().strip()
+                l_id = l.get('id')
+                if trig and not mod:
+                    if trig in new_presses and trig not in chord_toggled_triggers:
+                        toggled = l_id in self.toggled_shift_layers
+                        if toggled:
+                            self.toggled_shift_layers.remove(l_id)
+                        else:
+                            self.toggled_shift_layers.add(l_id)
+                        logger.debug(f"[MAPPER] Toggle single shift layer {l_id!r}: {'OFF' if toggled else 'ON'} | toggled_set={self.toggled_shift_layers}")
 
         # Determine Active Shift Layer
         target_layer = 'layer_base'
@@ -442,6 +454,8 @@ class Mapper:
                 consumed_shift_buttons.add(trig)
             if mod:
                 consumed_shift_buttons.add(mod)
+
+        self.consumed_shift_buttons = consumed_shift_buttons
 
         # Handle Layer Change Transitions
         if self.active_layer != target_layer:

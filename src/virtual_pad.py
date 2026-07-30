@@ -199,21 +199,39 @@ class VirtualPad:
         # Load block preferences (default to block if mapped, i.e. True)
         self.layer_blocked_buttons = {'layer_base': set()}
         block_prefs = {}
+        raw_bx = {}
         if config.has_section('block_xinput'):
             for key, val in config.items('block_xinput'):
-                block_prefs[key.lower()] = val.lower() != 'false'
+                raw_bx[key.lower()] = val
+        elif hasattr(config, 'data') and 'block_xinput' in config.data:
+            bx_data = config.data.get('block_xinput', {})
+            if isinstance(bx_data, dict):
+                for key, val in bx_data.items():
+                    raw_bx[key.lower()] = val
+
+        for key, val in raw_bx.items():
+            if isinstance(val, bool):
+                block_prefs[key] = val
+            else:
+                block_prefs[key] = str(val).lower() != 'false'
+
+        valid_buttons = ['a', 'b', 'x', 'y', 'lb', 'rb', 'lt', 'rt', 'select',
+                         'start', 'l3', 'r3', 'dpad_up', 'dpad_down', 'dpad_left', 'dpad_right', 'ls', 'rs', 'home']
 
         base_blocked = set()
-        for section_name in ['layer_base', 'layer_shift', 'extra_buttons']:
+        for key, should_block in block_prefs.items():
+            if should_block and key in valid_buttons:
+                base_blocked.add(key)
+                self.blocked_buttons.add(key)
+
+        for section_name in ['layer_base', 'extra_buttons']:
             if config.has_section(section_name):
                 for key, val in config.items(section_name):
                     key_lower = key.lower()
-                    val_lower = val.lower()
-                    if key_lower == 'home':
-                        self.home_mapping = val_lower
+                    if key_lower == 'home' and val:
+                        self.home_mapping = val.lower()
 
-                    if key_lower in ['a', 'b', 'x', 'y', 'lb', 'rb', 'lt', 'rt', 'select',
-                                     'start', 'l3', 'r3', 'dpad_up', 'dpad_down', 'dpad_left', 'dpad_right', 'ls', 'rs']:
+                    if key_lower in valid_buttons:
                         should_block = block_prefs.get(key_lower, True)
                         if should_block:
                             base_blocked.add(key_lower)
@@ -230,20 +248,32 @@ class VirtualPad:
             shift_layers_data = []
 
         for s_layer in shift_layers_data:
+            if not isinstance(s_layer, dict):
+                continue
             s_id = s_layer.get('id', 'shift_1')
             s_mappings = s_layer.get('mappings', {})
             s_block = s_layer.get('block_xinput', {})
             s_blocked = set()
-            for key, val in s_mappings.items():
-                key_lower = key.lower()
-                if key_lower in ['a', 'b', 'x', 'y', 'lb', 'rb', 'lt', 'rt', 'select',
-                                 'start', 'l3', 'r3', 'dpad_up', 'dpad_down', 'dpad_left', 'dpad_right', 'ls', 'rs']:
-                    s_should_block = s_block.get(key_lower, True)
-                    if isinstance(s_should_block, str):
-                        s_should_block = s_should_block.lower() != 'false'
-                    if s_should_block:
-                        s_blocked.add(key_lower)
-                        self.blocked_buttons.add(key_lower)
+
+            if isinstance(s_block, dict):
+                for key, val in s_block.items():
+                    key_lower = key.lower()
+                    if key_lower in valid_buttons:
+                        b_val = val if isinstance(val, bool) else str(val).lower() != 'false'
+                        if b_val:
+                            s_blocked.add(key_lower)
+                            self.blocked_buttons.add(key_lower)
+
+            if isinstance(s_mappings, dict):
+                for key, val in s_mappings.items():
+                    key_lower = key.lower()
+                    if key_lower in valid_buttons:
+                        should_b = s_block.get(key_lower, True)
+                        b_val = should_b if isinstance(should_b, bool) else str(should_b).lower() != 'false'
+                        if b_val:
+                            s_blocked.add(key_lower)
+                            self.blocked_buttons.add(key_lower)
+
             self.layer_blocked_buttons[s_id] = s_blocked
 
 

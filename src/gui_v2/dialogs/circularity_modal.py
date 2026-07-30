@@ -436,7 +436,10 @@ class CircularityCalibrationModal(QDialog):
         """Transitions state machine from WAIT_SWEEP to SWEEP."""
         self.calib_state = "SWEEP"
         self.btn_sweep.setText("Finish Sweep")
-        self.btn_sweep.disconnect()
+        try:
+            self.btn_sweep.clicked.disconnect()
+        except Exception:
+            pass
         self.btn_sweep.clicked.connect(self.finish_sweep)
         self._set_status("Status: Rotate stick smoothly around the outer edge (3 times CW & CCW)…")
 

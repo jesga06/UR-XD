@@ -50,6 +50,7 @@ class TestThemeManager(unittest.TestCase):
         self.assertEqual(self.tm.get_token("accent_1"), "#A855F7FF")
         self.assertEqual(self.tm.get_token("accent_2"), "#00F5A0FF")
         self.assertEqual(self.tm.get_token("background"), "#0C0914FF")
+        self.assertEqual(self.tm.get_token("window_bg"), "#000000FF")
 
         self.tm.set_token("accent_1", "#12345678")
         self.assertEqual(self.tm.get_token("accent_1"), "#12345678")

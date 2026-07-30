@@ -197,11 +197,13 @@ class VirtualPad:
 
 
         # Load block preferences (default to block if mapped, i.e. True)
+        self.layer_blocked_buttons = {'layer_base': set()}
         block_prefs = {}
         if config.has_section('block_xinput'):
             for key, val in config.items('block_xinput'):
                 block_prefs[key.lower()] = val.lower() != 'false'
 
+        base_blocked = set()
         for section_name in ['layer_base', 'layer_shift', 'extra_buttons']:
             if config.has_section(section_name):
                 for key, val in config.items(section_name):
@@ -214,7 +216,10 @@ class VirtualPad:
                                      'start', 'l3', 'r3', 'dpad_up', 'dpad_down', 'dpad_left', 'dpad_right', 'ls', 'rs']:
                         should_block = block_prefs.get(key_lower, True)
                         if should_block:
+                            base_blocked.add(key_lower)
                             self.blocked_buttons.add(key_lower)
+
+        self.layer_blocked_buttons['layer_base'] = base_blocked
 
         # Check multi-shift layers block preferences
         if hasattr(config, 'get_shift_layers'):
@@ -225,8 +230,10 @@ class VirtualPad:
             shift_layers_data = []
 
         for s_layer in shift_layers_data:
+            s_id = s_layer.get('id', 'shift_1')
             s_mappings = s_layer.get('mappings', {})
             s_block = s_layer.get('block_xinput', {})
+            s_blocked = set()
             for key, val in s_mappings.items():
                 key_lower = key.lower()
                 if key_lower in ['a', 'b', 'x', 'y', 'lb', 'rb', 'lt', 'rt', 'select',
@@ -235,26 +242,53 @@ class VirtualPad:
                     if isinstance(s_should_block, str):
                         s_should_block = s_should_block.lower() != 'false'
                     if s_should_block:
+                        s_blocked.add(key_lower)
                         self.blocked_buttons.add(key_lower)
+            self.layer_blocked_buttons[s_id] = s_blocked
 
 
-    def process(self, state: ControllerState):
+    def destroy(self):
+        """Safely resets and unregisters virtual gamepad resources."""
+        try:
+            if hasattr(self, 'gamepad') and self.gamepad:
+                self.gamepad.reset()
+                self.gamepad.update()
+                logger.info("Virtual gamepad safely destroyed.")
+        except Exception as e:
+            if logger:
+                logger.error(f"Error destroying virtual pad: {e}")
+
+    def process(self, state: ControllerState, paused: bool = False):
         """
         Translates normalized float ControllerState values into vgamepad commands.
         Clamps values, handles deadzones, inverts Y axis as needed, and respects blocked inputs.
+        If paused is True, physical inputs pass directly through without remapping or button blocking.
         """
         if not self.gamepad:
             return
 
+        # Determine active layer blocks & consumed shift buttons
+        mapper_ref = getattr(self, 'mapper', None)
+        active_layer_id = getattr(mapper_ref, 'active_layer', 'layer_base') if mapper_ref else 'layer_base'
+        consumed = getattr(mapper_ref, 'consumed_shift_buttons', set()) if mapper_ref else set()
+        active_layer_blocks = getattr(self, 'layer_blocked_buttons', {}).get(active_layer_id, self.blocked_buttons)
+
         # Triggers
-        lt_val = math_utils.process_trigger(
-            state.lt, self.lt_inner, self.lt_adz, self.lt_curve, self.lt_power,
-            getattr(self, 'lt_rest_dz', 0.0), getattr(self, 'lt_sens', 1.0), getattr(self, 'lt_custom', '')
-        )
+        if paused:
+            lt_val = state.lt
+            rt_val = state.rt
+        else:
+            lt_val = math_utils.process_trigger(
+                state.lt, self.lt_inner, self.lt_adz, self.lt_curve, self.lt_power,
+                getattr(self, 'lt_rest_dz', 0.0), getattr(self, 'lt_sens', 1.0), getattr(self, 'lt_custom', '')
+            )
+            rt_val = math_utils.process_trigger(
+                state.rt, self.rt_inner, self.rt_adz, self.rt_curve, self.rt_power,
+                getattr(self, 'rt_rest_dz', 0.0), getattr(self, 'rt_sens', 1.0), getattr(self, 'rt_custom', '')
+            )
+
         if getattr(self, 'digital_lt', False):
             lt_val = 1.0 if lt_val > 0 else 0.0
-
-        rt_val = math_utils.process_trigger(
             state.rt, self.rt_inner, self.rt_adz, self.rt_curve, self.rt_power,
             getattr(self, 'rt_rest_dz', 0.0), getattr(self, 'rt_sens', 1.0), getattr(self, 'rt_custom', '')
         )
@@ -322,9 +356,16 @@ class VirtualPad:
         self.gamepad.left_joystick(x_value=lx_int, y_value=ly_int)
         self.gamepad.right_joystick(x_value=rx_int, y_value=ry_int)
 
+        # Determine active layer blocks & consumed shift buttons
+        mapper_ref = getattr(self, 'mapper', None)
+        active_layer_id = getattr(mapper_ref, 'active_layer', 'layer_base') if mapper_ref else 'layer_base'
+        consumed = getattr(mapper_ref, 'consumed_shift_buttons', set()) if mapper_ref else set()
+        active_layer_blocks = getattr(self, 'layer_blocked_buttons', {}).get(active_layer_id, self.blocked_buttons)
+
         # Helper function for pressing or releasing standard buttons
         def handle_btn(btn_name, state_val, xusb_btn):
-            active = (state_val and btn_name not in self.blocked_buttons) or (btn_name in self.macro_pressed_buttons)
+            is_blocked = (btn_name in consumed) or (btn_name in active_layer_blocks)
+            active = (state_val and not is_blocked) or (btn_name in self.macro_pressed_buttons)
             if active:
                 self.gamepad.press_button(button=xusb_btn)
             else:
@@ -341,8 +382,9 @@ class VirtualPad:
         handle_btn('start', state.start, vg.XUSB_BUTTON.XUSB_GAMEPAD_START)
 
         # Home button logic is special since it defaults to guide mapping
+        is_home_blocked = ('home' in consumed) or ('home' in active_layer_blocks)
         if self.home_mapping == 'guide':
-            if ('home' in self.macro_pressed_buttons) or (state.home and 'home' not in self.blocked_buttons):
+            if ('home' in self.macro_pressed_buttons) or (state.home and not is_home_blocked):
                 self.gamepad.press_button(
                     button=vg.XUSB_BUTTON.XUSB_GAMEPAD_GUIDE)
             else:

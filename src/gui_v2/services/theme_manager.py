@@ -146,7 +146,12 @@ class ThemeManager(QObject):
         color = self.get_color(key)
         return color_to_rgba_str(color, alpha_override=alpha_override)
 
+    def get_all_tokens(self) -> Dict[str, str]:
+        """Returns a copy of all current active theme tokens."""
+        return self.tokens.copy()
+
     def get_token(self, key: str) -> str:
+
         """Returns normalized 8-character hex string for specified key."""
         return self.tokens.get(key, DEFAULT_TOKENS.get(key, "#FFFFFFFF"))
 

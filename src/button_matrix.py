@@ -39,7 +39,8 @@ class ButtonPill(QFrame):
         layout.addWidget(self.label)
 
         self._setup_theme_sync()
-        self.set_active(False)
+        self.apply_style()
+
 
     def _setup_theme_sync(self) -> None:
         """Connects to ThemeManager.theme_changed signal for live color token updates."""

@@ -77,9 +77,11 @@ class MainWindow(QMainWindow):
     def setup_tray_icon(self):
         """Initializes QSystemTrayIcon with restore, console recovery, and exit actions."""
         self.tray_icon = QSystemTrayIcon(self)
-        app_icon = QApplication.style().standardIcon(QApplication.style().SP_ComputerIcon)
+        from PySide6.QtWidgets import QStyle
+        app_icon = QApplication.style().standardIcon(QStyle.StandardPixmap.SP_ComputerIcon)
         self.setWindowIcon(app_icon)
         self.tray_icon.setIcon(app_icon)
+
 
         tray_menu = QMenu(self)
 
@@ -102,32 +104,62 @@ class MainWindow(QMainWindow):
         self.tray_icon.show()
 
     def setup_ui(self):
-        """Builds tabbed view layout container."""
+        """Builds tabbed view layout container with lazy tab initialization for instant boot."""
         central_widget = QWidget(self)
         layout = QVBoxLayout(central_widget)
         layout.setContentsMargins(8, 8, 8, 8)
 
         self.tab_widget = QTabWidget(self)
 
-        # Initialize views
+        # 1. Initialize primary active view immediately for fast boot (~30ms)
         self.dashboard_view = DashboardView(controller_config=self.config, parent=self)
-        self.tuning_view = TuningView(controller_config=self.config, parent=self)
-        self.remapping_view = RemappingView(controller_config=self.config, parent=self)
-        self.customization_view = CustomizationView(controller_config=self.config, parent=self)
-
         self.tab_widget.addTab(self.dashboard_view, "Dashboard")
-        self.tab_widget.addTab(self.tuning_view, "Tuning")
-        self.tab_widget.addTab(self.remapping_view, "Remapping")
-        self.tab_widget.addTab(self.customization_view, "Customization")
+
+        # 2. Placeholders for deferred/lazy tab initialization
+        self.tuning_view = None
+        self.remapping_view = None
+        self.customization_view = None
+
+        self._tuning_placeholder = QWidget(self)
+        self._remapping_placeholder = QWidget(self)
+        self._customization_placeholder = QWidget(self)
+
+        self.tab_widget.addTab(self._tuning_placeholder, "Tuning")
+        self.tab_widget.addTab(self._remapping_placeholder, "Remapping")
+        self.tab_widget.addTab(self._customization_placeholder, "Customization")
+
+        self.tab_widget.currentChanged.connect(self._on_tab_changed)
 
         layout.addWidget(self.tab_widget)
         self.setCentralWidget(central_widget)
+
+    def _on_tab_changed(self, index: int):
+        """Lazy-loads tab view widgets on-demand when clicked for the first time."""
+        if index == 1 and self.tuning_view is None:
+            self.tuning_view = TuningView(config_manager=self.config, parent=self)
+            self.tab_widget.removeTab(1)
+            self.tab_widget.insertTab(1, self.tuning_view, "Tuning")
+            self.tab_widget.setCurrentIndex(1)
+            self.telemetry_worker.telemetry_updated.connect(self.tuning_view.update_telemetry)
+
+        elif index == 2 and self.remapping_view is None:
+            self.remapping_view = RemappingView(config_manager=self.config, parent=self)
+            self.tab_widget.removeTab(2)
+            self.tab_widget.insertTab(2, self.remapping_view, "Remapping")
+            self.tab_widget.setCurrentIndex(2)
+
+        elif index == 3 and self.customization_view is None:
+            self.customization_view = CustomizationView(theme_manager=self.theme_mgr, parent=self)
+            self.tab_widget.removeTab(3)
+            self.tab_widget.insertTab(3, self.customization_view, "Customization")
+            self.tab_widget.setCurrentIndex(3)
 
     def _connect_signals(self):
         """Connects worker telemetry signals to dashboard and view slots."""
         self.telemetry_worker.telemetry_updated.connect(self.dashboard_view.update_telemetry)
         if hasattr(self.dashboard_view, "on_telemetry_updated"):
             self.telemetry_worker.telemetry_updated.connect(self.dashboard_view.on_telemetry_updated)
+
 
     def _do_save_config(self):
         """Internal callback executed by DebouncedConfigSaver."""

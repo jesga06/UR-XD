@@ -1,6 +1,6 @@
 """
 Unit test for CustomizationView tab module.
-Verifies UI creation, color preview swatches, and reset actions.
+Verifies UI creation, preset theme dropdown, CRUD dialog actions, and color preview swatches.
 """
 
 import sys
@@ -22,20 +22,20 @@ class TestCustomizationView(unittest.TestCase):
         if not cls.app:
             cls.app = QApplication([])
 
-    def test_view_creation_and_token_refresh(self):
+    def test_view_creation_and_preset_dropdown(self):
         tm = ThemeManager.get_instance()
         tm.reset_defaults()
 
         view = CustomizationView(tm)
         self.assertIsNotNone(view)
 
-        self.assertEqual(view.hex_labels["accent_1"].text(), "#A855F7FF")
-        self.assertEqual(view.hex_labels["accent_2"].text(), "#00F5A0FF")
-        self.assertEqual(view.hex_labels["background"].text(), "#0C0914FF")
-
-        # Set token and check updated text
-        tm.set_token("accent_1", "#123456FF")
-        self.assertEqual(view.hex_labels["accent_1"].text(), "#123456FF")
+        # Check dropdown items count
+        self.assertGreater(view.theme_dropdown.count(), 0)
+        
+        # Test switching theme preset via apply_theme_by_name
+        tm.apply_theme_by_name("Cyber Orange")
+        self.assertEqual(tm.get_token("accent_1"), "#F97316FF")
+        self.assertEqual(view.hex_labels["accent_1"].text(), "#F97316FF")
 
         tm.reset_defaults()
         self.assertEqual(view.hex_labels["accent_1"].text(), "#A855F7FF")

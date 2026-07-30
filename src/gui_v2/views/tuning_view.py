@@ -441,12 +441,12 @@ class StickCurveCanvas(QWidget):
                 painter.setBrush(QBrush(QColor(0, 245, 160) if is_active else QColor(255, 255, 255)))
                 painter.drawEllipse(QPointF(px, py), 6.0, 6.0)
 
-        # Live Cursor Dot (Raw In vs Out Mag) - NO outline pen, radius 6.0
+        # Live Cursor Dot (Output Neon Green) - NO outline pen, radius 6.0
         if self.live_raw_mag > 0.0:
             cx = self.live_raw_mag * w
             cy = h - (self.live_out_mag * h)
             painter.setPen(Qt.NoPen)
-            painter.setBrush(QBrush(QColor(245, 158, 11)))
+            painter.setBrush(QBrush(QColor(0, 245, 160)))  # Neon Green matching output signal
             painter.drawEllipse(QPointF(cx, cy), 6.0, 6.0)
 
         painter.end()

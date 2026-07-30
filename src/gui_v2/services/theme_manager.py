@@ -1,7 +1,8 @@
 """
 Dynamic Theme Engine and Color Token Manager for PySide6 UI.
 Manages active theme tokens (accent_1, accent_2, background), dynamic QSS generation,
-hex with alpha parsing, JSON theme import/export, and persistence sync with config.ini.
+hex with alpha parsing, JSON theme import/export, preset theme discovery, theme CRUD,
+and persistence sync with config.ini.
 """
 
 import os
@@ -23,6 +24,8 @@ DEFAULT_TOKENS: Dict[str, str] = {
 }
 
 CUSTOM_THEME_RELATIVE_PATH = os.path.join("themes", "custom_theme.json")
+PRESETS_DIR = os.path.join("themes", "presets")
+USER_THEMES_DIR = os.path.join("themes", "user")
 CONFIG_INI_PATH = "config.ini"
 
 
@@ -82,6 +85,13 @@ def color_to_rgba_str(color: QColor, alpha_override: Optional[float] = None) -> 
     return f"rgba({color.red()}, {color.green()}, {color.blue()}, {alpha:.2f})"
 
 
+def sanitize_filename(name: str) -> str:
+    """Sanitizes a string to be a safe filename."""
+    cleaned = re.sub(r'[^a-zA-Z0-9_\- ]', '', name).strip()
+    cleaned = cleaned.replace(' ', '_').lower()
+    return cleaned or "custom_theme"
+
+
 class ThemeManager(QObject):
     """
     Central singleton service for dynamic UI color tokens and QSS generation.
@@ -99,18 +109,22 @@ class ThemeManager(QObject):
 
     def __init__(self, parent: Optional[QObject] = None):
         super().__init__(parent)
-        # Prevent multiple instance binding if singleton accessed
         if ThemeManager._instance is None:
             ThemeManager._instance = self
 
         self.tokens: Dict[str, str] = DEFAULT_TOKENS.copy()
+        self.active_theme_name: str = "Default Neon Purple"
+        self._ensure_theme_directories()
         self._load_saved_theme()
 
+    def _ensure_theme_directories(self):
+        """Creates themes, themes/presets, and themes/user directories if missing."""
+        os.makedirs("themes", exist_ok=True)
+        os.makedirs(PRESETS_DIR, exist_ok=True)
+        os.makedirs(USER_THEMES_DIR, exist_ok=True)
+
     def get_color(self, key: str, alpha_override: Optional[float] = None) -> QColor:
-        """
-        Returns a PySide6 QColor object for the specified token key.
-        Falls back to default token if key is missing.
-        """
+        """Returns a QColor object for specified key."""
         hex_val = self.tokens.get(key, DEFAULT_TOKENS.get(key, "#FFFFFFFF"))
         color = hex8_to_color(hex_val)
         if alpha_override is not None:
@@ -119,23 +133,16 @@ class ThemeManager(QObject):
         return color
 
     def get_rgba_str(self, key: str, alpha_override: Optional[float] = None) -> str:
-        """
-        Returns a CSS rgba(R, G, B, A) string for the specified token key.
-        """
+        """Returns CSS rgba(R, G, B, A) string for specified key."""
         color = self.get_color(key)
         return color_to_rgba_str(color, alpha_override=alpha_override)
 
     def get_token(self, key: str) -> str:
-        """
-        Returns the normalized 8-character hex string for the specified token key.
-        """
+        """Returns normalized 8-character hex string for specified key."""
         return self.tokens.get(key, DEFAULT_TOKENS.get(key, "#FFFFFFFF"))
 
     def set_token(self, key: str, hex_color: str) -> None:
-        """
-        Updates a single theme token and notifies subscribers via theme_changed signal.
-        Automatically saves persistent theme and syncs with config.ini.
-        """
+        """Updates a single token and notifies subscribers."""
         normalized = normalize_hex8(hex_color, default=self.tokens.get(key, "#FFFFFFFF"))
         self.tokens[key] = normalized
         self._save_custom_theme()
@@ -143,19 +150,204 @@ class ThemeManager(QObject):
         self.theme_changed.emit(self.tokens.copy())
 
     def reset_defaults(self) -> None:
-        """
-        Restores default system theme tokens (#A855F7FF, #00F5A0FF, #0C0914FF).
-        """
+        """Restores default system theme tokens (#A855F7FF, #00F5A0FF, #0C0914FF)."""
         self.tokens = DEFAULT_TOKENS.copy()
+        self.active_theme_name = "Default Neon Purple"
         self._save_custom_theme()
         self._sync_config_ini()
         self.theme_changed.emit(self.tokens.copy())
 
+    def get_available_themes(self) -> Dict[str, Dict[str, Any]]:
+        """
+        Discovers all available system presets and user themes.
+        Returns dict mapping theme display name to metadata:
+        {"is_preset": bool, "path": str, "tokens": dict}
+        """
+        themes: Dict[str, Dict[str, Any]] = {}
+
+        # 1. System Presets (themes/presets/)
+        if os.path.exists(PRESETS_DIR):
+            for fname in sorted(os.listdir(PRESETS_DIR)):
+                if fname.endswith(".json"):
+                    fpath = os.path.join(PRESETS_DIR, fname)
+                    parsed = self._read_theme_file(fpath)
+                    if parsed:
+                        display_name = parsed.get("name", fname.replace(".json", "").replace("_", " ").title())
+                        themes[display_name] = {
+                            "is_preset": True,
+                            "path": fpath,
+                            "tokens": parsed["tokens"]
+                        }
+
+        # 2. User Themes (themes/user/)
+        if os.path.exists(USER_THEMES_DIR):
+            for fname in sorted(os.listdir(USER_THEMES_DIR)):
+                if fname.endswith(".json"):
+                    fpath = os.path.join(USER_THEMES_DIR, fname)
+                    parsed = self._read_theme_file(fpath)
+                    if parsed:
+                        display_name = parsed.get("name", fname.replace(".json", "").replace("_", " ").title())
+                        themes[display_name] = {
+                            "is_preset": False,
+                            "path": fpath,
+                            "tokens": parsed["tokens"]
+                        }
+
+        return themes
+
+    def _read_theme_file(self, fpath: str) -> Optional[Dict[str, Any]]:
+        """Reads a theme file and extracts valid tokens."""
+        try:
+            with open(fpath, "r", encoding="utf-8") as f:
+                data = json.load(f)
+            if isinstance(data, dict):
+                tokens = {}
+                for k in DEFAULT_TOKENS.keys():
+                    if k in data:
+                        tokens[k] = normalize_hex8(str(data[k]))
+                    else:
+                        tokens[k] = DEFAULT_TOKENS[k]
+                name = data.get("name", os.path.basename(fpath).replace(".json", ""))
+                return {"name": name, "tokens": tokens}
+        except Exception as e:
+            logger.warning(f"Could not read theme file {fpath}: {e}")
+        return None
+
+    def apply_theme_by_name(self, theme_name: str) -> bool:
+        """Applies a theme by display name from available presets or user themes."""
+        available = self.get_available_themes()
+        if theme_name in available:
+            meta = available[theme_name]
+            self.tokens = meta["tokens"].copy()
+            self.active_theme_name = theme_name
+            self._save_custom_theme()
+            self._sync_config_ini(custom_path=meta["path"])
+            self.theme_changed.emit(self.tokens.copy())
+            logger.info(f"Applied theme '{theme_name}'")
+            return True
+        return False
+
+    def save_user_theme(self, name: str) -> bool:
+        """Saves current active tokens as a user custom theme."""
+        if not name or not name.strip():
+            return False
+
+        clean_name = name.strip()
+        filename = f"{sanitize_filename(clean_name)}.json"
+        fpath = os.path.join(USER_THEMES_DIR, filename)
+
+        payload = {"name": clean_name}
+        payload.update(self.tokens)
+
+        try:
+            with open(fpath, "w", encoding="utf-8") as f:
+                json.dump(payload, f, indent=4)
+            self.active_theme_name = clean_name
+            self._save_custom_theme()
+            self._sync_config_ini(custom_path=fpath)
+            self.theme_changed.emit(self.tokens.copy())
+            logger.info(f"Saved custom theme '{clean_name}' to {fpath}")
+            return True
+        except Exception as e:
+            logger.error(f"Failed to save user theme '{clean_name}': {e}")
+            return False
+
+    def rename_user_theme(self, old_name: str, new_name: str) -> bool:
+        """Renames an existing user custom theme."""
+        available = self.get_available_themes()
+        if old_name not in available:
+            return False
+
+        meta = available[old_name]
+        if meta["is_preset"]:
+            logger.warning("Cannot rename system pre-built theme.")
+            return False
+
+        old_path = meta["path"]
+        clean_new_name = new_name.strip()
+        new_filename = f"{sanitize_filename(clean_new_name)}.json"
+        new_path = os.path.join(USER_THEMES_DIR, new_filename)
+
+        payload = {"name": clean_new_name}
+        payload.update(meta["tokens"])
+
+        try:
+            with open(new_path, "w", encoding="utf-8") as f:
+                json.dump(payload, f, indent=4)
+
+            if os.path.exists(old_path) and os.path.abspath(old_path) != os.path.abspath(new_path):
+                os.remove(old_path)
+
+            if self.active_theme_name == old_name:
+                self.active_theme_name = clean_new_name
+
+            self._save_custom_theme()
+            self._sync_config_ini(custom_path=new_path)
+            self.theme_changed.emit(self.tokens.copy())
+            logger.info(f"Renamed theme '{old_name}' to '{clean_new_name}'")
+            return True
+        except Exception as e:
+            logger.error(f"Failed to rename theme '{old_name}': {e}")
+            return False
+
+    def copy_theme(self, source_name: str, new_name: str) -> bool:
+        """Duplicates a theme and saves it as a new user custom theme."""
+        available = self.get_available_themes()
+        if source_name not in available:
+            return False
+
+        source_tokens = available[source_name]["tokens"]
+        clean_new_name = new_name.strip()
+        new_filename = f"{sanitize_filename(clean_new_name)}.json"
+        new_path = os.path.join(USER_THEMES_DIR, new_filename)
+
+        payload = {"name": clean_new_name}
+        payload.update(source_tokens)
+
+        try:
+            with open(new_path, "w", encoding="utf-8") as f:
+                json.dump(payload, f, indent=4)
+
+            self.tokens = source_tokens.copy()
+            self.active_theme_name = clean_new_name
+            self._save_custom_theme()
+            self._sync_config_ini(custom_path=new_path)
+            self.theme_changed.emit(self.tokens.copy())
+            logger.info(f"Copied theme '{source_name}' to '{clean_new_name}'")
+            return True
+        except Exception as e:
+            logger.error(f"Failed to copy theme '{source_name}': {e}")
+            return False
+
+    def delete_user_theme(self, name: str) -> bool:
+        """Deletes a user custom theme file (presets are protected)."""
+        available = self.get_available_themes()
+        if name not in available:
+            return False
+
+        meta = available[name]
+        if meta["is_preset"]:
+            logger.warning("Cannot delete system pre-built theme.")
+            return False
+
+        try:
+            if os.path.exists(meta["path"]):
+                os.remove(meta["path"])
+
+            logger.info(f"Deleted user theme '{name}'")
+
+            # If deleted theme was active, revert to Default Neon Purple
+            if self.active_theme_name == name:
+                self.apply_theme_by_name("Default Neon Purple")
+            else:
+                self.theme_changed.emit(self.tokens.copy())
+            return True
+        except Exception as e:
+            logger.error(f"Failed to delete theme '{name}': {e}")
+            return False
+
     def import_theme(self, json_path: str) -> bool:
-        """
-        Imports theme tokens from a JSON file.
-        Backward compatible: if missing keys, keeps existing or default values.
-        """
+        """Imports theme tokens from a JSON file."""
         if not os.path.exists(json_path):
             logger.error(f"Cannot import theme: file does not exist ({json_path})")
             return False
@@ -175,6 +367,8 @@ class ThemeManager(QObject):
                     updated = True
 
             if updated:
+                name = data.get("name", os.path.basename(json_path).replace(".json", ""))
+                self.active_theme_name = name
                 self._save_custom_theme()
                 self._sync_config_ini(custom_path=json_path)
                 self.theme_changed.emit(self.tokens.copy())
@@ -186,15 +380,15 @@ class ThemeManager(QObject):
             return False
 
     def export_theme(self, json_path: str) -> bool:
-        """
-        Exports active theme tokens to a JSON file.
-        """
+        """Exports active theme tokens to a JSON file."""
         try:
             dir_name = os.path.dirname(json_path)
             if dir_name:
                 os.makedirs(dir_name, exist_ok=True)
+            payload = {"name": self.active_theme_name}
+            payload.update(self.tokens)
             with open(json_path, "w", encoding="utf-8") as f:
-                json.dump(self.tokens, f, indent=4)
+                json.dump(payload, f, indent=4)
             logger.info(f"Successfully exported theme to {json_path}")
             return True
         except Exception as e:
@@ -202,12 +396,7 @@ class ThemeManager(QObject):
             return False
 
     def generate_qss(self) -> str:
-        """
-        Generates application-wide QSS style sheet dynamically based on current color tokens.
-        Card background uses background with ~85% alpha.
-        Borders and accents use accent_1 with 35% opacity or full accent_1.
-        Accent #2 is used for output highlights, success states, and secondary glowing elements.
-        """
+        """Generates dynamic application-wide QSS stylesheet."""
         bg_color = self.get_color("background")
         accent_1 = self.get_color("accent_1")
         accent_2 = self.get_color("accent_2")
@@ -258,6 +447,13 @@ QLineEdit:focus, QComboBox:focus, QSpinBox:focus {{
 QLineEdit::placeholder {{
     color: rgba(255, 255, 255, 0.55);
     font-style: italic;
+}}
+
+QComboBox QAbstractItemView {{
+    background-color: {bg_solid};
+    border: 1px solid {border_glass};
+    color: #ffffff;
+    selection-background-color: {accent_1_subtle};
 }}
 
 /* Interactive Buttons */
@@ -367,6 +563,8 @@ QLabel.output-header {{
                     for k in DEFAULT_TOKENS.keys():
                         if k in data:
                             self.tokens[k] = normalize_hex8(str(data[k]), default=DEFAULT_TOKENS[k])
+                    if "name" in data:
+                        self.active_theme_name = data["name"]
             except Exception as e:
                 logger.warning(f"Could not load custom theme from {CUSTOM_THEME_RELATIVE_PATH}: {e}")
 
@@ -374,8 +572,10 @@ QLabel.output-header {{
         """Saves current tokens to themes/custom_theme.json."""
         try:
             os.makedirs("themes", exist_ok=True)
+            payload = {"name": self.active_theme_name}
+            payload.update(self.tokens)
             with open(CUSTOM_THEME_RELATIVE_PATH, "w", encoding="utf-8") as f:
-                json.dump(self.tokens, f, indent=4)
+                json.dump(payload, f, indent=4)
         except Exception as e:
             logger.error(f"Failed to save custom theme: {e}")
 
@@ -391,6 +591,7 @@ QLabel.output-header {{
         if "UI" not in config.sections():
             config.add_section("UI")
 
+        config.set("UI", "theme_name", self.active_theme_name)
         config.set("UI", "theme_path", custom_path or CUSTOM_THEME_RELATIVE_PATH)
         config.set("UI", "accent_1", self.tokens.get("accent_1", "#A855F7FF"))
         config.set("UI", "accent_2", self.tokens.get("accent_2", "#00F5A0FF"))

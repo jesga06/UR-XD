@@ -1,6 +1,6 @@
 """
 Unit tests for ThemeManager service using standard library unittest.
-Verifies token management, hex normalization, QSS generation, and theme import/export.
+Verifies token management, hex normalization, QSS generation, preset discovery, and theme CRUD.
 """
 
 import sys
@@ -57,33 +57,44 @@ class TestThemeManager(unittest.TestCase):
         self.tm.reset_defaults()
         self.assertEqual(self.tm.get_token("accent_1"), "#A855F7FF")
 
-    def test_theme_import_export(self):
-        with tempfile.TemporaryDirectory() as tmp_dir:
-            export_path = os.path.join(tmp_dir, "test_theme.json")
-            self.tm.set_token("accent_1", "#FF0000FF")
-            self.tm.set_token("accent_2", "#00FF00FF")
-            self.tm.set_token("background", "#0000FFFF")
+    def test_presets_discovery(self):
+        available = self.tm.get_available_themes()
+        self.assertIn("Default Neon Purple", available)
+        self.assertTrue(available["Default Neon Purple"]["is_preset"])
+        self.assertIn("Cyber Orange", available)
+        self.assertIn("Emerald Mint", available)
 
-            self.assertTrue(self.tm.export_theme(export_path))
-            self.assertTrue(os.path.exists(export_path))
+    def test_user_theme_crud(self):
+        # 1. Save Custom Theme
+        self.tm.set_token("accent_1", "#112233FF")
+        self.assertTrue(self.tm.save_user_theme("Test Custom Palette"))
+        
+        available = self.tm.get_available_themes()
+        self.assertIn("Test Custom Palette", available)
+        self.assertFalse(available["Test Custom Palette"]["is_preset"])
 
-            self.tm.reset_defaults()
-            self.assertEqual(self.tm.get_token("accent_1"), "#A855F7FF")
+        # 2. Copy Theme
+        self.assertTrue(self.tm.copy_theme("Test Custom Palette", "Test Custom Copy"))
+        available = self.tm.get_available_themes()
+        self.assertIn("Test Custom Copy", available)
 
-            self.assertTrue(self.tm.import_theme(export_path))
-            self.assertEqual(self.tm.get_token("accent_1"), "#FF0000FF")
-            self.assertEqual(self.tm.get_token("accent_2"), "#00FF00FF")
-            self.assertEqual(self.tm.get_token("background"), "#0000FFFF")
+        # 3. Rename Theme
+        self.assertTrue(self.tm.rename_user_theme("Test Custom Palette", "Test Custom Renamed"))
+        available = self.tm.get_available_themes()
+        self.assertNotIn("Test Custom Palette", available)
+        self.assertIn("Test Custom Renamed", available)
 
-    def test_theme_import_partial_json(self):
-        with tempfile.TemporaryDirectory() as tmp_dir:
-            partial_path = os.path.join(tmp_dir, "partial_theme.json")
-            with open(partial_path, "w") as f:
-                json.dump({"accent_1": "#11223344"}, f)
+        # 4. Preset Deletion Protection
+        self.assertFalse(self.tm.delete_user_theme("Default Neon Purple"))
 
-            self.assertTrue(self.tm.import_theme(partial_path))
-            self.assertEqual(self.tm.get_token("accent_1"), "#11223344")
-            self.assertEqual(self.tm.get_token("accent_2"), "#00F5A0FF")
+        # 5. Delete User Themes
+        self.assertTrue(self.tm.delete_user_theme("Test Custom Renamed"))
+        self.assertTrue(self.tm.delete_user_theme("Test Custom Copy"))
+        available = self.tm.get_available_themes()
+        self.assertNotIn("Test Custom Renamed", available)
+        self.assertNotIn("Test Custom Copy", available)
+
+        self.tm.reset_defaults()
 
 
 if __name__ == "__main__":

@@ -112,6 +112,8 @@ class ControllerConfig:
     def _migrate_shift_layers(self) -> None:
         if "shift_layers" not in self.data or not isinstance(self.data.get("shift_layers"), list):
             trigger_button = self.get("shift_layer", "trigger_button", fallback="") or ""
+            if trigger_button.strip().lower() in ("none", "null", "false", "0"):
+                trigger_button = ""
             mode = self.get("shift_layer", "mode", fallback="hold") or "hold"
             mappings = self.data.get("shift_mappings", {})
             block_xinput = self.data.get("shift_block_xinput", {})
@@ -126,6 +128,15 @@ class ControllerConfig:
                     "block_xinput": dict(block_xinput) if isinstance(block_xinput, dict) else {}
                 }
             ]
+        else:
+            for l in self.data["shift_layers"]:
+                if isinstance(l, dict):
+                    trig = (l.get("trigger_button") or "").strip().lower()
+                    if trig in ("none", "null", "false", "0"):
+                        l["trigger_button"] = ""
+                    mod = (l.get("modifier_button") or "").strip().lower()
+                    if mod in ("none", "null", "false", "0"):
+                        l["modifier_button"] = ""
         self._sync_legacy_shift_fields()
 
     def _sync_legacy_shift_fields(self) -> None:

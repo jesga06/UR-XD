@@ -131,5 +131,40 @@ class TestMapperShiftLayers(unittest.TestCase):
         mapper.process(st)
         self.assertEqual(mapper.active_layer, 'layer_base')
 
+    def test_modifier_none_string_normalization(self):
+        cfg = ControllerConfig()
+        cfg.set_shift_layers([
+            {
+                "id": "shift_1",
+                "name": "Base Shift",
+                "trigger_button": "home",
+                "modifier_button": "none",
+                "mode": "hold",
+                "mappings": {"a": "keyboard:1"},
+                "block_xinput": {}
+            },
+            {
+                "id": "shift_2",
+                "name": "Base2 Shift",
+                "trigger_button": "home",
+                "modifier_button": "rb",
+                "mode": "hold",
+                "mappings": {"a": "keyboard:2"},
+                "block_xinput": {}
+            }
+        ])
+        mapper = Mapper(cfg)
+        st = ControllerState()
+        
+        # Press HOME only -> must match shift_1 (single trigger layer after "none" string normalization)
+        st.home = 1.0
+        mapper.process(st)
+        self.assertEqual(mapper.active_layer, 'shift_1')
+        
+        # Press RB too -> must match shift_2 (chord layer)
+        st.rb = 1.0
+        mapper.process(st)
+        self.assertEqual(mapper.active_layer, 'shift_2')
+
 if __name__ == '__main__':
     unittest.main()

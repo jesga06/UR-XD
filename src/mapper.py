@@ -91,7 +91,11 @@ class Mapper:
             for l_cfg in raw_shift_layers:
                 l_id = l_cfg.get('id', 'shift_1')
                 trig = (l_cfg.get('trigger_button') or '').lower().strip()
+                if trig in ('none', 'null', 'false', '0'):
+                    trig = ''
                 mod = (l_cfg.get('modifier_button') or '').lower().strip()
+                if mod in ('none', 'null', 'false', '0'):
+                    mod = ''
                 mode = (l_cfg.get('mode') or 'hold').lower().strip()
                 maps = {k.lower(): v.lower() for k, v in l_cfg.get('mappings', {}).items()}
                 logger.debug(f"[MAPPER] Loaded shift layer id={l_id!r} trigger={trig!r} mod={mod!r} mode={mode!r} mappings={maps}")

@@ -669,19 +669,20 @@ class RemappingView(QWidget):
 
         # Connect live UDP telemetry worker if available on main window
         main_win = self.window()
-        udp_worker = getattr(main_win, 'udp_worker', None)
-        logger.debug(f"[REMAP] UDP worker found: {udp_worker is not None} has telemetry_received: {hasattr(udp_worker, 'telemetry_received') if udp_worker else False}")
-        if udp_worker and hasattr(udp_worker, 'telemetry_received'):
-            udp_worker.telemetry_received.connect(dlg.update_telemetry)
-            logger.debug("[REMAP] Connected telemetry_received -> dlg.update_telemetry")
+        worker = getattr(main_win, 'telemetry_worker', getattr(main_win, 'udp_worker', None))
+        sig = getattr(worker, 'telemetry_updated', getattr(worker, 'telemetry_received', None)) if worker else None
+        logger.debug(f"[REMAP] Telemetry worker found: {worker is not None} signal: {sig is not None}")
+        if sig:
+            sig.connect(dlg.update_telemetry)
+            logger.debug("[REMAP] Connected telemetry -> dlg.update_telemetry")
 
         try:
             dlg.exec()
         finally:
-            if udp_worker and hasattr(udp_worker, 'telemetry_received'):
+            if sig:
                 try:
-                    udp_worker.telemetry_received.disconnect(dlg.update_telemetry)
-                    logger.debug("[REMAP] Disconnected telemetry_received")
+                    sig.disconnect(dlg.update_telemetry)
+                    logger.debug("[REMAP] Disconnected telemetry")
                 except Exception:
                     pass
 

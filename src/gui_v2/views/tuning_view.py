@@ -1434,16 +1434,18 @@ class TuningView(QWidget):
     def open_circularity_modal(self, section_name: str) -> None:
         modal = CircularityCalibrationModal(parent=self, section_name=section_name, config_manager=self.config)
         main_win = self.window()
-        udp_worker = getattr(main_win, 'udp_worker', None)
-        if udp_worker and hasattr(udp_worker, 'telemetry_received'):
-            udp_worker.telemetry_received.connect(modal.update_telemetry)
+        worker = getattr(main_win, 'telemetry_worker', getattr(main_win, 'udp_worker', None))
+        sig = getattr(worker, 'telemetry_updated', getattr(worker, 'telemetry_received', None)) if worker else None
+
+        if sig:
+            sig.connect(modal.update_telemetry)
 
         try:
             modal.exec()
         finally:
-            if udp_worker and hasattr(udp_worker, 'telemetry_received'):
+            if sig:
                 try:
-                    udp_worker.telemetry_received.disconnect(modal.update_telemetry)
+                    sig.disconnect(modal.update_telemetry)
                 except Exception:
                     pass
 

@@ -460,6 +460,8 @@ class DualStickRadarWidget(QWidget):
     180x180 2D X/Y Radar Canvas rendering DUAL live dots:
       - Cyan / Yellow Dot: Raw hardware input (raw_x, raw_y)
       - Purple / Green Dot: Processed output (out_x, out_y)
+      - Dynamic Red Deadzone Circle Overlay
+      - Dotted vector trailing lines linked to output dots
     """
     def __init__(self, parent=None):
         super().__init__(parent)
@@ -469,6 +471,11 @@ class DualStickRadarWidget(QWidget):
         self.raw_y: float = 0.0
         self.out_x: float = 0.0
         self.out_y: float = 0.0
+        self.deadzone: float = 0.0
+
+    def set_deadzone(self, dz: float) -> None:
+        self.deadzone = max(0.0, min(1.0, float(dz)))
+        self.update()
 
     def update_positions(self, raw_x: float, raw_y: float, out_x: float, out_y: float) -> None:
         self.raw_x = raw_x
@@ -495,16 +502,34 @@ class DualStickRadarWidget(QWidget):
         painter.drawLine(QPointF(cx, 0), QPointF(cx, h))
         painter.drawLine(QPointF(0, cy), QPointF(w, cy))
 
-        # 1. Raw Hardware Input Dot (Cyan, NO outline pen, radius 6.0)
+        # Dynamic Inner Deadzone Circle Overlay (Transparent Red)
+        if self.deadzone > 0.0:
+            dz_radius = max_r * self.deadzone
+            dz_pen = QPen(QColor(239, 68, 68, 140), 1.2, Qt.DashLine)
+            painter.setPen(dz_pen)
+            painter.setBrush(QBrush(QColor(239, 68, 68, 25)))
+            painter.drawEllipse(QPointF(cx, cy), dz_radius, dz_radius)
+
+        # 1. Raw Hardware Input Trailing Line & Dot (Cyan)
         rx_px = cx + (self.raw_x * max_r)
         ry_px = cy - (self.raw_y * max_r)
+        if abs(self.raw_x) > 0.001 or abs(self.raw_y) > 0.001:
+            raw_line_pen = QPen(QColor(6, 182, 212, 160), 1.5, Qt.DotLine)
+            painter.setPen(raw_line_pen)
+            painter.drawLine(QPointF(cx, cy), QPointF(rx_px, ry_px))
+
         painter.setPen(Qt.NoPen)
         painter.setBrush(QBrush(QColor(6, 182, 212)))  # Cyan
         painter.drawEllipse(QPointF(rx_px, ry_px), 6.0, 6.0)
 
-        # 2. Processed Output Dot (Neon Green, NO outline pen, radius 6.0)
+        # 2. Processed Output Trailing Line & Dot (Neon Green)
         ox_px = cx + (self.out_x * max_r)
         oy_px = cy - (self.out_y * max_r)
+        if abs(self.out_x) > 0.001 or abs(self.out_y) > 0.001:
+            out_line_pen = QPen(QColor(0, 245, 160, 220), 1.5, Qt.DotLine)
+            painter.setPen(out_line_pen)
+            painter.drawLine(QPointF(cx, cy), QPointF(ox_px, oy_px))
+
         painter.setPen(Qt.NoPen)
         painter.setBrush(QBrush(QColor(0, 245, 160)))  # Neon Green
         painter.drawEllipse(QPointF(ox_px, oy_px), 6.0, 6.0)
@@ -817,6 +842,7 @@ class TuningView(QWidget):
 
         # Sync Canvas Parameters
         curve_canvas.update_params(def_dz, def_adz, def_rdz, def_curve, def_factor, def_sens, def_custom)
+        radar_canvas.set_deadzone(def_dz)
 
         # RESET Button Logic for Stick Card
         def reset_stick_defaults():
@@ -846,6 +872,7 @@ class TuningView(QWidget):
             lbl_dots.setVisible(False)
 
             curve_canvas.update_params(0.0, 0.0, 0.0, "linear", 1.0, 1.0, "")
+            radar_canvas.set_deadzone(0.0)
             self.mark_config_dirty()
 
         btn_reset.clicked.connect(reset_stick_defaults)
@@ -1110,6 +1137,14 @@ class TuningView(QWidget):
                 str(cfg.get("custom_eq", cfg.get("custom_curve", ""))),
                 is_dig
             )
+
+        radar: Optional[DualStickRadarWidget] = w.get("radar_canvas")
+        if radar and param == "deadzone":
+            try:
+                radar.set_deadzone(float(val))
+            except Exception:
+                pass
+
         self.mark_config_dirty()
 
     def _on_preset_changed(

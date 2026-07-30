@@ -32,13 +32,22 @@ class DashboardView(QWidget):
         self.controller_config = controller_config
         self.last_active_chord: str = ""
         self.setup_ui()
-        if self.controller_config and hasattr(self, 'button_matrix'):
-            self.button_matrix.load_profile_schema(self.controller_config)
+        self._sync_config()
 
     def set_config(self, controller_config) -> None:
         self.controller_config = controller_config
-        if self.controller_config and hasattr(self, 'button_matrix'):
-            self.button_matrix.load_profile_schema(self.controller_config)
+        self._sync_config()
+
+    def _sync_config(self) -> None:
+        if self.controller_config:
+            if hasattr(self, 'button_matrix'):
+                self.button_matrix.load_profile_schema(self.controller_config)
+            ls_dz = float(self.controller_config.get("analog_left", "deadzone", fallback="0.08"))
+            rs_dz = float(self.controller_config.get("analog_right", "deadzone", fallback="0.08"))
+            if hasattr(self, 'left_radar') and hasattr(self.left_radar, 'set_deadzone'):
+                self.left_radar.set_deadzone(ls_dz)
+            if hasattr(self, 'right_radar') and hasattr(self.right_radar, 'set_deadzone'):
+                self.right_radar.set_deadzone(rs_dz)
 
     def setup_ui(self) -> None:
         """

@@ -397,22 +397,34 @@ def main():
     # Background config poller
     def config_poller():
         last_mtime = 0
+        last_ini_mtime = 0
         if os.path.exists(controller_config_file):
             last_mtime = os.path.getmtime(controller_config_file)
+        if os.path.exists(config_file):
+            last_ini_mtime = os.path.getmtime(config_file)
 
         while True:
-            time.sleep(5)  # Poll every 5 seconds
+            time.sleep(1)  # Poll every 1 second for live tuning responsiveness
             try:
+                changed = False
                 if os.path.exists(controller_config_file):
                     current_mtime = os.path.getmtime(controller_config_file)
                     if current_mtime != last_mtime:
                         last_mtime = current_mtime
-                        controller_config.load()
-                        mapper.reload_config(controller_config)
-                        hardware_chord_engine.reload_config(controller_config)
-                        virtual_pad.reload_config(controller_config)
-                        macro_executor.load_macros()
-                        logger.info("Controller config reloaded live!")
+                        changed = True
+                if os.path.exists(config_file):
+                    current_ini_mtime = os.path.getmtime(config_file)
+                    if current_ini_mtime != last_ini_mtime:
+                        last_ini_mtime = current_ini_mtime
+                        changed = True
+
+                if changed:
+                    controller_config.load()
+                    mapper.reload_config(controller_config)
+                    hardware_chord_engine.reload_config(controller_config)
+                    virtual_pad.reload_config(controller_config)
+                    macro_executor.load_macros()
+                    logger.info("Controller config reloaded live!")
             except Exception as e:
                 logger.error(f"Error reloading config: {e}", exc_info=True)
 

@@ -454,11 +454,29 @@ QTabBar::tab:hover:!selected {{
     color: #ffffff;
 }}
 
-/* Glassmorphic Card Containers */
+/* Glassmorphic Card Containers & GroupBoxes */
 QFrame.glass-card, QFrame#glass_card, QFrame.theme-card {{
     background-color: {bg_glass};
     border: 1px solid {border_glass};
     border-radius: 12px;
+}}
+
+QGroupBox {{
+    background-color: {bg_glass};
+    border: 1px solid {border_glass};
+    border-radius: 10px;
+    margin-top: 12px;
+    color: #ffffff;
+    font-weight: bold;
+    font-size: 11px;
+}}
+
+QGroupBox::title {{
+    subcontrol-origin: margin;
+    subcontrol-position: top left;
+    padding: 0 6px;
+    color: #ffffff;
+    font-weight: bold;
 }}
 
 /* Dynamic High-Contrast Text Fields & Inputs */
@@ -546,22 +564,22 @@ QSlider::groove:horizontal {{
 }}
 
 QSlider::sub-page:horizontal {{
-    background: {accent_2_rgba};
+    background: {accent_1_rgba};
     border-radius: 3px;
 }}
 
 QSlider::handle:horizontal {{
-    background: {accent_2_rgba};
-    border: 2px solid #ffffff;
-    width: 16px;
-    height: 16px;
-    margin: -6px 0;
-    border-radius: 8px;
+    background: #ffffff;
+    border: 1.5px solid {accent_1_hex};
+    width: 14px;
+    height: 14px;
+    margin: -4px 0;
+    border-radius: 7px;
 }}
 
 QSlider::handle:horizontal:hover {{
-    background: #ffffff;
-    border: 2px solid {accent_2_rgba};
+    background: {accent_1_hex};
+    border: 1.5px solid #ffffff;
 }}
 
 /* Labels & Headers */

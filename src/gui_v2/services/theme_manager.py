@@ -76,6 +76,14 @@ def color_to_hex8(color: QColor) -> str:
     return f"#{color.red():02X}{color.green():02X}{color.blue():02X}{color.alpha():02X}"
 
 
+def color_to_hex6(color: QColor) -> str:
+    """
+    Converts a PySide6 QColor object to a 6-character uppercase hex string (#RRGGBB).
+    Required for valid Qt QSS stylesheet color formatting.
+    """
+    return f"#{color.red():02X}{color.green():02X}{color.blue():02X}"
+
+
 def color_to_rgba_str(color: QColor, alpha_override: Optional[float] = None) -> str:
     """
     Formats a QColor as a CSS rgba(R, G, B, A) string.
@@ -411,11 +419,11 @@ class ThemeManager(QObject):
         border_glass = color_to_rgba_str(accent_1, alpha_override=0.35)
         border_hover = color_to_rgba_str(accent_1, alpha_override=0.70)
 
-        accent_1_hex = color_to_hex8(accent_1)
+        accent_1_hex = color_to_hex6(accent_1)
         accent_1_rgba = color_to_rgba_str(accent_1, alpha_override=1.0)
         accent_1_subtle = color_to_rgba_str(accent_1, alpha_override=0.20)
 
-        accent_2_hex = color_to_hex8(accent_2)
+        accent_2_hex = color_to_hex6(accent_2)
         accent_2_rgba = color_to_rgba_str(accent_2, alpha_override=1.0)
 
         return f"""

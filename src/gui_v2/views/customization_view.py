@@ -19,7 +19,7 @@ from PySide6.QtCore import Qt, Slot
 
 # Import ThemeManager and ThemePreviewWidget
 sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "..")))
-from gui_v2.services.theme_manager import ThemeManager, color_to_hex8, color_to_rgba_str
+from gui_v2.services.theme_manager import ThemeManager, color_to_hex8, color_to_hex6, color_to_rgba_str
 from gui_v2.widgets.theme_preview_widget import ThemePreviewWidget
 
 
@@ -300,7 +300,7 @@ class CustomizationView(QWidget):
         bg_glass = color_to_rgba_str(bg_color, alpha_override=0.85)
         border_glass = color_to_rgba_str(accent_1, alpha_override=0.35)
         accent_1_subtle = color_to_rgba_str(accent_1, alpha_override=0.20)
-        accent_1_hex = color_to_hex8(accent_1)
+        accent_1_hex = color_to_hex6(accent_1)
 
         style = f"""
         QFrame#controls_card, QFrame#preset_card {{

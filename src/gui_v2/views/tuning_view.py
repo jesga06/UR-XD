@@ -53,20 +53,20 @@ class ColorGuideModal(QDialog):
         self.setMinimumSize(440, 260)
 
         try:
-            from gui_v2.services.theme_manager import ThemeManager, color_to_rgba_str, color_to_hex8
+            from gui_v2.services.theme_manager import ThemeManager, color_to_rgba_str, color_to_hex6
             tm = ThemeManager.get_instance()
             window_bg = tm.get_color("window_bg")
             accent_1 = tm.get_color("accent_1")
             accent_2 = tm.get_color("accent_2")
             bg_hex = color_to_rgba_str(window_bg, alpha_override=1.0)
-            acc1_hex = color_to_hex8(accent_1)
-            acc2_hex = color_to_hex8(accent_2)
+            acc1_hex = color_to_hex6(accent_1)
+            acc2_hex = color_to_hex6(accent_2)
             acc1_subtle = color_to_rgba_str(accent_1, alpha_override=0.20)
             acc1_border = color_to_rgba_str(accent_1, alpha_override=0.50)
         except Exception:
             bg_hex = "#000000FF"
-            acc1_hex = "#A855F7FF"
-            acc2_hex = "#00F5A0FF"
+            acc1_hex = "#A855F7"
+            acc2_hex = "#00F5A0"
             acc1_subtle = "rgba(168, 85, 247, 0.20)"
             acc1_border = "rgba(168, 85, 247, 0.50)"
 
@@ -116,7 +116,7 @@ class LatexExportModal(QDialog):
         self.setMinimumSize(480, 420)
 
         try:
-            from gui_v2.services.theme_manager import ThemeManager, color_to_rgba_str, color_to_hex8
+            from gui_v2.services.theme_manager import ThemeManager, color_to_rgba_str, color_to_hex6
             tm = ThemeManager.get_instance()
             bg_color = tm.get_color("background")
             window_bg = tm.get_color("window_bg")
@@ -125,8 +125,8 @@ class LatexExportModal(QDialog):
             win_bg_hex = color_to_rgba_str(window_bg, alpha_override=1.0)
             bg_inner = color_to_rgba_str(bg_color, alpha_override=0.60)
             border_glass = color_to_rgba_str(accent_1, alpha_override=0.35)
-            acc1_hex = color_to_hex8(accent_1)
-            acc2_hex = color_to_hex8(accent_2)
+            acc1_hex = color_to_hex6(accent_1)
+            acc2_hex = color_to_hex6(accent_2)
             acc1_subtle = color_to_rgba_str(accent_1, alpha_override=0.20)
             acc1_border = color_to_rgba_str(accent_1, alpha_override=0.50)
             acc2_subtle = color_to_rgba_str(accent_2, alpha_override=0.20)
@@ -605,7 +605,7 @@ class TuningView(QWidget):
     @Slot(dict)
     def on_theme_changed(self, tokens: dict = None):
         try:
-            from gui_v2.services.theme_manager import ThemeManager, color_to_rgba_str, color_to_hex8
+            from gui_v2.services.theme_manager import ThemeManager, color_to_rgba_str, color_to_hex6
             tm = ThemeManager.get_instance()
             bg_color = tm.get_color("background")
             accent_1 = tm.get_color("accent_1")
@@ -614,8 +614,8 @@ class TuningView(QWidget):
             bg_glass = color_to_rgba_str(bg_color, alpha_override=0.85)
             bg_inner = color_to_rgba_str(bg_color, alpha_override=0.60)
             border_glass = color_to_rgba_str(accent_1, alpha_override=0.35)
-            accent_1_hex = color_to_hex8(accent_1)
-            accent_2_hex = color_to_hex8(accent_2)
+            accent_1_hex = color_to_hex6(accent_1)
+            accent_2_hex = color_to_hex6(accent_2)
             accent_1_subtle = color_to_rgba_str(accent_1, alpha_override=0.20)
             accent_1_border = color_to_rgba_str(accent_1, alpha_override=0.50)
 

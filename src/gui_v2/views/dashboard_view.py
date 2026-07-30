@@ -48,20 +48,17 @@ class DashboardView(QWidget):
     @Slot(dict)
     def on_theme_changed(self, tokens: dict):
         try:
-            from gui_v2.services.theme_manager import ThemeManager, color_to_rgba_str, color_to_hex8
+            from gui_v2.services.theme_manager import ThemeManager, color_to_rgba_str, color_to_hex6
             tm = ThemeManager.get_instance()
             bg_color = tm.get_color("background")
             accent_1 = tm.get_color("accent_1")
-            
             accent_2 = tm.get_color("accent_2")
-            r = min(255, int(accent_2.red() * 1.15))
-            g = min(255, int(accent_2.green() * 1.15))
-            b = min(255, int(accent_2.blue() * 1.15))
-            accent_2_bright_hex = f"#{r:02X}{g:02X}{b:02X}FF"
+            
+            accent_1_hex6 = color_to_hex6(accent_1)
+            accent_2_hex6 = color_to_hex6(accent_2)
             
             bg_glass = color_to_rgba_str(bg_color, alpha_override=0.85)
             border_glass = color_to_rgba_str(accent_1, alpha_override=0.35)
-            accent_1_hex = color_to_hex8(accent_1)
 
             card_style = f"""
                 QFrame#glass_card {{
@@ -77,11 +74,11 @@ class DashboardView(QWidget):
                     card.setStyleSheet(card_style)
 
             if hasattr(self, 'left_readout'):
-                self.left_readout.setStyleSheet(f"color: {accent_2_bright_hex}; font-family: 'JetBrains Mono', 'Consolas', monospace; font-size: 11px; font-weight: bold;")
+                self.left_readout.setStyleSheet(f"color: {accent_2_hex6}; font-family: 'JetBrains Mono', 'Consolas', monospace; font-size: 11px; font-weight: bold;")
             if hasattr(self, 'right_readout'):
-                self.right_readout.setStyleSheet(f"color: {accent_2_bright_hex}; font-family: 'JetBrains Mono', 'Consolas', monospace; font-size: 11px; font-weight: bold;")
+                self.right_readout.setStyleSheet(f"color: {accent_2_hex6}; font-family: 'JetBrains Mono', 'Consolas', monospace; font-size: 11px; font-weight: bold;")
             if hasattr(self, 'chords_header'):
-                self.chords_header.setStyleSheet(f"color: {accent_1_hex}; font-weight: bold; font-size: 10px;")
+                self.chords_header.setStyleSheet(f"color: {accent_1_hex6}; font-weight: bold; font-size: 10px;")
         except RuntimeError:
             pass
 

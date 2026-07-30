@@ -208,15 +208,15 @@ class CircularityCalibrationModal(QDialog):
 
     def setup_ui(self) -> None:
         try:
-            from gui_v2.services.theme_manager import ThemeManager, color_to_rgba_str, color_to_hex8
+            from gui_v2.services.theme_manager import ThemeManager, color_to_rgba_str, color_to_hex6
             tm = ThemeManager.get_instance()
             window_bg = tm.get_color("window_bg")
             accent_1 = tm.get_color("accent_1")
             win_bg_hex = color_to_rgba_str(window_bg, alpha_override=1.0)
-            acc1_hex = color_to_hex8(accent_1)
+            acc1_hex = color_to_hex6(accent_1)
         except Exception:
             win_bg_hex = "#000000FF"
-            acc1_hex = "#A855F7FF"
+            acc1_hex = "#A855F7"
 
         self.setStyleSheet(f"QDialog {{ background-color: {win_bg_hex}; color: #ffffff; }}")
 

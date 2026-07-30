@@ -103,7 +103,7 @@ class RemappingView(QWidget):
     @Slot(dict)
     def on_theme_changed(self, tokens: dict = None):
         try:
-            from gui_v2.services.theme_manager import ThemeManager, color_to_rgba_str, color_to_hex8
+            from gui_v2.services.theme_manager import ThemeManager, color_to_rgba_str, color_to_hex6
             tm = ThemeManager.get_instance()
             bg_color = tm.get_color("background")
             accent_1 = tm.get_color("accent_1")
@@ -112,7 +112,7 @@ class RemappingView(QWidget):
             bg_glass = color_to_rgba_str(bg_color, alpha_override=0.85)
             bg_inner = color_to_rgba_str(bg_color, alpha_override=0.60)
             border_glass = color_to_rgba_str(accent_1, alpha_override=0.35)
-            accent_1_hex = color_to_hex8(accent_1)
+            accent_1_hex = color_to_hex6(accent_1)
             accent_1_subtle = color_to_rgba_str(accent_1, alpha_override=0.20)
             accent_1_border = color_to_rgba_str(accent_1, alpha_override=0.50)
 

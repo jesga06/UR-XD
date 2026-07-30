@@ -446,7 +446,7 @@ class StickCurveCanvas(QWidget):
             cx = self.live_raw_mag * w
             cy = h - (self.live_out_mag * h)
             painter.setPen(Qt.NoPen)
-            painter.setBrush(QBrush(QColor(0, 245, 160)))  # Neon Green matching output signal
+            painter.setBrush(QBrush(QColor(6, 182, 212)))  # Neon Green matching output signal
             painter.drawEllipse(QPointF(cx, cy), 6.0, 6.0)
 
         painter.end()
@@ -607,8 +607,119 @@ class TuningView(QWidget):
 
         self._stick_widgets: Dict[str, Dict[str, Any]] = {}
         self._trigger_widgets: Dict[str, Dict[str, Any]] = {}
+        self._cards: List[QGroupBox] = []
 
         self.setup_ui()
+        self._setup_theme_sync()
+
+    def _setup_theme_sync(self) -> None:
+        try:
+            from gui_v2.services.theme_manager import ThemeManager
+            tm = ThemeManager.get_instance()
+            tm.theme_changed.connect(self.on_theme_changed)
+            self.on_theme_changed(tm.tokens)
+        except Exception:
+            pass
+
+    @Slot(dict)
+    def on_theme_changed(self, tokens: dict = None):
+        try:
+            from gui_v2.services.theme_manager import ThemeManager, color_to_rgba_str, color_to_hex8
+            tm = ThemeManager.get_instance()
+            bg_color = tm.get_color("background")
+            accent_1 = tm.get_color("accent_1")
+            accent_2 = tm.get_color("accent_2")
+
+            bg_glass = color_to_rgba_str(bg_color, alpha_override=0.85)
+            bg_inner = color_to_rgba_str(bg_color, alpha_override=0.60)
+            border_glass = color_to_rgba_str(accent_1, alpha_override=0.35)
+            accent_1_hex = color_to_hex8(accent_1)
+            accent_2_hex = color_to_hex8(accent_2)
+            accent_1_subtle = color_to_rgba_str(accent_1, alpha_override=0.20)
+            accent_1_border = color_to_rgba_str(accent_1, alpha_override=0.50)
+
+            card_qss = f"""
+            QGroupBox {{
+                background-color: {bg_glass};
+                border: 1px solid {border_glass};
+                border-radius: 10px;
+                margin-top: 12px;
+                color: {accent_1_hex};
+                font-weight: bold;
+                font-size: 11px;
+            }}
+            QGroupBox::title {{
+                subcontrol-origin: margin;
+                subcontrol-position: top left;
+                padding: 0 6px;
+            }}
+            """
+            for card in getattr(self, '_cards', []):
+                if card:
+                    card.setStyleSheet(card_qss)
+
+            input_qss = f"""
+            QLineEdit, QComboBox {{
+                background-color: {bg_inner};
+                border: 1.5px solid {border_glass};
+                border-radius: 6px;
+                color: #ffffff;
+                padding: 3px 6px;
+                font-size: 11px;
+            }}
+            QLineEdit:focus, QComboBox:focus {{
+                border: 1.5px solid {accent_1_hex};
+            }}
+            QLineEdit::placeholder {{ color: rgba(255,255,255,0.4); font-style: italic; }}
+            QComboBox QAbstractItemView {{ background: {color_to_rgba_str(bg_color, alpha_override=1.0)}; color: #ffffff; }}
+            """
+
+            slider_qss = f"""
+            QSlider::groove:horizontal {{
+                border: 1px solid {border_glass};
+                height: 6px;
+                background: {bg_inner};
+                border-radius: 3px;
+            }}
+            QSlider::sub-page:horizontal {{
+                background: {accent_2_hex};
+                border-radius: 3px;
+            }}
+            QSlider::handle:horizontal {{
+                background: #ffffff;
+                border: 1.5px solid {accent_2_hex};
+                width: 14px;
+                margin-top: -5px;
+                margin-bottom: -5px;
+                border-radius: 7px;
+            }}
+            QSlider::handle:horizontal:hover {{
+                background: {accent_2_hex};
+                border-color: #ffffff;
+            }}
+            """
+
+            cb_qss = f"""
+            QCheckBox {{ color: #ffffff; font-size: 11px; font-weight: bold; }}
+            QCheckBox::indicator {{ width: 16px; height: 16px; border-radius: 4px;
+                border: 1px solid {border_glass}; background: {bg_inner}; }}
+            QCheckBox::indicator:checked {{ background: {accent_1_hex}; border-color: {accent_1_hex}; }}
+            """
+
+            btn_qss = f"""
+            QPushButton {{
+                background-color: {accent_1_subtle};
+                border: 1px solid {accent_1_border};
+                border-radius: 6px; color: #ffffff; padding: 4px 10px; font-size: 11px; font-weight: bold;
+            }}
+            QPushButton:hover {{ background-color: {color_to_rgba_str(accent_1, alpha_override=0.40)}; border-color: {accent_1_hex}; }}
+            QPushButton:pressed {{ background-color: {accent_1_hex}; }}
+            """
+
+            self.setStyleSheet(input_qss + slider_qss + cb_qss + btn_qss)
+            self.update()
+        except RuntimeError:
+            pass
 
     def mark_config_dirty(self) -> None:
         self.save_timer.start()
@@ -680,6 +791,7 @@ class TuningView(QWidget):
     # ------------------------------------------------------------------
     def _build_stick_card(self, title: str, config_key: str, section_name: str) -> QGroupBox:
         group = QGroupBox(title.upper())
+        self._cards.append(group)
         group.setStyleSheet(_CARD_STYLE)
         layout = QVBoxLayout(group)
         layout.setSpacing(8)
@@ -906,6 +1018,7 @@ class TuningView(QWidget):
     # ------------------------------------------------------------------
     def _build_trigger_card(self, title: str, config_key: str, trigger_id: str) -> QGroupBox:
         group = QGroupBox(title.upper())
+        self._cards.append(group)
         group.setStyleSheet(_CARD_STYLE)
         layout = QVBoxLayout(group)
         layout.setSpacing(8)

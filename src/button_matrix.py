@@ -1,22 +1,25 @@
 """
 Dynamic Button Telemetry Matrix Component for PySide6 UI.
 Provides strict separation between standard controller inputs and dynamic extra
-hardware buttons, handling real-time button activation illumination and schema rebuilding.
+hardware buttons, handling real-time button activation illumination, theme token sync, and schema rebuilding.
 """
 
 import sys
+import os
+import re
 from typing import Dict, List, Any, Optional
 
 from PySide6.QtWidgets import (
     QWidget, QApplication, QVBoxLayout, QHBoxLayout, QGridLayout,
     QFrame, QLabel, QGroupBox
 )
+from PySide6.QtGui import QColor
 from PySide6.QtCore import Qt, Slot
 
 
 class ButtonPill(QFrame):
     """
-    Individual button indicator pill widget with high-contrast active and inactive QSS states.
+    Individual button indicator pill widget with dynamic ThemeManager token styling for active and inactive states.
     """
     def __init__(self, key_name: str, display_name: Optional[str] = None, parent=None):
         super().__init__(parent)
@@ -35,38 +38,69 @@ class ButtonPill(QFrame):
         self.label.setAlignment(Qt.AlignmentFlag.AlignCenter)
         layout.addWidget(self.label)
 
+        self._setup_theme_sync()
         self.set_active(False)
 
+    def _setup_theme_sync(self) -> None:
+        """Connects to ThemeManager.theme_changed signal for live color token updates."""
+        try:
+            from gui_v2.services.theme_manager import ThemeManager
+            ThemeManager.get_instance().theme_changed.connect(self._safe_theme_update)
+        except Exception:
+            pass
+
+    @Slot(dict)
+    def _safe_theme_update(self, tokens: dict = None) -> None:
+        try:
+            self.update_style()
+        except RuntimeError:
+            pass
+
     def set_active(self, active: bool) -> None:
-        """
-        Updates styling based on activation state.
-        """
+        """Updates styling based on activation state."""
         self._is_active = bool(active)
+        self.update_style()
+
+    def update_style(self) -> None:
+        """Fetches active color tokens and applies QSS styling."""
+        try:
+            from gui_v2.services.theme_manager import ThemeManager, color_to_rgba_str, color_to_hex8
+            tm = ThemeManager.get_instance()
+            accent_1 = tm.get_color("accent_1")
+            bg_color = tm.get_color("background")
+        except Exception:
+            accent_1 = QColor("#a855f7")
+            bg_color = QColor("#161024")
+
         if self._is_active:
-            self.setStyleSheet("""
-                QFrame#button_pill {
-                    background-color: #7500ab;
-                    border: 1.5px solid #a855f7;
+            accent_active_bg = color_to_rgba_str(accent_1, alpha_override=0.65)
+            accent_border = color_to_rgba_str(accent_1, alpha_override=1.0)
+            self.setStyleSheet(f"""
+                QFrame#button_pill {{
+                    background-color: {accent_active_bg};
+                    border: 1.5px solid {accent_border};
                     border-radius: 6px;
-                }
-                QLabel {
+                }}
+                QLabel {{
                     color: #ffffff;
                     font-weight: bold;
                     font-size: 11px;
-                }
+                }}
             """)
         else:
-            self.setStyleSheet("""
-                QFrame#button_pill {
-                    background-color: #161024;
-                    border: 1px solid rgba(168, 85, 247, 0.2);
+            bg_card = color_to_rgba_str(bg_color, alpha_override=0.85)
+            border_glass = color_to_rgba_str(accent_1, alpha_override=0.25)
+            self.setStyleSheet(f"""
+                QFrame#button_pill {{
+                    background-color: {bg_card};
+                    border: 1px solid {border_glass};
                     border-radius: 6px;
-                }
-                QLabel {
-                    color: #64748b;
+                }}
+                QLabel {{
+                    color: rgba(255, 255, 255, 0.55);
                     font-weight: bold;
                     font-size: 11px;
-                }
+                }}
             """)
 
 
@@ -77,16 +111,42 @@ class StandardButtonArray(QFrame):
     def __init__(self, parent=None):
         super().__init__(parent)
         self.setObjectName("glass_card")
-        self.setStyleSheet("""
-            QFrame#glass_card {
-                background-color: rgba(22, 16, 36, 0.85);
-                border: 1px solid rgba(168, 85, 247, 0.35);
-                border-radius: 12px;
-            }
-        """)
-
         self.pills: Dict[str, ButtonPill] = {}
         self._setup_ui()
+        self._setup_theme_sync()
+
+    def _setup_theme_sync(self) -> None:
+        try:
+            from gui_v2.services.theme_manager import ThemeManager
+            ThemeManager.get_instance().theme_changed.connect(self._safe_theme_update)
+            self.update_card_style()
+        except Exception:
+            pass
+
+    @Slot(dict)
+    def _safe_theme_update(self, tokens: dict = None) -> None:
+        try:
+            self.update_card_style()
+        except RuntimeError:
+            pass
+
+    def update_card_style(self) -> None:
+        try:
+            from gui_v2.services.theme_manager import ThemeManager, color_to_rgba_str
+            tm = ThemeManager.get_instance()
+            bg_color = tm.get_color("background")
+            accent_1 = tm.get_color("accent_1")
+            bg_glass = color_to_rgba_str(bg_color, alpha_override=0.85)
+            border_glass = color_to_rgba_str(accent_1, alpha_override=0.35)
+            self.setStyleSheet(f"""
+                QFrame#glass_card {{
+                    background-color: {bg_glass};
+                    border: 1px solid {border_glass};
+                    border-radius: 12px;
+                }}
+            """)
+        except Exception:
+            pass
 
     def _setup_ui(self) -> None:
         main_layout = QVBoxLayout(self)
@@ -99,7 +159,6 @@ class StandardButtonArray(QFrame):
         grid = QGridLayout()
         grid.setSpacing(6)
 
-        # Standard buttons list organized logically
         standard_buttons = [
             # Row 0: Face Buttons
             ("a", "A", 0, 0), ("b", "B", 0, 1), ("x", "X", 0, 2), ("y", "Y", 0, 3),
@@ -121,12 +180,9 @@ class StandardButtonArray(QFrame):
         main_layout.addLayout(grid)
 
     def update_states(self, state_dict: Dict[str, Any]) -> None:
-        """
-        Updates button pill active states based on incoming state dictionary.
-        """
+        """Updates button pill active states based on incoming state dictionary."""
         for key, pill in self.pills.items():
             val = state_dict.get(key, 0)
-            # Handle float analog triggers or int/bool digital states
             if isinstance(val, (int, float, bool)):
                 is_pressed = bool(val > 0.1 if isinstance(val, float) else val)
             else:
@@ -142,24 +198,50 @@ class ExtraButtonArray(QFrame):
     def __init__(self, parent=None):
         super().__init__(parent)
         self.setObjectName("glass_card")
-        self.setStyleSheet("""
-            QFrame#glass_card {
-                background-color: rgba(22, 16, 36, 0.85);
-                border: 1px solid rgba(168, 85, 247, 0.35);
-                border-radius: 12px;
-            }
-        """)
-
         self.pills: Dict[str, ButtonPill] = {}
         self.container_layout: Optional[QHBoxLayout] = None
         self._setup_ui()
+        self._setup_theme_sync()
+
+    def _setup_theme_sync(self) -> None:
+        try:
+            from gui_v2.services.theme_manager import ThemeManager
+            ThemeManager.get_instance().theme_changed.connect(self._safe_theme_update)
+            self.update_card_style()
+        except Exception:
+            pass
+
+    @Slot(dict)
+    def _safe_theme_update(self, tokens: dict = None) -> None:
+        try:
+            self.update_card_style()
+        except RuntimeError:
+            pass
+
+    def update_card_style(self) -> None:
+        try:
+            from gui_v2.services.theme_manager import ThemeManager, color_to_rgba_str
+            tm = ThemeManager.get_instance()
+            bg_color = tm.get_color("background")
+            accent_1 = tm.get_color("accent_1")
+            bg_glass = color_to_rgba_str(bg_color, alpha_override=0.85)
+            border_glass = color_to_rgba_str(accent_1, alpha_override=0.35)
+            self.setStyleSheet(f"""
+                QFrame#glass_card {{
+                    background-color: {bg_glass};
+                    border: 1.5px solid {border_glass};
+                    border-radius: 12px;
+                }}
+            """)
+        except Exception:
+            pass
 
     def _setup_ui(self) -> None:
         self.main_layout = QVBoxLayout(self)
         self.main_layout.setContentsMargins(12, 10, 12, 10)
 
         header = QLabel("DYNAMIC EXTRA BUTTONS & HARDWARE CHORDS")
-        header.setStyleSheet("color: #a855f7; font-weight: bold; font-size: 10px;")
+        header.setStyleSheet("color: rgba(255, 255, 255, 0.6); font-weight: bold; font-size: 10px;")
         self.main_layout.addWidget(header)
 
         self.button_box = QWidget()
@@ -169,17 +251,11 @@ class ExtraButtonArray(QFrame):
         self.container_layout.setAlignment(Qt.AlignmentFlag.AlignCenter)
 
         self.main_layout.addWidget(self.button_box)
-
-        # Default hidden until extra buttons are registered
         self.setVisible(False)
 
     @Slot(list)
     def rebuild_extra_buttons(self, extra_button_list: List[str]) -> None:
-        """
-        Cleans up existing dynamic widgets with deleteLater() and builds new pills.
-        Automatically collapses if list is empty.
-        """
-        # Clear existing pills cleanly
+        """Cleans up existing dynamic widgets and builds new pills."""
         for pill in self.pills.values():
             pill.setParent(None)
             pill.deleteLater()
@@ -201,9 +277,7 @@ class ExtraButtonArray(QFrame):
         self.setVisible(True)
 
     def update_states(self, state_dict: Dict[str, Any]) -> None:
-        """
-        Updates extra button pill active states based on state dictionary or extra_inputs nested dict.
-        """
+        """Updates extra button pill active states based on state dictionary."""
         if not self.isVisible():
             return
 
@@ -212,7 +286,6 @@ class ExtraButtonArray(QFrame):
             extra_inputs = {}
 
         for key_lower, pill in self.pills.items():
-            # Check direct key in state_dict or inside extra_inputs sub-dict
             val = state_dict.get(key_lower, extra_inputs.get(key_lower, state_dict.get(key_lower.upper(), 0)))
             if isinstance(val, (int, float, bool)):
                 is_pressed = bool(val > 0.1 if isinstance(val, float) else val)
@@ -225,14 +298,12 @@ def get_extra_button_actions(config_data: Dict[str, Any]) -> List[str]:
     """
     Extracts human-configured extra button actions (e.g. L4, R4, M1, M2)
     from extra_buttons, settings.extra_inputs, and hardware_chords.
-    Never includes internal rule keys (e.g. hw_0, hw_1).
     """
     if not isinstance(config_data, dict):
         return []
 
     extra_buttons: List[str] = []
 
-    # 1. Direct extra_buttons dictionary
     eb_dict = config_data.get("extra_buttons", {})
     if isinstance(eb_dict, dict) and eb_dict:
         for k in eb_dict.keys():
@@ -252,7 +323,6 @@ def get_extra_button_actions(config_data: Dict[str, Any]) -> List[str]:
                 if k_lower and k_lower not in extra_buttons:
                     extra_buttons.append(k_lower)
 
-    # 2. Extract target button action names from hardware_chords
     hw_chords = config_data.get("hardware_chords", {})
     chord_items = []
     if isinstance(hw_chords, dict):
@@ -260,13 +330,11 @@ def get_extra_button_actions(config_data: Dict[str, Any]) -> List[str]:
     elif isinstance(hw_chords, list):
         chord_items = hw_chords
 
-    import re
     for item in chord_items:
         action_name = None
         if isinstance(item, dict):
             action_name = item.get("action")
         elif isinstance(item, str):
-            # Format: "chord=lb + select; action=L4; mode=auto; delayed=select"
             m = re.search(r"action\s*=\s*([^;]+)", item, re.IGNORECASE)
             if m:
                 action_name = m.group(1).strip()
@@ -298,17 +366,12 @@ class ButtonMatrix(QWidget):
 
     @Slot(dict)
     def update_button_states(self, state_dict: Dict[str, Any]) -> None:
-        """
-        Receives ControllerState or telemetry dict and illuminates matching buttons.
-        """
+        """Receives ControllerState or telemetry dict and illuminates matching buttons."""
         self.standard_array.update_states(state_dict)
         self.extra_array.update_states(state_dict)
 
     def load_profile_schema(self, config_obj: Any, backend_mode: str = "auto") -> None:
-        """
-        Parses configuration object, identifies extra inputs,
-        and triggers dynamic rebuilding of ExtraButtonArray.
-        """
+        """Parses configuration object and rebuilds ExtraButtonArray."""
         config_data = {}
         if hasattr(config_obj, 'data') and isinstance(config_obj.data, dict):
             config_data = config_obj.data
@@ -317,49 +380,3 @@ class ButtonMatrix(QWidget):
 
         extra_buttons = get_extra_button_actions(config_data)
         self.extra_array.rebuild_extra_buttons(extra_buttons)
-
-
-if __name__ == "__main__":
-    app = QApplication(sys.argv)
-    window = QWidget()
-    window.setWindowTitle("ButtonMatrix Test")
-    window.resize(400, 350)
-    layout = QVBoxLayout(window)
-
-    matrix = ButtonMatrix()
-    layout.addWidget(matrix)
-
-    # Mock configuration object
-    mock_config = {
-        "extra_buttons": {"M1": "keyboard:a", "M2": "keyboard:b", "L4": "mouse:left"},
-        "hardware_chords": {"Chord_LB_RB": "keyboard:space"}
-    }
-
-    matrix.load_profile_schema(mock_config, backend_mode="dinput")
-
-    window.show()
-
-    # Simulate button press toggling
-    from PySide6.QtCore import QTimer
-    step = [0]
-
-    def tick():
-        step[0] += 1
-        s = step[0]
-        state = {
-            "a": 1 if s % 2 == 0 else 0,
-            "b": 1 if s % 3 == 0 else 0,
-            "lb": 1 if s % 4 == 0 else 0,
-            "extra_inputs": {
-                "m1": 1 if s % 2 == 1 else 0,
-                "m2": 1 if s % 3 == 1 else 0,
-                "l4": 1 if s % 5 == 0 else 0
-            }
-        }
-        matrix.update_button_states(state)
-
-    timer = QTimer()
-    timer.timeout.connect(tick)
-    timer.start(500)
-
-    sys.exit(app.exec())

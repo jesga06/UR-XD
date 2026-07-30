@@ -680,13 +680,39 @@ class RemappingView(QWidget):
         prev_idx = self.layer_selector.currentIndex()
         self.layer_selector.clear()
         for layer in self.config.get_shift_layers():
+            name = layer.get("name", layer.get("id", ""))
+            trig = (layer.get("trigger_button") or "").strip().upper()
+            if trig in ("NONE", "NULL", "FALSE", "0"):
+                trig = ""
+            mod = (layer.get("modifier_button") or "").strip().upper()
+            if mod in ("NONE", "NULL", "FALSE", "0"):
+                mod = ""
+            chord_str = f" [{trig}+{mod}]" if (trig and mod) else (f" [{trig}]" if trig else "")
+            display_text = f"{name}{chord_str}"
             self.layer_selector.addItem(
-                layer.get("name", layer.get("id", "")),
+                display_text,
                 userData=layer["id"]
             )
         target_idx = max(0, min(prev_idx, self.layer_selector.count() - 1))
         self.layer_selector.setCurrentIndex(target_idx)
         self.layer_selector.blockSignals(False)
+
+    def _update_layer_selector_item_text(self) -> None:
+        """Updates display text of active layer selector item to match current trigger/mod chord."""
+        layer = self._active_layer()
+        if layer is None:
+            return
+        idx = self.layer_selector.currentIndex()
+        if 0 <= idx < self.layer_selector.count():
+            name = layer.get("name", layer.get("id", ""))
+            trig = (layer.get("trigger_button") or "").strip().upper()
+            if trig in ("NONE", "NULL", "FALSE", "0"):
+                trig = ""
+            mod = (layer.get("modifier_button") or "").strip().upper()
+            if mod in ("NONE", "NULL", "FALSE", "0"):
+                mod = ""
+            chord_str = f" [{trig}+{mod}]" if (trig and mod) else (f" [{trig}]" if trig else "")
+            self.layer_selector.setItemText(idx, f"{name}{chord_str}")
 
     def _sync_layer_settings(self) -> None:
         """Updates Trigger, Modifier, Mode, and shift mapping/block fields for active layer."""
@@ -694,13 +720,19 @@ class RemappingView(QWidget):
         if layer is None:
             return
 
-        trig = layer.get("trigger_button", "")
+        trig = (layer.get("trigger_button") or "").strip().lower()
+        if trig in ("none", "null", "false", "0"):
+            trig = ""
+            layer["trigger_button"] = ""
         self.trigger_combo.blockSignals(True)
         idx = self.trigger_combo.findText(trig, Qt.MatchFlag.MatchExactly)
         self.trigger_combo.setCurrentIndex(idx if idx >= 0 else 0)
         self.trigger_combo.blockSignals(False)
 
-        mod = layer.get("modifier_button", "")
+        mod = (layer.get("modifier_button") or "").strip().lower()
+        if mod in ("none", "null", "false", "0"):
+            mod = ""
+            layer["modifier_button"] = ""
         self.modifier_combo.blockSignals(True)
         idx = self.modifier_combo.findText(mod, Qt.MatchFlag.MatchExactly)
         self.modifier_combo.setCurrentIndex(idx if idx >= 0 else 0)
@@ -736,7 +768,11 @@ class RemappingView(QWidget):
     def _on_trigger_changed(self, text: str) -> None:
         layer = self._active_layer()
         if layer is not None:
-            layer["trigger_button"] = text
+            clean_text = text.strip().lower()
+            if clean_text in ("none", "null", "false", "0"):
+                clean_text = ""
+            layer["trigger_button"] = clean_text
+            self._update_layer_selector_item_text()
             self.mark_config_dirty()
             self._check_home_hold_warning()
 
@@ -744,7 +780,11 @@ class RemappingView(QWidget):
     def _on_modifier_changed(self, text: str) -> None:
         layer = self._active_layer()
         if layer is not None:
-            layer["modifier_button"] = text
+            clean_text = text.strip().lower()
+            if clean_text in ("none", "null", "false", "0"):
+                clean_text = ""
+            layer["modifier_button"] = clean_text
+            self._update_layer_selector_item_text()
             self.mark_config_dirty()
 
     @Slot(int, bool)
@@ -776,7 +816,7 @@ class RemappingView(QWidget):
         )
         if ok and name.strip():
             layer["name"] = name.strip()
-            self._populate_layer_selector()
+            self._update_layer_selector_item_text()
             self.mark_config_dirty()
 
     def _delete_layer(self) -> None:

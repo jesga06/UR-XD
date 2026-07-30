@@ -181,11 +181,10 @@ class StickRadar(QWidget):
         painter.setPen(line_pen)
         painter.drawLine(QPointF(cx, cy), QPointF(dot_x, dot_y))
 
-        # Position Dot with Glow
-        glow_pen = QPen(QColor(168, 85, 247, 180), 3)
-        painter.setPen(glow_pen)
-        painter.setBrush(QColor("#ffffff"))
-        painter.drawEllipse(QPointF(dot_x, dot_y), 5, 5)
+        # Position Dot (No outline pen, neon purple brush, radius 6.0)
+        painter.setPen(Qt.PenStyle.NoPen)
+        painter.setBrush(QColor("#a855f7"))
+        painter.drawEllipse(QPointF(dot_x, dot_y), 6.0, 6.0)
 
 
 if __name__ == "__main__":

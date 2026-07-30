@@ -1,18 +1,14 @@
 """
 Analog Tuning View Module for PySide6 UI (gui_v2).
 
-Fully restores v2.3-beta feature parity:
-  - Dual side-by-side canvases per Stick Card:
-      1. 1D Response Curve Graph (180x180) with live magnitude cursor & interactive mouse drag-and-drop dotted curve control points.
-      2. 2D Current Position Crosshair Radar (180x180) with DUAL dots (Cyan Raw Hardware Input vs Purple/Green Processed Output).
-  - Dual side-by-side canvases per Trigger Card:
-      1. 1D Response Curve Graph (180x180) with interactive dotted curve points.
-      2. Vertical Actuation Meter Bar (60x180) with DUAL fill bars (Raw Pull Level vs Processed Output Level).
-  - Visual horizontal drag sliders (QSlider) paired with live decimal readouts (0.00).
-  - Inline Circularity Mode selector dropdown ('disabled', 'before', 'after').
-  - "Number of Dots" selector dropdown (2 to 8 dots) for dotted curve mode.
-  - Top "? Color Guide" button & modal explaining Raw vs Processed signal color coding.
-  - LaTeX & copyable JSON snippet exporter dialog.
+Features:
+  - Dual side-by-side canvases per Stick & Trigger Card.
+  - RESET button under every curve widget resetting all deadzones/warp/custom/digital to 0.0/off/disabled,
+    setting curve factor & sensitivity to 1.0, and resetting preset to 'linear'.
+  - Full curve options & sliders for Triggers (Deadzone, Anti-Deadzone, Rest Deadzone, Curve Factor, Sensitivity,
+    Presets, Dotted Dot Selector, Custom Math QLineEdit, and Digital Mode Checkbox).
+  - Clean dot styling: removed white border outlines, increased dot radius by ~20%.
+  - Interactive mouse drag-and-drop dotted curve control point editing.
   - 300ms debounced config persistence.
 """
 
@@ -124,6 +120,16 @@ QPushButton {
     border-radius: 6px; color: #ffffff; padding: 4px 10px; font-size: 11px; font-weight: bold;
 }
 QPushButton:hover { background-color: rgba(0, 245, 160, 0.4); }
+"""
+
+_BTN_RESET = """
+QPushButton {
+    background-color: rgba(239, 68, 68, 0.2);
+    border: 1px solid rgba(239, 68, 68, 0.5);
+    border-radius: 6px; color: #ffffff; padding: 4px 10px; font-size: 11px; font-weight: bold;
+}
+QPushButton:hover { background-color: rgba(239, 68, 68, 0.4); border-color: #ef4444; }
+QPushButton:pressed { background-color: #991b1b; }
 """
 
 _TXT_BOX_STYLE = """
@@ -274,17 +280,19 @@ class StickCurveCanvas(QWidget):
     """
     dot_changed = Signal(str)  # Emits new custom_eq JSON string on mouse drag
 
-    def __init__(self, parent=None):
+    def __init__(self, is_trigger: bool = False, parent=None):
         super().__init__(parent)
         self.setFixedSize(180, 180)
+        self.is_trigger: bool = is_trigger
 
-        self.dz: float = 0.05
-        self.adz: float = 0.0
-        self.rest_dz: float = 0.0
+        self.dz: float = 0.00
+        self.adz: float = 0.00
+        self.rest_dz: float = 0.00
         self.curve_type: str = "linear"
         self.power: float = 1.0
         self.sens: float = 1.0
         self.custom_eq: str = ""
+        self.is_digital: bool = False
 
         self.live_raw_mag: float = 0.0
         self.live_out_mag: float = 0.0
@@ -292,7 +300,11 @@ class StickCurveCanvas(QWidget):
         self.active_dot_idx: Optional[int] = None
         self.setMouseTracking(True)
 
-    def update_params(self, dz: float, adz: float, rest_dz: float, curve_type: str, power: float, sens: float, custom_eq: str) -> None:
+    def update_params(
+        self, dz: float, adz: float, rest_dz: float,
+        curve_type: str, power: float, sens: float, custom_eq: str,
+        is_digital: bool = False
+    ) -> None:
         self.dz = dz
         self.adz = adz
         self.rest_dz = rest_dz
@@ -300,6 +312,7 @@ class StickCurveCanvas(QWidget):
         self.power = power
         self.sens = sens
         self.custom_eq = custom_eq
+        self.is_digital = is_digital
         self.update()
 
     def update_live_magnitude(self, raw_mag: float, out_mag: float) -> None:
@@ -332,7 +345,7 @@ class StickCurveCanvas(QWidget):
         my = event.position().y()
 
         closest_idx = None
-        min_dist = 12.0  # 12px hit radius
+        min_dist = 14.0  # 14px hit radius
 
         for idx, d in enumerate(dots):
             px = d[0] * w
@@ -395,9 +408,18 @@ class StickCurveCanvas(QWidget):
         steps = 100
         for i in range(steps + 1):
             x_in = i / float(steps)
-            out_val, _ = math_utils.process_analog_stick(
-                x_in, 0.0, self.dz, self.adz, self.curve_type, self.power, self.rest_dz, self.sens, self.custom_eq
-            )
+            if self.is_trigger:
+                if self.is_digital:
+                    out_val = 1.0 if x_in >= self.dz else 0.0
+                else:
+                    out_val = math_utils.process_trigger(
+                        x_in, self.dz, self.adz, self.curve_type, self.power, self.rest_dz, self.sens, self.custom_eq
+                    )
+            else:
+                out_val, _ = math_utils.process_analog_stick(
+                    x_in, 0.0, self.dz, self.adz, self.curve_type, self.power, self.rest_dz, self.sens, self.custom_eq
+                )
+
             px = x_in * w
             py = h - (out_val * h)
             if i == 0:
@@ -408,24 +430,24 @@ class StickCurveCanvas(QWidget):
         painter.setPen(QPen(QColor(0, 245, 160), 2.0))
         painter.drawPath(path)
 
-        # Dotted Control Point Circles
+        # Dotted Control Point Circles (NO white outline pen, radius 6.0)
         dots = self._get_dotted_points()
         if dots:
             for idx, d in enumerate(dots):
                 px = d[0] * w
                 py = h - (d[1] * h)
                 is_active = (idx == self.active_dot_idx)
-                painter.setPen(QPen(QColor(0, 0, 0), 1.5))
+                painter.setPen(Qt.NoPen)
                 painter.setBrush(QBrush(QColor(0, 245, 160) if is_active else QColor(255, 255, 255)))
-                painter.drawEllipse(QPointF(px, py), 5.0, 5.0)
+                painter.drawEllipse(QPointF(px, py), 6.0, 6.0)
 
-        # Live Cursor Dot (Raw In vs Out Mag)
+        # Live Cursor Dot (Raw In vs Out Mag) - NO outline pen, radius 6.0
         if self.live_raw_mag > 0.0:
             cx = self.live_raw_mag * w
             cy = h - (self.live_out_mag * h)
-            painter.setPen(QPen(QColor(255, 255, 255), 1.5))
+            painter.setPen(Qt.NoPen)
             painter.setBrush(QBrush(QColor(245, 158, 11)))
-            painter.drawEllipse(QPointF(cx, cy), 4.5, 4.5)
+            painter.drawEllipse(QPointF(cx, cy), 6.0, 6.0)
 
         painter.end()
 
@@ -473,19 +495,19 @@ class DualStickRadarWidget(QWidget):
         painter.drawLine(QPointF(cx, 0), QPointF(cx, h))
         painter.drawLine(QPointF(0, cy), QPointF(w, cy))
 
-        # 1. Raw Hardware Input Dot (Cyan/Yellow)
+        # 1. Raw Hardware Input Dot (Cyan, NO outline pen, radius 6.0)
         rx_px = cx + (self.raw_x * max_r)
         ry_px = cy - (self.raw_y * max_r)
-        painter.setPen(QPen(QColor(255, 255, 255), 1.5))
+        painter.setPen(Qt.NoPen)
         painter.setBrush(QBrush(QColor(6, 182, 212)))  # Cyan
-        painter.drawEllipse(QPointF(rx_px, ry_px), 5.0, 5.0)
+        painter.drawEllipse(QPointF(rx_px, ry_px), 6.0, 6.0)
 
-        # 2. Processed Output Dot (Purple/Green)
+        # 2. Processed Output Dot (Neon Green, NO outline pen, radius 6.0)
         ox_px = cx + (self.out_x * max_r)
         oy_px = cy - (self.out_y * max_r)
-        painter.setPen(QPen(QColor(255, 255, 255), 1.5))
+        painter.setPen(Qt.NoPen)
         painter.setBrush(QBrush(QColor(0, 245, 160)))  # Neon Green
-        painter.drawEllipse(QPointF(ox_px, oy_px), 5.0, 5.0)
+        painter.drawEllipse(QPointF(ox_px, oy_px), 6.0, 6.0)
 
         painter.end()
 
@@ -546,7 +568,7 @@ class TriggerPullBarWidget(QWidget):
 # ---------------------------------------------------------------------------
 class TuningView(QWidget):
     """
-    Primary PySide6 Analog Tuning View with 100% v2.3-beta feature parity.
+    Primary PySide6 Analog Tuning View with 100% v2.3-beta feature parity + RESET buttons.
     """
     def __init__(self, config_manager: Any, parent=None):
         super().__init__(parent)
@@ -558,8 +580,8 @@ class TuningView(QWidget):
         self.save_timer.setInterval(300)
         self.save_timer.timeout.connect(self._do_save)
 
-        self._stick_widgets: Dict[str, Dict[str, QWidget]] = {}
-        self._trigger_widgets: Dict[str, Dict[str, QWidget]] = {}
+        self._stick_widgets: Dict[str, Dict[str, Any]] = {}
+        self._trigger_widgets: Dict[str, Dict[str, Any]] = {}
 
         self.setup_ui()
 
@@ -646,7 +668,7 @@ class TuningView(QWidget):
         lbl_c = QLabel("Response Curve")
         lbl_c.setStyleSheet(_LABEL_STYLE)
         lbl_c.setAlignment(Qt.AlignCenter)
-        curve_canvas = StickCurveCanvas(self)
+        curve_canvas = StickCurveCanvas(is_trigger=False, parent=self)
         col_curve.addWidget(lbl_c)
         col_curve.addWidget(curve_canvas)
         canv_row.addLayout(col_curve)
@@ -663,20 +685,25 @@ class TuningView(QWidget):
 
         layout.addLayout(canv_row)
 
-        # Action Buttons Row (Circularity & LaTeX)
+        # Action Buttons Row (Circularity, LaTeX, and RESET)
         btn_row = QHBoxLayout()
         btn_calib = QPushButton("🔄 Circularity Calibration")
         btn_calib.setFocusPolicy(Qt.NoFocus)
         btn_calib.setStyleSheet(_BTN_ACCENT)
         btn_calib.clicked.connect(lambda: self.open_circularity_modal(section_name))
 
-        btn_latex = QPushButton("📄 Export Math & Config")
+        btn_latex = QPushButton("📄 Export Math")
         btn_latex.setFocusPolicy(Qt.NoFocus)
         btn_latex.setStyleSheet(_BTN_STYLE)
         btn_latex.clicked.connect(lambda: self.open_latex_modal(config_key))
 
+        btn_reset = QPushButton("↺ Reset Defaults")
+        btn_reset.setFocusPolicy(Qt.NoFocus)
+        btn_reset.setStyleSheet(_BTN_RESET)
+
         btn_row.addWidget(btn_calib)
         btn_row.addWidget(btn_latex)
+        btn_row.addWidget(btn_reset)
         layout.addLayout(btn_row)
 
         # Sliders & Controls Grid
@@ -791,6 +818,38 @@ class TuningView(QWidget):
         # Sync Canvas Parameters
         curve_canvas.update_params(def_dz, def_adz, def_rdz, def_curve, def_factor, def_sens, def_custom)
 
+        # RESET Button Logic for Stick Card
+        def reset_stick_defaults():
+            if config_key not in self.config.data:
+                self.config.data[config_key] = {}
+            self.config.data[config_key]["deadzone"] = "0.00"
+            self.config.data[config_key]["anti_deadzone"] = "0.00"
+            self.config.data[config_key]["rest_deadzone"] = "0.00"
+            self.config.data[config_key]["warp_threshold"] = "0.00"
+            self.config.data[config_key]["exp_factor"] = "1.00"
+            self.config.data[config_key]["sensitivity"] = "1.00"
+            self.config.data[config_key]["curve"] = "linear"
+            self.config.data[config_key]["circularity_mode"] = "disabled"
+            self.config.data[config_key]["custom_eq"] = ""
+
+            sl_dz.setValue(0)
+            sl_adz.setValue(0)
+            sl_rdz.setValue(0)
+            sl_warp.setValue(0)
+            sl_factor.setValue(int(round((1.00 - 0.50) / 0.10)))
+            sl_sens.setValue(int(round((1.00 - 0.10) / 0.05)))
+            combo_preset.setCurrentText("linear")
+            combo_circ.setCurrentText("disabled")
+            edit_custom.setText("")
+            edit_custom.setVisible(False)
+            combo_dots.setVisible(False)
+            lbl_dots.setVisible(False)
+
+            curve_canvas.update_params(0.0, 0.0, 0.0, "linear", 1.0, 1.0, "")
+            self.mark_config_dirty()
+
+        btn_reset.clicked.connect(reset_stick_defaults)
+
         # Wire Signals
         combo_preset.currentTextChanged.connect(
             lambda txt: self._on_preset_changed(config_key, txt, edit_custom, lbl_custom, combo_dots, lbl_dots)
@@ -816,7 +875,7 @@ class TuningView(QWidget):
         return group
 
     # ------------------------------------------------------------------
-    # Trigger Card Builder
+    # Trigger Card Builder (Full Stick-Parity Sliders & Curve Options)
     # ------------------------------------------------------------------
     def _build_trigger_card(self, title: str, config_key: str, trigger_id: str) -> QGroupBox:
         group = QGroupBox(title.upper())
@@ -832,7 +891,7 @@ class TuningView(QWidget):
         lbl_c = QLabel("Response Curve")
         lbl_c.setStyleSheet(_LABEL_STYLE)
         lbl_c.setAlignment(Qt.AlignCenter)
-        curve_canvas = StickCurveCanvas(self)  # Reuses 180x180 1D plot canvas
+        curve_canvas = StickCurveCanvas(is_trigger=True, parent=self)
         col_curve.addWidget(lbl_c)
         col_curve.addWidget(curve_canvas)
         canv_row.addLayout(col_curve)
@@ -848,14 +907,33 @@ class TuningView(QWidget):
 
         layout.addLayout(canv_row)
 
+        # Action Buttons Row (Export & RESET)
+        btn_row = QHBoxLayout()
+        btn_latex = QPushButton("📄 Export Math")
+        btn_latex.setFocusPolicy(Qt.NoFocus)
+        btn_latex.setStyleSheet(_BTN_STYLE)
+        btn_latex.clicked.connect(lambda: self.open_latex_modal(config_key))
+
+        btn_reset = QPushButton("↺ Reset Defaults")
+        btn_reset.setFocusPolicy(Qt.NoFocus)
+        btn_reset.setStyleSheet(_BTN_RESET)
+
+        btn_row.addWidget(btn_latex)
+        btn_row.addWidget(btn_reset)
+        layout.addLayout(btn_row)
+
         # Sliders Grid
         grid = QGridLayout()
         grid.setSpacing(6)
 
         cfg_data = getattr(self.config, 'data', {}).get(config_key, {})
-        def_min_dz = float(cfg_data.get("deadzone", 0.05))
-        def_max_dz = float(cfg_data.get("max_deadzone", 1.0))
-        def_factor = float(cfg_data.get("exp_factor", 1.0))
+        def_dz = float(cfg_data.get("deadzone", 0.00))
+        def_adz = float(cfg_data.get("anti_deadzone", 0.00))
+        def_rdz = float(cfg_data.get("rest_deadzone", 0.00))
+        def_factor = float(cfg_data.get("exp_factor", 1.00))
+        def_sens = float(cfg_data.get("sensitivity", 1.00))
+        def_curve = str(cfg_data.get("curve", "linear"))
+        def_custom = str(cfg_data.get("custom_eq", ""))
 
         settings = getattr(self.config, 'data', {}).get("settings", {})
         digital_key = f"digital_{trigger_id}"
@@ -863,7 +941,7 @@ class TuningView(QWidget):
 
         row_idx = 0
 
-        def make_trig_slider(label_str: str, min_v: float, max_v: float, step_v: float, init_v: float, param_key: str):
+        def make_trig_slider_row(label_str: str, min_v: float, max_v: float, step_v: float, init_v: float, param_key: str):
             nonlocal row_idx
             lbl = QLabel(label_str)
             lbl.setStyleSheet(_LABEL_STYLE)
@@ -892,10 +970,51 @@ class TuningView(QWidget):
             grid.addWidget(slider, row_idx, 1)
             grid.addWidget(val_lbl, row_idx, 2)
             row_idx += 1
+            return slider, val_lbl
 
-        make_trig_slider("Min Deadzone:", 0.00, 0.50, 0.01, def_min_dz, "deadzone")
-        make_trig_slider("Max Deadzone:", 0.50, 1.00, 0.01, def_max_dz, "max_deadzone")
-        make_trig_slider("Curve Factor:", 0.50, 5.00, 0.10, def_factor, "exp_factor")
+        sl_dz, _ = make_trig_slider_row("Deadzone:", 0.00, 0.50, 0.01, def_dz, "deadzone")
+        sl_adz, _ = make_trig_slider_row("Anti-Deadzone:", 0.00, 0.50, 0.01, def_adz, "anti_deadzone")
+        sl_rdz, _ = make_trig_slider_row("Rest Deadzone:", 0.00, 0.30, 0.01, def_rdz, "rest_deadzone")
+        sl_factor, _ = make_trig_slider_row("Curve Factor:", 0.50, 5.00, 0.10, def_factor, "exp_factor")
+        sl_sens, _ = make_trig_slider_row("Sensitivity:", 0.10, 5.00, 0.05, def_sens, "sensitivity")
+
+        # Preset Selector
+        lbl_preset = QLabel("Preset:")
+        lbl_preset.setStyleSheet(_LABEL_STYLE)
+        combo_preset = QComboBox()
+        combo_preset.setStyleSheet(_INPUT_STYLE)
+        combo_preset.addItems(['linear', 'exponential', 'relaxed', 'aggressive', 'cubic', 'sigmoid', 'bezier', 'dotted', 'custom'])
+        c_idx = combo_preset.findText(def_curve.lower())
+        if c_idx >= 0:
+            combo_preset.setCurrentIndex(c_idx)
+        grid.addWidget(lbl_preset, row_idx, 0)
+        grid.addWidget(combo_preset, row_idx, 1, 1, 2)
+        row_idx += 1
+
+        # Number of Dots (for Dotted mode)
+        lbl_dots = QLabel("Number of Dots:")
+        lbl_dots.setStyleSheet(_LABEL_STYLE)
+        combo_dots = QComboBox()
+        combo_dots.setStyleSheet(_INPUT_STYLE)
+        combo_dots.addItems(['2', '3', '4', '5', '6', '7', '8'])
+        combo_dots.setVisible(def_curve.lower() == "dotted")
+        lbl_dots.setVisible(def_curve.lower() == "dotted")
+        grid.addWidget(lbl_dots, row_idx, 0)
+        grid.addWidget(combo_dots, row_idx, 1, 1, 2)
+        row_idx += 1
+
+        # Custom Equation Field
+        lbl_custom = QLabel("Custom Math / Dots:")
+        lbl_custom.setStyleSheet(_LABEL_STYLE)
+        edit_custom = QLineEdit()
+        edit_custom.setStyleSheet(_INPUT_STYLE)
+        edit_custom.setPlaceholderText("e.g. (x**power)*sin(x) or JSON dots array")
+        edit_custom.setText(def_custom)
+        edit_custom.setVisible(def_curve.lower() in ('custom', 'dotted'))
+        lbl_custom.setVisible(def_curve.lower() in ('custom', 'dotted'))
+        grid.addWidget(lbl_custom, row_idx, 0)
+        grid.addWidget(edit_custom, row_idx, 1, 1, 2)
+        row_idx += 1
 
         # Digital Trigger Mode Checkbox
         cb_digital = QCheckBox("Digital Trigger Mode")
@@ -907,12 +1026,61 @@ class TuningView(QWidget):
 
         layout.addLayout(grid)
 
-        curve_canvas.update_params(def_min_dz, 0.0, 0.0, "linear", def_factor, 1.0, "")
+        curve_canvas.update_params(def_dz, def_adz, def_rdz, def_curve, def_factor, def_sens, def_custom, def_digital)
+
+        # RESET Button Logic for Trigger Card
+        def reset_trigger_defaults():
+            if config_key not in self.config.data:
+                self.config.data[config_key] = {}
+            self.config.data[config_key]["deadzone"] = "0.00"
+            self.config.data[config_key]["anti_deadzone"] = "0.00"
+            self.config.data[config_key]["rest_deadzone"] = "0.00"
+            self.config.data[config_key]["exp_factor"] = "1.00"
+            self.config.data[config_key]["sensitivity"] = "1.00"
+            self.config.data[config_key]["curve"] = "linear"
+            self.config.data[config_key]["custom_eq"] = ""
+
+            if "settings" not in self.config.data:
+                self.config.data["settings"] = {}
+            self.config.data["settings"][f"digital_{trigger_id}"] = "false"
+
+            sl_dz.setValue(0)
+            sl_adz.setValue(0)
+            sl_rdz.setValue(0)
+            sl_factor.setValue(int(round((1.00 - 0.50) / 0.10)))
+            sl_sens.setValue(int(round((1.00 - 0.10) / 0.05)))
+            combo_preset.setCurrentText("linear")
+            cb_digital.setChecked(False)
+            edit_custom.setText("")
+            edit_custom.setVisible(False)
+            combo_dots.setVisible(False)
+            lbl_dots.setVisible(False)
+
+            curve_canvas.update_params(0.0, 0.0, 0.0, "linear", 1.0, 1.0, "", False)
+            self.mark_config_dirty()
+
+        btn_reset.clicked.connect(reset_trigger_defaults)
+
+        # Wire Signals
+        combo_preset.currentTextChanged.connect(
+            lambda txt: self._on_preset_changed(config_key, txt, edit_custom, lbl_custom, combo_dots, lbl_dots)
+        )
+        combo_dots.currentTextChanged.connect(
+            lambda txt: self._on_num_dots_changed(config_key, txt, edit_custom, curve_canvas)
+        )
+        edit_custom.textChanged.connect(
+            lambda txt: self._on_custom_eq_changed(config_key, txt, curve_canvas)
+        )
+        curve_canvas.dot_changed.connect(
+            lambda json_str: self._on_dot_dragged(config_key, json_str, edit_custom)
+        )
 
         self._trigger_widgets[config_key] = {
             "curve_canvas": curve_canvas,
             "bar_widget": bar_widget,
-            "digital": cb_digital
+            "digital": cb_digital,
+            "edit_custom": edit_custom,
+            "combo_preset": combo_preset
         }
 
         return group
@@ -927,18 +1095,20 @@ class TuningView(QWidget):
         self.config.data[config_key][param] = str(val) if not isinstance(val, str) else val
 
         # Refresh canvas
-        w = self._stick_widgets.get(config_key, {})
+        w = self._stick_widgets.get(config_key, self._trigger_widgets.get(config_key, {}))
         canvas: Optional[StickCurveCanvas] = w.get("curve_canvas")
         if canvas:
             cfg = self.config.data[config_key]
+            is_dig = str(self.config.data.get("settings", {}).get(f"digital_{config_key.replace('trigger_', '')}", "false")).lower() in ("true", "1")
             canvas.update_params(
-                float(cfg.get("deadzone", 0.05)),
-                float(cfg.get("anti_deadzone", 0.0)),
-                float(cfg.get("rest_deadzone", 0.0)),
+                float(cfg.get("deadzone", 0.00)),
+                float(cfg.get("anti_deadzone", 0.00)),
+                float(cfg.get("rest_deadzone", 0.00)),
                 str(cfg.get("curve", "linear")),
-                float(cfg.get("exp_factor", 1.0)),
-                float(cfg.get("sensitivity", 1.0)),
-                str(cfg.get("custom_eq", cfg.get("custom_curve", "")))
+                float(cfg.get("exp_factor", 1.00)),
+                float(cfg.get("sensitivity", 1.00)),
+                str(cfg.get("custom_eq", cfg.get("custom_curve", ""))),
+                is_dig
             )
         self.mark_config_dirty()
 
@@ -993,6 +1163,21 @@ class TuningView(QWidget):
         if "settings" not in self.config.data:
             self.config.data["settings"] = {}
         self.config.data["settings"][f"digital_{trigger_id}"] = "true" if checked else "false"
+
+        wt = self._trigger_widgets.get(config_key, {})
+        canvas: Optional[StickCurveCanvas] = wt.get("curve_canvas")
+        if canvas:
+            cfg = self.config.data.get(config_key, {})
+            canvas.update_params(
+                float(cfg.get("deadzone", 0.00)),
+                float(cfg.get("anti_deadzone", 0.00)),
+                float(cfg.get("rest_deadzone", 0.00)),
+                str(cfg.get("curve", "linear")),
+                float(cfg.get("exp_factor", 1.00)),
+                float(cfg.get("sensitivity", 1.00)),
+                str(cfg.get("custom_eq", "")),
+                checked
+            )
         self.mark_config_dirty()
 
     # ------------------------------------------------------------------
@@ -1013,14 +1198,14 @@ class TuningView(QWidget):
 
         # 1. Left Stick Telemetry & Output Calculation
         cfg_ls = getattr(self.config, 'data', {}).get("analog_left", {})
-        ls_dz = float(cfg_ls.get("deadzone", 0.05))
-        ls_adz = float(cfg_ls.get("anti_deadzone", 0.0))
-        ls_rdz = float(cfg_ls.get("rest_deadzone", 0.0))
+        ls_dz = float(cfg_ls.get("deadzone", 0.00))
+        ls_adz = float(cfg_ls.get("anti_deadzone", 0.00))
+        ls_rdz = float(cfg_ls.get("rest_deadzone", 0.00))
         ls_curve = str(cfg_ls.get("curve", "linear"))
-        ls_factor = float(cfg_ls.get("exp_factor", 1.0))
-        ls_sens = float(cfg_ls.get("sensitivity", 1.0))
+        ls_factor = float(cfg_ls.get("exp_factor", 1.00))
+        ls_sens = float(cfg_ls.get("sensitivity", 1.00))
         ls_custom = str(cfg_ls.get("custom_eq", cfg_ls.get("custom_curve", "")))
-        ls_warp = float(cfg_ls.get("warp_threshold", cfg_ls.get("warped_stick_threshold", 0.0)))
+        ls_warp = float(cfg_ls.get("warp_threshold", cfg_ls.get("warped_stick_threshold", 0.00)))
         ls_circ_mode = str(cfg_ls.get("circularity_mode", "disabled")).lower()
         ls_cx = float(cfg_ls.get("circularity_center_x", 0.0))
         ls_cy = float(cfg_ls.get("circularity_center_y", 0.0))
@@ -1048,14 +1233,14 @@ class TuningView(QWidget):
 
         # 2. Right Stick Telemetry & Output Calculation
         cfg_rs = getattr(self.config, 'data', {}).get("analog_right", {})
-        rs_dz = float(cfg_rs.get("deadzone", 0.05))
-        rs_adz = float(cfg_rs.get("anti_deadzone", 0.0))
-        rs_rdz = float(cfg_rs.get("rest_deadzone", 0.0))
+        rs_dz = float(cfg_rs.get("deadzone", 0.00))
+        rs_adz = float(cfg_rs.get("anti_deadzone", 0.00))
+        rs_rdz = float(cfg_rs.get("rest_deadzone", 0.00))
         rs_curve = str(cfg_rs.get("curve", "linear"))
-        rs_factor = float(cfg_rs.get("exp_factor", 1.0))
-        rs_sens = float(cfg_rs.get("sensitivity", 1.0))
+        rs_factor = float(cfg_rs.get("exp_factor", 1.00))
+        rs_sens = float(cfg_rs.get("sensitivity", 1.00))
         rs_custom = str(cfg_rs.get("custom_eq", cfg_rs.get("custom_curve", "")))
-        rs_warp = float(cfg_rs.get("warp_threshold", cfg_rs.get("warped_stick_threshold", 0.0)))
+        rs_warp = float(cfg_rs.get("warp_threshold", cfg_rs.get("warped_stick_threshold", 0.00)))
         rs_circ_mode = str(cfg_rs.get("circularity_mode", "disabled")).lower()
         rs_cx = float(cfg_rs.get("circularity_center_x", 0.0))
         rs_cy = float(cfg_rs.get("circularity_center_y", 0.0))
@@ -1082,12 +1267,12 @@ class TuningView(QWidget):
 
         # 3. Triggers Telemetry & Output Calculation
         cfg_lt = getattr(self.config, 'data', {}).get("trigger_left", {})
-        lt_dz = float(cfg_lt.get("deadzone", 0.05))
-        lt_adz = float(cfg_lt.get("anti_deadzone", 0.0))
-        lt_rdz = float(cfg_lt.get("rest_deadzone", 0.0))
+        lt_dz = float(cfg_lt.get("deadzone", 0.00))
+        lt_adz = float(cfg_lt.get("anti_deadzone", 0.00))
+        lt_rdz = float(cfg_lt.get("rest_deadzone", 0.00))
         lt_curve = str(cfg_lt.get("curve", "linear"))
-        lt_factor = float(cfg_lt.get("exp_factor", 1.0))
-        lt_sens = float(cfg_lt.get("sensitivity", 1.0))
+        lt_factor = float(cfg_lt.get("exp_factor", 1.00))
+        lt_sens = float(cfg_lt.get("sensitivity", 1.00))
         lt_custom = str(cfg_lt.get("custom_eq", ""))
         lt_dig = str(getattr(self.config, 'data', {}).get("settings", {}).get("digital_lt", "false")).lower() in ("true", "1")
 
@@ -1103,12 +1288,12 @@ class TuningView(QWidget):
             wt_lt["curve_canvas"].update_live_magnitude(raw_lt, out_lt)
 
         cfg_rt = getattr(self.config, 'data', {}).get("trigger_right", {})
-        rt_dz = float(cfg_rt.get("deadzone", 0.05))
-        rt_adz = float(cfg_rt.get("anti_deadzone", 0.0))
-        rt_rdz = float(cfg_rt.get("rest_deadzone", 0.0))
+        rt_dz = float(cfg_rt.get("deadzone", 0.00))
+        rt_adz = float(cfg_rt.get("anti_deadzone", 0.00))
+        rt_rdz = float(cfg_rt.get("rest_deadzone", 0.00))
         rt_curve = str(cfg_rt.get("curve", "linear"))
-        rt_factor = float(cfg_rt.get("exp_factor", 1.0))
-        rt_sens = float(cfg_rt.get("sensitivity", 1.0))
+        rt_factor = float(cfg_rt.get("exp_factor", 1.00))
+        rt_sens = float(cfg_rt.get("sensitivity", 1.00))
         rt_custom = str(cfg_rt.get("custom_eq", ""))
         rt_dig = str(getattr(self.config, 'data', {}).get("settings", {}).get("digital_rt", "false")).lower() in ("true", "1")
 
@@ -1149,10 +1334,10 @@ class TuningView(QWidget):
     def open_latex_modal(self, config_key: str) -> None:
         cfg_data = getattr(self.config, 'data', {}).get(config_key, {})
         curve_type = str(cfg_data.get("curve", "linear"))
-        power = float(cfg_data.get("exp_factor", 1.0))
-        inner_dz = float(cfg_data.get("deadzone", 0.05))
-        anti_dz = float(cfg_data.get("anti_deadzone", 0.0))
-        rest_dz = float(cfg_data.get("rest_deadzone", 0.0))
+        power = float(cfg_data.get("exp_factor", 1.00))
+        inner_dz = float(cfg_data.get("deadzone", 0.00))
+        anti_dz = float(cfg_data.get("anti_deadzone", 0.00))
+        rest_dz = float(cfg_data.get("rest_deadzone", 0.00))
         custom_eq = str(cfg_data.get("custom_eq", cfg_data.get("custom_curve", "")))
 
         dlg = LatexExportModal(curve_type, power, inner_dz, anti_dz, rest_dz, custom_eq, parent=self)
@@ -1165,7 +1350,7 @@ if __name__ == "__main__":
     app = QApplication(sys.argv)
     cfg = ControllerConfig()
     view = TuningView(cfg)
-    view.setWindowTitle("TuningView v2.3-Beta Parity Test")
+    view.setWindowTitle("TuningView Complete Reset & Trigger Controls Test")
     view.resize(1050, 750)
     view.show()
     sys.exit(app.exec())

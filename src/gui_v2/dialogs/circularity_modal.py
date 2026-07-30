@@ -181,16 +181,16 @@ class CircularityPolarCanvas(QWidget):
         if abs(self.center_x) > 0.0001 or abs(self.center_y) > 0.0001:
             ocx = cx + (self.center_x * max_r)
             ocy = cy - (self.center_y * max_r)
-            painter.setPen(QPen(QColor(245, 158, 11), 1.5))
+            painter.setPen(Qt.NoPen)
             painter.setBrush(QBrush(QColor(245, 158, 11)))
-            painter.drawEllipse(QPointF(ocx, ocy), 4.0, 4.0)
+            painter.drawEllipse(QPointF(ocx, ocy), 5.0, 5.0)
 
-        # 5. Draw Live Stick Position Dot (Neon Purple / White)
+        # 5. Draw Live Stick Position Dot (Neon Purple)
         lx_px = cx + (self.live_x * max_r)
         ly_px = cy - (self.live_y * max_r)
-        painter.setPen(QPen(QColor(255, 255, 255), 2.0))
+        painter.setPen(Qt.NoPen)
         painter.setBrush(QBrush(QColor(168, 85, 247)))
-        painter.drawEllipse(QPointF(lx_px, ly_px), 6.0, 6.0)
+        painter.drawEllipse(QPointF(lx_px, ly_px), 7.2, 7.2)
 
         painter.end()
 

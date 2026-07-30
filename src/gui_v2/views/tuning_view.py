@@ -576,9 +576,10 @@ class TuningView(QWidget):
     """
     Primary PySide6 Analog Tuning View with 100% v2.3-beta feature parity + RESET buttons.
     """
-    def __init__(self, config_manager: Any, parent=None):
+    def __init__(self, config_manager: Any = None, parent=None, controller_config: Any = None):
         super().__init__(parent)
-        self.config = config_manager
+        self.config = config_manager if config_manager is not None else controller_config
+
 
         # Debounced save timer (300ms)
         self.save_timer = QTimer(self)

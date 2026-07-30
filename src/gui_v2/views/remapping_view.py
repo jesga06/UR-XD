@@ -74,10 +74,11 @@ class RemappingView(QWidget):
 
     _has_shown_block_warning: bool = False
 
-    def __init__(self, config_manager: Any, parent=None):
+    def __init__(self, config_manager: Any = None, parent=None, controller_config: Any = None):
         super().__init__(parent)
-        self.config = config_manager
+        self.config = config_manager if config_manager is not None else controller_config
         self._cards: List[QGroupBox] = []
+
 
         # Debounced write: fires 300 ms after the last change
         self.save_timer = QTimer(self)
@@ -425,11 +426,14 @@ class RemappingView(QWidget):
     # ------------------------------------------------------------------
     def _active_layer(self) -> Optional[Dict[str, Any]]:
         """Returns the currently selected shift layer dict, or None."""
+        if not self.config or not hasattr(self.config, "get_shift_layers"):
+            return None
         layers = self.config.get_shift_layers()
         idx = self.layer_selector.currentIndex()
         if 0 <= idx < len(layers):
             return layers[idx]
         return None
+
 
     def _get_base_mapping(self, key: str) -> str:
         data = getattr(self.config, 'data', {})
@@ -677,9 +681,14 @@ class RemappingView(QWidget):
     def _populate_layer_selector(self) -> None:
         """Fills the layer dropdown from config without triggering signals."""
         self.layer_selector.blockSignals(True)
-        prev_idx = self.layer_selector.currentIndex()
+        prev_idx = max(0, self.layer_selector.currentIndex())
         self.layer_selector.clear()
+        if not self.config or not hasattr(self.config, "get_shift_layers"):
+            self.layer_selector.blockSignals(False)
+            return
         for layer in self.config.get_shift_layers():
+
+
             name = layer.get("name", layer.get("id", ""))
             trig = (layer.get("trigger_button") or "").strip().upper()
             if trig in ("NONE", "NULL", "FALSE", "0"):

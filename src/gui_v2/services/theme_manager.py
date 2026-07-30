@@ -20,7 +20,7 @@ logger = logging.getLogger("theme_manager")
 DEFAULT_TOKENS: Dict[str, str] = {
     "accent_1": "#A855F7FF",   # Input Color (Physical/hardware visualizers)
     "accent_2": "#00F5A0FF",   # Output Color (Virtual/emulated output visualizers)
-    "background": "#0C0914FF"  # Base Background (Window base, card fill, containers)
+    "background": "#000000FF"  # Base Background (Window base, card fill, containers)
 }
 
 CUSTOM_THEME_RELATIVE_PATH = os.path.join("themes", "custom_theme.json")

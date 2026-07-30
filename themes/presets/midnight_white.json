@@ -2,5 +2,6 @@
     "name": "Midnight White",
     "accent_1": "#E2E8F0FF",
     "accent_2": "#94A3B8FF",
-    "background": "#000000FF"
+    "background": "#0B0F17FF",
+    "window_bg": "#000000FF"
 }

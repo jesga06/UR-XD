@@ -20,7 +20,8 @@ logger = logging.getLogger("theme_manager")
 DEFAULT_TOKENS: Dict[str, str] = {
     "accent_1": "#A855F7FF",   # Input Color (Physical/hardware visualizers)
     "accent_2": "#00F5A0FF",   # Output Color (Virtual/emulated output visualizers)
-    "background": "#000000FF"  # Base Background (Window base, card fill, containers)
+    "background": "#0C0914FF", # Widget/Card Base Background
+    "window_bg": "#000000FF"   # Window Canvas Base Background (Pure Black)
 }
 
 CUSTOM_THEME_RELATIVE_PATH = os.path.join("themes", "custom_theme.json")
@@ -398,9 +399,11 @@ class ThemeManager(QObject):
     def generate_qss(self) -> str:
         """Generates dynamic application-wide QSS stylesheet."""
         bg_color = self.get_color("background")
+        window_bg_color = self.get_color("window_bg")
         accent_1 = self.get_color("accent_1")
         accent_2 = self.get_color("accent_2")
 
+        window_bg_solid = color_to_rgba_str(window_bg_color, alpha_override=1.0)
         bg_solid = color_to_rgba_str(bg_color, alpha_override=1.0)
         bg_glass = color_to_rgba_str(bg_color, alpha_override=0.85)
         bg_card_inner = color_to_rgba_str(bg_color, alpha_override=0.60)
@@ -416,9 +419,9 @@ class ThemeManager(QObject):
         accent_2_rgba = color_to_rgba_str(accent_2, alpha_override=1.0)
 
         return f"""
-/* Global Base Window & Widgets */
-QMainWindow, QDialog, QWidget#main_container, QTabWidget, QTabWidget::pane, QScrollArea, QScrollArea > QWidget > QWidget {{
-    background-color: {bg_solid};
+/* Global Base Window & Viewport Background */
+QMainWindow, QDialog, QWidget#main_container, QTabWidget, QTabWidget::pane, QScrollArea, QAbstractScrollArea, QAbstractScrollArea::viewport {{
+    background-color: {window_bg_solid};
     color: #ffffff;
     font-family: "Inter", "Outfit", "Segoe UI", sans-serif;
 }}

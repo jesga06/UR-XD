@@ -2,5 +2,6 @@
     "name": "Ocean Blue",
     "accent_1": "#3B82F6FF",
     "accent_2": "#06B6D4FF",
-    "background": "#000000FF"
+    "background": "#070D18FF",
+    "window_bg": "#000000FF"
 }

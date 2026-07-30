@@ -2,5 +2,6 @@
     "name": "Cyber Orange",
     "accent_1": "#F97316FF",
     "accent_2": "#FACC15FF",
-    "background": "#000000FF"
+    "background": "#0F0C0AFF",
+    "window_bg": "#000000FF"
 }

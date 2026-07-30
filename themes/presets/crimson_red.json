@@ -2,5 +2,6 @@
     "name": "Crimson Red",
     "accent_1": "#EF4444FF",
     "accent_2": "#F97316FF",
-    "background": "#000000FF"
+    "background": "#120808FF",
+    "window_bg": "#000000FF"
 }

@@ -61,6 +61,13 @@ Run the settings panel using `run_wrapper.bat` (and select "Open Config" in the 
 * **Opt-Out XInput Blocking:**
   * Remapping a button to a keyboard/mouse action automatically blocks it on the virtual XInput pad to prevent double inputs in games.
   * A **"Block XInput"** checkbox column next to each remapped action lets you toggle this behavior on or off. Unchecking it allows sending both the virtual controller signal and the remapped keyboard/mouse signal simultaneously.
+* **Phase 5 Core Performance & System Hardening:**
+  * **Decoupled 1000Hz Telemetry Worker:** Background `QThread` packet ingestion with `QMutex` thread-safe atomic snapshots, eliminating event loop starvation and main-thread lockup.
+  * **Debounced Configuration Disk Saver:** Single-shot 300ms `QTimer` (`DebouncedConfigSaver`) batching rapid UI setting changes to eliminate disk I/O lag and Windows ANR popups.
+  * **Zero-Allocation Hot-Loop Canvases:** Pre-allocated rendering primitives (`QPen`, `QBrush`, `QPolygonF`, `QFont`), cached `ThemeManager` color tokens, and micro-noise threshold checks in `StickRadar` and `TriggerBar` to eliminate Garbage Collection micro-stutters and reduce CPU usage to idle levels.
+  * **Native System Tray Lifecycle:** Complete `QSystemTrayIcon` integration supporting Open GUI, Win32 Console Recovery (`SW_RESTORE` + `SetForegroundWindow`), Quit actions, and minimize-to-tray window state interception.
+  * **Single Instance Socket Protection:** Localhost socket port locking (port `48126`) preventing duplicate client launches.
+
 * **Tuning Tab (Sticks & Triggers):**
   * **Trigger Sensitivity:** Modify the sensitivity of analog triggers directly using sliders (values from 0.1 to 3.0) to fine-tune actuation limits.
   * **Digital Triggers Mode:** A "Digital Trigger Mode" checkbox forces analog trigger values to act as binary buttons (0 or 255) on the virtual pad immediately upon input. Replaces standard curve display with a clean step-function in real time upon toggling.

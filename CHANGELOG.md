@@ -269,3 +269,12 @@ This release introduces major UI Customizations, Utilities, and Core Profile fea
 - **Zero-Allocation Hot Loops:** Reused persistent state/report instances in `XInputBackend.poll()` and `HIDReader.start()`, eliminating thousands of transient dataclass allocations per second and reducing Garbage Collection (GC) latency pauses.
 - **Atomic Disk Persistence:** Migrated `diagnostics.json` and `status.json` writers to use temporary files (`tempfile.NamedTemporaryFile` + `os.replace`), preventing file lock collisions during asynchronous reading by `FilePollerWorker`.
 - **$O(1)$ Deque & Set Reuse:** Replaced $O(N)$ list popping in `HardwareChordEngine` with `collections.deque(maxlen=50)` and implemented in-place set reuse.
+
+## [2.5.0] - 2026-07-30
+### 🚀 Added / Implemented (Phase 5 Core Performance & Hardening)
+- **Decoupled 1000Hz IPC Telemetry Worker:** Implemented `UDPTelemetryWorker` (`src/gui_v2/workers/telemetry_worker.py`) using `QThread` and `QMutex` thread-safe atomic state snapshots, completely decoupling high-frequency backend UDP packet ingestion from GUI frame rendering.
+- **Single-Shot Debounced Config Saver:** Implemented `DebouncedConfigSaver` (`src/gui_v2/utils/debounced_saver.py`) using a 300ms single-shot `QTimer` to batch configuration disk writes, preventing main-thread file I/O blocking and Windows ANR popups.
+- **Zero-Allocation Hot-Loop Canvases:** Optimized `StickRadar` (`src/stick_radar.py`) and `TriggerBar` (`src/trigger_bar.py`) by pre-allocating `QPen`, `QBrush`, `QPolygonF`, and `QFont` primitives, caching `ThemeManager` color tokens to eliminate dynamic allocation churn during high-FPS rendering loops, and enforcing micro-noise invalidation thresholds before calling `update()`.
+- **System Tray & Application Lifecycle Integration:** Implemented `MainWindow` (`src/gui_v2/main_window.py`) featuring native `QSystemTrayIcon` integration with Open GUI, Show Console (native Windows Win32 API `SW_RESTORE` + `SetForegroundWindow` recovery), and Quit actions, intercepting window minimize events to hide to tray cleanly.
+- **Single Instance Process Protection Enforcement:** Enforced localhost socket port locking (`PORT_GUI = 48126`) in `src/single_instance.py` to prevent duplicate GUI client execution.
+

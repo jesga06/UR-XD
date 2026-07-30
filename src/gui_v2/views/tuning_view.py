@@ -725,7 +725,7 @@ class TuningView(QWidget):
         top_bar = QHBoxLayout()
         btn_color_guide = QPushButton("🎨 Color Guide")
         btn_color_guide.setFocusPolicy(Qt.NoFocus)
-        btn_color_guide.setStyleSheet(_BTN_STYLE)
+        btn_color_guide.setObjectName("btn_accent")
         btn_color_guide.clicked.connect(self._open_color_guide)
         top_bar.addWidget(btn_color_guide)
         top_bar.addStretch()
@@ -773,7 +773,6 @@ class TuningView(QWidget):
     def _build_stick_card(self, title: str, config_key: str, section_name: str) -> QGroupBox:
         group = QGroupBox(title.upper())
         self._cards.append(group)
-        group.setStyleSheet(_CARD_STYLE)
         layout = QVBoxLayout(group)
         layout.setSpacing(8)
 
@@ -846,7 +845,6 @@ class TuningView(QWidget):
             lbl.setStyleSheet(_LABEL_STYLE)
 
             slider = QSlider(Qt.Horizontal)
-            slider.setStyleSheet(_SLIDER_STYLE)
             slider.setFocusPolicy(Qt.NoFocus)
             num_steps = int(round((max_v - min_v) / step_v))
             slider.setRange(0, num_steps)
@@ -882,7 +880,6 @@ class TuningView(QWidget):
         lbl_preset = QLabel("Preset:")
         lbl_preset.setStyleSheet(_LABEL_STYLE)
         combo_preset = QComboBox()
-        combo_preset.setStyleSheet(_INPUT_STYLE)
         combo_preset.addItems(['linear', 'exponential', 'relaxed', 'aggressive', 'cubic', 'sigmoid', 'bezier', 'dotted', 'custom'])
         c_idx = combo_preset.findText(def_curve.lower())
         if c_idx >= 0:
@@ -895,7 +892,6 @@ class TuningView(QWidget):
         lbl_circ = QLabel("Circularity Mode:")
         lbl_circ.setStyleSheet(_LABEL_STYLE)
         combo_circ = QComboBox()
-        combo_circ.setStyleSheet(_INPUT_STYLE)
         combo_circ.addItems(['disabled', 'before', 'after'])
         cm_idx = combo_circ.findText(def_circ_mode)
         if cm_idx >= 0:
@@ -909,7 +905,6 @@ class TuningView(QWidget):
         lbl_dots = QLabel("Number of Dots:")
         lbl_dots.setStyleSheet(_LABEL_STYLE)
         combo_dots = QComboBox()
-        combo_dots.setStyleSheet(_INPUT_STYLE)
         combo_dots.addItems(['2', '3', '4', '5', '6', '7', '8'])
         combo_dots.setVisible(def_curve.lower() == "dotted")
         lbl_dots.setVisible(def_curve.lower() == "dotted")
@@ -921,7 +916,6 @@ class TuningView(QWidget):
         lbl_custom = QLabel("Custom Math / Dots:")
         lbl_custom.setStyleSheet(_LABEL_STYLE)
         edit_custom = QLineEdit()
-        edit_custom.setStyleSheet(_INPUT_STYLE)
         edit_custom.setPlaceholderText("e.g. (x**power)*sin(x) or JSON dots array")
         edit_custom.setText(def_custom)
         edit_custom.setVisible(def_curve.lower() in ('custom', 'dotted'))
@@ -999,7 +993,6 @@ class TuningView(QWidget):
     def _build_trigger_card(self, title: str, config_key: str, trigger_id: str) -> QGroupBox:
         group = QGroupBox(title.upper())
         self._cards.append(group)
-        group.setStyleSheet(_CARD_STYLE)
         layout = QVBoxLayout(group)
         layout.setSpacing(8)
 
@@ -1031,12 +1024,11 @@ class TuningView(QWidget):
         btn_row = QHBoxLayout()
         btn_latex = QPushButton("📄 Export Math")
         btn_latex.setFocusPolicy(Qt.NoFocus)
-        btn_latex.setStyleSheet(_BTN_STYLE)
         btn_latex.clicked.connect(lambda: self.open_latex_modal(config_key))
 
         btn_reset = QPushButton("↺ Reset Defaults")
         btn_reset.setFocusPolicy(Qt.NoFocus)
-        btn_reset.setStyleSheet(_BTN_RESET)
+        btn_reset.setObjectName("btn_reset")
 
         btn_row.addWidget(btn_latex)
         btn_row.addWidget(btn_reset)
@@ -1067,7 +1059,6 @@ class TuningView(QWidget):
             lbl.setStyleSheet(_LABEL_STYLE)
 
             slider = QSlider(Qt.Horizontal)
-            slider.setStyleSheet(_SLIDER_STYLE)
             slider.setFocusPolicy(Qt.NoFocus)
             num_steps = int(round((max_v - min_v) / step_v))
             slider.setRange(0, num_steps)
@@ -1102,7 +1093,6 @@ class TuningView(QWidget):
         lbl_preset = QLabel("Preset:")
         lbl_preset.setStyleSheet(_LABEL_STYLE)
         combo_preset = QComboBox()
-        combo_preset.setStyleSheet(_INPUT_STYLE)
         combo_preset.addItems(['linear', 'exponential', 'relaxed', 'aggressive', 'cubic', 'sigmoid', 'bezier', 'dotted', 'custom'])
         c_idx = combo_preset.findText(def_curve.lower())
         if c_idx >= 0:
@@ -1115,7 +1105,6 @@ class TuningView(QWidget):
         lbl_dots = QLabel("Number of Dots:")
         lbl_dots.setStyleSheet(_LABEL_STYLE)
         combo_dots = QComboBox()
-        combo_dots.setStyleSheet(_INPUT_STYLE)
         combo_dots.addItems(['2', '3', '4', '5', '6', '7', '8'])
         combo_dots.setVisible(def_curve.lower() == "dotted")
         lbl_dots.setVisible(def_curve.lower() == "dotted")
@@ -1127,7 +1116,6 @@ class TuningView(QWidget):
         lbl_custom = QLabel("Custom Math / Dots:")
         lbl_custom.setStyleSheet(_LABEL_STYLE)
         edit_custom = QLineEdit()
-        edit_custom.setStyleSheet(_INPUT_STYLE)
         edit_custom.setPlaceholderText("e.g. (x**power)*sin(x) or JSON dots array")
         edit_custom.setText(def_custom)
         edit_custom.setVisible(def_curve.lower() in ('custom', 'dotted'))
@@ -1139,7 +1127,7 @@ class TuningView(QWidget):
         # Digital Trigger Mode Checkbox
         cb_digital = QCheckBox("Digital Trigger Mode")
         cb_digital.setFocusPolicy(Qt.NoFocus)
-        cb_digital.setStyleSheet(_CB_STYLE)
+        cb_digital.setChecked(def_digital)
         cb_digital.setChecked(def_digital)
         cb_digital.stateChanged.connect(lambda st: self._on_digital_trig_changed(config_key, trigger_id, bool(st)))
         grid.addWidget(cb_digital, row_idx, 0, 1, 3)

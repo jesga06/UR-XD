@@ -462,6 +462,7 @@ class Mapper:
             # Replay press actions for buttons physically held at the moment of transition.
             # Without this, a button held through a layer switch has no edge in the new layer
             # and its new mapping never fires until a release+re-press cycle.
+            base_map = self.mappings.get('layer_base', {})
             new_active_map = self.mappings.get(self.active_layer, {})
             for b_pressed, is_down in all_buttons.items():
                 if is_down and b_pressed not in consumed_shift_buttons:

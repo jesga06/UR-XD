@@ -289,9 +289,6 @@ class VirtualPad:
 
         if getattr(self, 'digital_lt', False):
             lt_val = 1.0 if lt_val > 0 else 0.0
-            state.rt, self.rt_inner, self.rt_adz, self.rt_curve, self.rt_power,
-            getattr(self, 'rt_rest_dz', 0.0), getattr(self, 'rt_sens', 1.0), getattr(self, 'rt_custom', '')
-        )
         if getattr(self, 'digital_rt', False):
             rt_val = 1.0 if rt_val > 0 else 0.0
 

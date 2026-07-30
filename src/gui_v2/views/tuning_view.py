@@ -37,113 +37,6 @@ from gui_v2.dialogs.circularity_modal import CircularityCalibrationModal
 logger = logging.getLogger('tuning_view')
 
 
-# ---------------------------------------------------------------------------
-# QSS Styling Tokens
-# ---------------------------------------------------------------------------
-_CARD_STYLE = """
-QGroupBox {
-    background-color: rgba(22, 16, 36, 0.85);
-    border: 1px solid rgba(168, 85, 247, 0.35);
-    border-radius: 10px;
-    margin-top: 12px;
-    color: #a855f7;
-    font-weight: bold;
-    font-size: 11px;
-}
-QGroupBox::title {
-    subcontrol-origin: margin;
-    subcontrol-position: top left;
-    padding: 0 6px;
-}
-"""
-
-_INPUT_STYLE = """
-QLineEdit, QComboBox {
-    background-color: #161024;
-    border: 1.5px solid #a855f7;
-    border-radius: 6px;
-    color: #ffffff;
-    padding: 3px 6px;
-    font-size: 11px;
-}
-QLineEdit::placeholder { color: rgba(255,255,255,0.4); font-style: italic; }
-QComboBox::drop-down { border: none; }
-QComboBox QAbstractItemView { background: #161024; color: #ffffff; }
-"""
-
-_SLIDER_STYLE = """
-QSlider::groove:horizontal {
-    border: 1px solid rgba(168, 85, 247, 0.3);
-    height: 6px;
-    background: #161024;
-    border-radius: 3px;
-}
-QSlider::sub-page:horizontal {
-    background: #a855f7;
-    border-radius: 3px;
-}
-QSlider::handle:horizontal {
-    background: #ffffff;
-    border: 1.5px solid #a855f7;
-    width: 14px;
-    margin-top: -5px;
-    margin-bottom: -5px;
-    border-radius: 7px;
-}
-QSlider::handle:horizontal:hover {
-    background: #00f5a0;
-    border-color: #00f5a0;
-}
-"""
-
-_CB_STYLE = """
-QCheckBox { color: #ffffff; font-size: 11px; font-weight: bold; }
-QCheckBox::indicator { width: 16px; height: 16px; border-radius: 4px;
-    border: 1px solid rgba(168,85,247,0.4); background: #161024; }
-QCheckBox::indicator:checked { background: #a855f7; border-color: #a855f7; }
-"""
-
-_BTN_STYLE = """
-QPushButton {
-    background-color: rgba(168, 85, 247, 0.2);
-    border: 1px solid rgba(168, 85, 247, 0.4);
-    border-radius: 6px; color: #ffffff; padding: 4px 10px; font-size: 11px; font-weight: bold;
-}
-QPushButton:hover { background-color: rgba(168, 85, 247, 0.4); border-color: #a855f7; }
-QPushButton:pressed { background-color: #7500ab; }
-"""
-
-_BTN_ACCENT = """
-QPushButton {
-    background-color: rgba(0, 245, 160, 0.2);
-    border: 1px solid rgba(0, 245, 160, 0.5);
-    border-radius: 6px; color: #ffffff; padding: 4px 10px; font-size: 11px; font-weight: bold;
-}
-QPushButton:hover { background-color: rgba(0, 245, 160, 0.4); }
-"""
-
-_BTN_RESET = """
-QPushButton {
-    background-color: rgba(239, 68, 68, 0.2);
-    border: 1px solid rgba(239, 68, 68, 0.5);
-    border-radius: 6px; color: #ffffff; padding: 4px 10px; font-size: 11px; font-weight: bold;
-}
-QPushButton:hover { background-color: rgba(239, 68, 68, 0.4); border-color: #ef4444; }
-QPushButton:pressed { background-color: #991b1b; }
-"""
-
-_TXT_BOX_STYLE = """
-QTextEdit {
-    background-color: #161024;
-    border: 1.5px solid #a855f7;
-    border-radius: 6px;
-    color: #00f5a0;
-    font-family: 'JetBrains Mono', 'Consolas', monospace;
-    font-size: 11px;
-    padding: 6px;
-}
-"""
-
 _LABEL_STYLE = "color: rgba(255, 255, 255, 0.7); font-size: 11px; font-weight: bold;"
 
 
@@ -158,21 +51,40 @@ class ColorGuideModal(QDialog):
         super().__init__(parent)
         self.setWindowTitle("Color Guide — Signal Telemetry Legend")
         self.setMinimumSize(440, 260)
-        self.setStyleSheet("QDialog { background-color: #0f0a1e; color: #ffffff; }")
+
+        try:
+            from gui_v2.services.theme_manager import ThemeManager, color_to_rgba_str, color_to_hex8
+            tm = ThemeManager.get_instance()
+            window_bg = tm.get_color("window_bg")
+            accent_1 = tm.get_color("accent_1")
+            accent_2 = tm.get_color("accent_2")
+            bg_hex = color_to_rgba_str(window_bg, alpha_override=1.0)
+            acc1_hex = color_to_hex8(accent_1)
+            acc2_hex = color_to_hex8(accent_2)
+            acc1_subtle = color_to_rgba_str(accent_1, alpha_override=0.20)
+            acc1_border = color_to_rgba_str(accent_1, alpha_override=0.50)
+        except Exception:
+            bg_hex = "#000000FF"
+            acc1_hex = "#A855F7FF"
+            acc2_hex = "#00F5A0FF"
+            acc1_subtle = "rgba(168, 85, 247, 0.20)"
+            acc1_border = "rgba(168, 85, 247, 0.50)"
+
+        self.setStyleSheet(f"QDialog {{ background-color: {bg_hex}; color: #ffffff; }}")
 
         layout = QVBoxLayout(self)
         layout.setContentsMargins(16, 16, 16, 16)
         layout.setSpacing(12)
 
         header = QLabel("🎨 COLOR GUIDE & SIGNAL TELEMETRY")
-        header.setStyleSheet("color: #a855f7; font-weight: bold; font-size: 13px;")
+        header.setStyleSheet(f"color: {acc1_hex}; font-weight: bold; font-size: 13px;")
         layout.addWidget(header)
 
         guide_text = (
-            "<b style='color: #06b6d4;'>🟡 / 🔵 Cyan / Yellow Dot & Bar:</b><br>"
-            "&nbsp;&nbsp;&nbsp;&nbsp;Raw controller hardware input (what your physical gamepad sends).<br><br>"
-            "<b style='color: #00f5a0;'>🟣 / 🟢 Purple / Green Dot & Bar:</b><br>"
-            "&nbsp;&nbsp;&nbsp;&nbsp;Processed output received by the game (after deadzones, curves, warp threshold, and circularity scaling).<br><br>"
+            f"<b style='color: {acc1_hex};'>🔵 Accent #1 (Primary / Input Color):</b><br>"
+            "&nbsp;&nbsp;&nbsp;&nbsp;Raw controller hardware input vector and curve control point indicators.<br><br>"
+            f"<b style='color: {acc2_hex};'>🟢 Accent #2 (Secondary / Output Color):</b><br>"
+            "&nbsp;&nbsp;&nbsp;&nbsp;Processed virtual output received by the game (after deadzones, response curves, sensitivity, and circularity scaling).<br><br>"
             "<i>The response curve graph displays calculated output magnitude relative to physical movement.</i>"
         )
 
@@ -184,7 +96,7 @@ class ColorGuideModal(QDialog):
 
         btn_close = QPushButton("Close")
         btn_close.setFocusPolicy(Qt.NoFocus)
-        btn_close.setStyleSheet(_BTN_STYLE)
+        btn_close.setStyleSheet(f"QPushButton {{ background-color: {acc1_subtle}; border: 1px solid {acc1_border}; border-radius: 6px; color: #ffffff; padding: 4px 10px; font-size: 11px; font-weight: bold; }}")
         btn_close.clicked.connect(self.accept)
 
         layout.addStretch()
@@ -202,7 +114,39 @@ class LatexExportModal(QDialog):
         super().__init__(parent)
         self.setWindowTitle("Export Curve Math & Configuration")
         self.setMinimumSize(480, 420)
-        self.setStyleSheet("QDialog { background-color: #0f0a1e; color: #ffffff; }")
+
+        try:
+            from gui_v2.services.theme_manager import ThemeManager, color_to_rgba_str, color_to_hex8
+            tm = ThemeManager.get_instance()
+            bg_color = tm.get_color("background")
+            window_bg = tm.get_color("window_bg")
+            accent_1 = tm.get_color("accent_1")
+            accent_2 = tm.get_color("accent_2")
+            win_bg_hex = color_to_rgba_str(window_bg, alpha_override=1.0)
+            bg_inner = color_to_rgba_str(bg_color, alpha_override=0.60)
+            border_glass = color_to_rgba_str(accent_1, alpha_override=0.35)
+            acc1_hex = color_to_hex8(accent_1)
+            acc2_hex = color_to_hex8(accent_2)
+            acc1_subtle = color_to_rgba_str(accent_1, alpha_override=0.20)
+            acc1_border = color_to_rgba_str(accent_1, alpha_override=0.50)
+            acc2_subtle = color_to_rgba_str(accent_2, alpha_override=0.20)
+            acc2_border = color_to_rgba_str(accent_2, alpha_override=0.50)
+        except Exception:
+            win_bg_hex = "#000000FF"
+            bg_inner = "rgba(22, 16, 36, 0.60)"
+            border_glass = "rgba(168, 85, 247, 0.35)"
+            acc1_hex = "#A855F7FF"
+            acc2_hex = "#00F5A0FF"
+            acc1_subtle = "rgba(168, 85, 247, 0.20)"
+            acc1_border = "rgba(168, 85, 247, 0.50)"
+            acc2_subtle = "rgba(0, 245, 160, 0.20)"
+            acc2_border = "rgba(0, 245, 160, 0.50)"
+
+        self.setStyleSheet(f"QDialog {{ background-color: {win_bg_hex}; color: #ffffff; }}")
+
+        txt_style = f"QTextEdit {{ background-color: {bg_inner}; border: 1.5px solid {border_glass}; border-radius: 6px; color: {acc2_hex}; font-family: 'JetBrains Mono', 'Consolas', monospace; font-size: 11px; padding: 6px; }}"
+        btn_acc_style = f"QPushButton {{ background-color: {acc2_subtle}; border: 1px solid {acc2_border}; border-radius: 6px; color: #ffffff; padding: 4px 10px; font-size: 11px; font-weight: bold; }} QPushButton:hover {{ background-color: {acc2_border}; }}"
+        btn_close_style = f"QPushButton {{ background-color: {acc1_subtle}; border: 1px solid {acc1_border}; border-radius: 6px; color: #ffffff; padding: 4px 10px; font-size: 11px; font-weight: bold; }}"
 
         layout = QVBoxLayout(self)
         layout.setContentsMargins(14, 14, 14, 14)
@@ -210,26 +154,26 @@ class LatexExportModal(QDialog):
 
         # 1. LaTeX Section
         h1 = QLabel("📄 LATEX FORMULA (DESMOS)")
-        h1.setStyleSheet("color: #a855f7; font-weight: bold; font-size: 11px;")
+        h1.setStyleSheet(f"color: {acc1_hex}; font-weight: bold; font-size: 11px;")
         layout.addWidget(h1)
 
         latex_str = curves.export_to_latex(curve_type, power, inner_dz, anti_dz, rest_dz)
         self.txt_latex = QTextEdit()
         self.txt_latex.setReadOnly(True)
         self.txt_latex.setText(latex_str)
-        self.txt_latex.setStyleSheet(_TXT_BOX_STYLE)
+        self.txt_latex.setStyleSheet(txt_style)
         self.txt_latex.setMaximumHeight(90)
         layout.addWidget(self.txt_latex)
 
         btn_copy_latex = QPushButton("Copy LaTeX")
         btn_copy_latex.setFocusPolicy(Qt.NoFocus)
-        btn_copy_latex.setStyleSheet(_BTN_ACCENT)
+        btn_copy_latex.setStyleSheet(btn_acc_style)
         btn_copy_latex.clicked.connect(lambda: self._copy(latex_str, "LaTeX formula copied to clipboard!"))
         layout.addWidget(btn_copy_latex, 0, Qt.AlignLeft)
 
         # 2. JSON Snippet Section
         h2 = QLabel("⚙️ JSON PROFILE SNIPPET")
-        h2.setStyleSheet("color: #a855f7; font-weight: bold; font-size: 11px;")
+        h2.setStyleSheet(f"color: {acc1_hex}; font-weight: bold; font-size: 11px;")
         layout.addWidget(h2)
 
         json_obj = {
@@ -244,19 +188,19 @@ class LatexExportModal(QDialog):
         self.txt_json = QTextEdit()
         self.txt_json.setReadOnly(True)
         self.txt_json.setText(json_str)
-        self.txt_json.setStyleSheet(_TXT_BOX_STYLE)
+        self.txt_json.setStyleSheet(txt_style)
         self.txt_json.setMaximumHeight(110)
         layout.addWidget(self.txt_json)
 
         btn_copy_json = QPushButton("Copy JSON")
         btn_copy_json.setFocusPolicy(Qt.NoFocus)
-        btn_copy_json.setStyleSheet(_BTN_ACCENT)
+        btn_copy_json.setStyleSheet(btn_acc_style)
         btn_copy_json.clicked.connect(lambda: self._copy(json_str, "JSON profile snippet copied to clipboard!"))
         layout.addWidget(btn_copy_json, 0, Qt.AlignLeft)
 
         btn_close = QPushButton("Close")
         btn_close.setFocusPolicy(Qt.NoFocus)
-        btn_close.setStyleSheet(_BTN_STYLE)
+        btn_close.setStyleSheet(btn_close_style)
         btn_close.clicked.connect(self.accept)
 
         layout.addStretch()
@@ -449,7 +393,7 @@ class StickCurveCanvas(QWidget):
                 py = h - (d[1] * h)
                 is_active = (idx == self.active_dot_idx)
                 painter.setPen(Qt.NoPen)
-                painter.setBrush(QBrush(accent_2 if is_active else QColor(255, 255, 255)))
+                painter.setBrush(QBrush(accent_1 if is_active else QColor(accent_1.red(), accent_1.green(), accent_1.blue(), 180)))
                 painter.drawEllipse(QPointF(px, py), 6.0, 6.0)
 
         # Live Cursor Dot (Output Accent #2 Color)

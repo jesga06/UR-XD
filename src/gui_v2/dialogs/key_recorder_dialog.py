@@ -37,50 +37,75 @@ except ImportError:
 # ---------------------------------------------------------------------------
 # Styling
 # ---------------------------------------------------------------------------
-_CARD_STYLE = """
-QGroupBox {
-    background-color: rgba(22, 16, 36, 0.85);
-    border: 1px solid rgba(168, 85, 247, 0.35);
+try:
+    from gui_v2.services.theme_manager import ThemeManager, color_to_rgba_str, color_to_hex8
+    tm = ThemeManager.get_instance()
+    bg_color = tm.get_color("background")
+    accent_1 = tm.get_color("accent_1")
+    accent_2 = tm.get_color("accent_2")
+    bg_glass = color_to_rgba_str(bg_color, alpha_override=0.85)
+    bg_inner = color_to_rgba_str(bg_color, alpha_override=0.60)
+    border_glass = color_to_rgba_str(accent_1, alpha_override=0.35)
+    acc1_hex = color_to_hex8(accent_1)
+    acc1_subtle = color_to_rgba_str(accent_1, alpha_override=0.20)
+    acc1_border = color_to_rgba_str(accent_1, alpha_override=0.50)
+    acc2_hex = color_to_hex8(accent_2)
+    acc2_subtle = color_to_rgba_str(accent_2, alpha_override=0.20)
+    acc2_border = color_to_rgba_str(accent_2, alpha_override=0.50)
+except Exception:
+    bg_glass = "rgba(22, 16, 36, 0.85)"
+    bg_inner = "rgba(22, 16, 36, 0.60)"
+    border_glass = "rgba(168, 85, 247, 0.35)"
+    acc1_hex = "#A855F7FF"
+    acc1_subtle = "rgba(168, 85, 247, 0.20)"
+    acc1_border = "rgba(168, 85, 247, 0.50)"
+    acc2_hex = "#00F5A0FF"
+    acc2_subtle = "rgba(0, 245, 160, 0.20)"
+    acc2_border = "rgba(0, 245, 160, 0.50)"
+
+_CARD_STYLE = f"""
+QGroupBox {{
+    background-color: {bg_glass};
+    border: 1px solid {border_glass};
     border-radius: 10px;
     margin-top: 10px;
     color: #ffffff;
     font-weight: bold;
     font-size: 11px;
-}
-QGroupBox::title {
+}}
+QGroupBox::title {{
     subcontrol-origin: margin;
     subcontrol-position: top left;
     padding: 0 6px;
-    color: #a855f7;
-}
+    color: {acc1_hex};
+}}
 """
 
-_INPUT_STYLE = """
-QComboBox, QSpinBox, QDoubleSpinBox {
-    background-color: rgba(22, 16, 36, 0.85);
-    border: 1.5px solid #a855f7;
+_INPUT_STYLE = f"""
+QComboBox, QSpinBox, QDoubleSpinBox {{
+    background-color: {bg_inner};
+    border: 1.5px solid {border_glass};
     border-radius: 6px;
     color: #ffffff;
     padding: 4px 8px;
-}
-QComboBox::drop-down { border: none; }
-QComboBox QAbstractItemView { background: #161024; color: #ffffff; }
+}}
+QComboBox::drop-down {{ border: none; }}
+QComboBox QAbstractItemView {{ background: {bg_inner}; color: #ffffff; }}
 """
 
-_BTN_ACCENT = """
-QPushButton {
-    background-color: rgba(168, 85, 247, 0.2);
-    border: 1px solid rgba(168, 85, 247, 0.5);
+_BTN_ACCENT = f"""
+QPushButton {{
+    background-color: {acc1_subtle};
+    border: 1px solid {acc1_border};
     border-radius: 6px;
     color: #ffffff;
     padding: 5px 12px;
     font-size: 11px;
-}
-QPushButton:hover {
-    background-color: rgba(168, 85, 247, 0.4);
-    border: 1px solid #a855f7;
-}
-QPushButton:pressed { background-color: #7500ab; }
+}}
+QPushButton:hover {{
+    background-color: {acc1_border};
+    border: 1px solid {acc1_hex};
+}}
 """
 
 _BTN_SAVE = """

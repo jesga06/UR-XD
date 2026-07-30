@@ -122,7 +122,7 @@ class RemappingView(QWidget):
                 border: 1px solid {border_glass};
                 border-radius: 10px;
                 margin-top: 12px;
-                color: {accent_1_hex};
+                color: #ffffff;
                 font-weight: bold;
                 font-size: 11px;
             }}
@@ -130,12 +130,10 @@ class RemappingView(QWidget):
                 subcontrol-origin: margin;
                 subcontrol-position: top left;
                 padding: 0 6px;
-                color: {accent_1_hex};
+                color: #ffffff;
+                font-weight: bold;
             }}
             """
-            for card in getattr(self, '_cards', []):
-                if card:
-                    card.setStyleSheet(card_qss)
 
             input_qss = f"""
             QLineEdit, QComboBox, QSpinBox {{

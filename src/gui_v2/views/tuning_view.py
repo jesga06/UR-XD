@@ -394,12 +394,23 @@ class StickCurveCanvas(QWidget):
         painter = QPainter(self)
         painter.setRenderHint(QPainter.Antialiasing, True)
 
+        try:
+            from gui_v2.services.theme_manager import ThemeManager
+            tm = ThemeManager.get_instance()
+            accent_1 = tm.get_color("accent_1")
+            accent_2 = tm.get_color("accent_2")
+            bg_color = tm.get_color("background")
+        except Exception:
+            accent_1 = QColor(168, 85, 247)
+            accent_2 = QColor(0, 245, 160)
+            bg_color = QColor(22, 16, 36)
+
         w = self.width()
         h = self.height()
-        painter.fillRect(self.rect(), QColor(22, 16, 36, 215))
+        painter.fillRect(self.rect(), QColor(bg_color.red(), bg_color.green(), bg_color.blue(), 215))
 
         # Grid lines
-        painter.setPen(QPen(QColor(168, 85, 247, 40), 1, Qt.DashLine))
+        painter.setPen(QPen(QColor(accent_1.red(), accent_1.green(), accent_1.blue(), 40), 1, Qt.DashLine))
         painter.drawLine(w // 2, 0, w // 2, h)
         painter.drawLine(0, h // 2, w, h // 2)
 
@@ -427,10 +438,10 @@ class StickCurveCanvas(QWidget):
             else:
                 path.lineTo(px, py)
 
-        painter.setPen(QPen(QColor(0, 245, 160), 2.0))
+        painter.setPen(QPen(accent_2, 2.0))
         painter.drawPath(path)
 
-        # Dotted Control Point Circles (NO white outline pen, radius 6.0)
+        # Dotted Control Point Circles
         dots = self._get_dotted_points()
         if dots:
             for idx, d in enumerate(dots):
@@ -438,15 +449,15 @@ class StickCurveCanvas(QWidget):
                 py = h - (d[1] * h)
                 is_active = (idx == self.active_dot_idx)
                 painter.setPen(Qt.NoPen)
-                painter.setBrush(QBrush(QColor(0, 245, 160) if is_active else QColor(255, 255, 255)))
+                painter.setBrush(QBrush(accent_2 if is_active else QColor(255, 255, 255)))
                 painter.drawEllipse(QPointF(px, py), 6.0, 6.0)
 
-        # Live Cursor Dot (Output Neon Green) - NO outline pen, radius 6.0
+        # Live Cursor Dot (Output Accent #2 Color)
         if self.live_raw_mag > 0.0:
             cx = self.live_raw_mag * w
             cy = h - (self.live_out_mag * h)
             painter.setPen(Qt.NoPen)
-            painter.setBrush(QBrush(QColor(6, 182, 212)))  # Neon Green matching output signal
+            painter.setBrush(QBrush(accent_2))
             painter.drawEllipse(QPointF(cx, cy), 6.0, 6.0)
 
         painter.end()
@@ -494,10 +505,21 @@ class DualStickRadarWidget(QWidget):
         cy = h / 2.0
         max_r = (min(w, h) / 2.0) - 10.0
 
-        painter.fillRect(self.rect(), QColor(22, 16, 36, 215))
+        try:
+            from gui_v2.services.theme_manager import ThemeManager
+            tm = ThemeManager.get_instance()
+            accent_1 = tm.get_color("accent_1")
+            accent_2 = tm.get_color("accent_2")
+            bg_color = tm.get_color("background")
+        except Exception:
+            accent_1 = QColor(168, 85, 247)
+            accent_2 = QColor(0, 245, 160)
+            bg_color = QColor(22, 16, 36)
+
+        painter.fillRect(self.rect(), QColor(bg_color.red(), bg_color.green(), bg_color.blue(), 215))
 
         # Grid lines
-        painter.setPen(QPen(QColor(168, 85, 247, 50), 1, Qt.DashLine))
+        painter.setPen(QPen(QColor(accent_1.red(), accent_1.green(), accent_1.blue(), 50), 1, Qt.DashLine))
         painter.drawEllipse(QPointF(cx, cy), max_r, max_r)
         painter.drawLine(QPointF(cx, 0), QPointF(cx, h))
         painter.drawLine(QPointF(0, cy), QPointF(w, cy))
@@ -510,28 +532,28 @@ class DualStickRadarWidget(QWidget):
             painter.setBrush(QBrush(QColor(239, 68, 68, 25)))
             painter.drawEllipse(QPointF(cx, cy), dz_radius, dz_radius)
 
-        # 1. Raw Hardware Input Trailing Line & Dot (Cyan)
+        # 1. Raw Hardware Input Trailing Line & Dot (Accent #1 Color)
         rx_px = cx + (self.raw_x * max_r)
         ry_px = cy - (self.raw_y * max_r)
         if abs(self.raw_x) > 0.001 or abs(self.raw_y) > 0.001:
-            raw_line_pen = QPen(QColor(6, 182, 212, 160), 1.5, Qt.DotLine)
+            raw_line_pen = QPen(QColor(accent_1.red(), accent_1.green(), accent_1.blue(), 160), 1.5, Qt.DotLine)
             painter.setPen(raw_line_pen)
             painter.drawLine(QPointF(cx, cy), QPointF(rx_px, ry_px))
 
         painter.setPen(Qt.NoPen)
-        painter.setBrush(QBrush(QColor(6, 182, 212)))  # Cyan
+        painter.setBrush(QBrush(accent_1))
         painter.drawEllipse(QPointF(rx_px, ry_px), 6.0, 6.0)
 
-        # 2. Processed Output Trailing Line & Dot (Neon Green)
+        # 2. Processed Output Trailing Line & Dot (Accent #2 Color)
         ox_px = cx + (self.out_x * max_r)
         oy_px = cy - (self.out_y * max_r)
         if abs(self.out_x) > 0.001 or abs(self.out_y) > 0.001:
-            out_line_pen = QPen(QColor(0, 245, 160, 220), 1.5, Qt.DotLine)
+            out_line_pen = QPen(QColor(accent_2.red(), accent_2.green(), accent_2.blue(), 220), 1.5, Qt.DotLine)
             painter.setPen(out_line_pen)
             painter.drawLine(QPointF(cx, cy), QPointF(ox_px, oy_px))
 
         painter.setPen(Qt.NoPen)
-        painter.setBrush(QBrush(QColor(0, 245, 160)))  # Neon Green
+        painter.setBrush(QBrush(accent_2))
         painter.drawEllipse(QPointF(ox_px, oy_px), 6.0, 6.0)
 
         painter.end()
@@ -562,28 +584,43 @@ class TriggerPullBarWidget(QWidget):
         painter = QPainter(self)
         painter.setRenderHint(QPainter.Antialiasing, True)
 
+        try:
+            from gui_v2.services.theme_manager import ThemeManager
+            tm = ThemeManager.get_instance()
+            accent_1 = tm.get_color("accent_1")
+            accent_2 = tm.get_color("accent_2")
+            bg_color = tm.get_color("background")
+        except Exception:
+            accent_1 = QColor(168, 85, 247)
+            accent_2 = QColor(0, 245, 160)
+            bg_color = QColor(22, 16, 36)
+
         w = self.width()
         h = self.height()
-        painter.fillRect(self.rect(), QColor(22, 16, 36, 215))
+        painter.fillRect(self.rect(), QColor(bg_color.red(), bg_color.green(), bg_color.blue(), 215))
 
         margin = 8
         bar_w = 18
         max_h = h - (margin * 2)
 
         # Grid box
-        painter.setPen(QPen(QColor(168, 85, 247, 60), 1))
+        painter.setPen(QPen(QColor(accent_1.red(), accent_1.green(), accent_1.blue(), 60), 1))
         painter.drawRect(margin, margin, bar_w, max_h)
         painter.drawRect(margin + bar_w + 8, margin, bar_w, max_h)
 
-        # 1. Raw Fill Bar (Cyan)
+        # 1. Raw Fill Bar (Accent #1 Color)
         raw_h = self.raw_val * max_h
         if raw_h > 0:
-            painter.fillRect(margin, margin + max_h - raw_h, bar_w, raw_h, QColor(6, 182, 212))
+            painter.setPen(Qt.NoPen)
+            painter.setBrush(QBrush(accent_1))
+            painter.drawRect(margin + 1, int(h - margin - raw_h), bar_w - 1, int(raw_h))
 
-        # 2. Processed Fill Bar (Neon Green)
+        # 2. Processed Output Fill Bar (Accent #2 Color)
         out_h = self.out_val * max_h
         if out_h > 0:
-            painter.fillRect(margin + bar_w + 8, margin + max_h - out_h, bar_w, out_h, QColor(0, 245, 160))
+            painter.setPen(Qt.NoPen)
+            painter.setBrush(QBrush(accent_2))
+            painter.drawRect(margin + bar_w + 9, int(h - margin - out_h), bar_w - 1, int(out_h))
 
         painter.end()
 
@@ -826,17 +863,16 @@ class TuningView(QWidget):
         btn_row = QHBoxLayout()
         btn_calib = QPushButton("🔄 Circularity Calibration")
         btn_calib.setFocusPolicy(Qt.NoFocus)
-        btn_calib.setStyleSheet(_BTN_ACCENT)
+        btn_calib.setObjectName("btn_accent")
         btn_calib.clicked.connect(lambda: self.open_circularity_modal(section_name))
 
         btn_latex = QPushButton("📄 Export Math")
         btn_latex.setFocusPolicy(Qt.NoFocus)
-        btn_latex.setStyleSheet(_BTN_STYLE)
         btn_latex.clicked.connect(lambda: self.open_latex_modal(config_key))
 
         btn_reset = QPushButton("↺ Reset Defaults")
         btn_reset.setFocusPolicy(Qt.NoFocus)
-        btn_reset.setStyleSheet(_BTN_RESET)
+        btn_reset.setObjectName("btn_reset")
 
         btn_row.addWidget(btn_calib)
         btn_row.addWidget(btn_latex)

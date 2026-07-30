@@ -34,6 +34,15 @@ class TriggerBar(QWidget):
         self.setMinimumSize(180, 50)
         self.setMaximumHeight(65)
         self._setup_screen_refresh_sync()
+        self._setup_theme_sync()
+
+    def _setup_theme_sync(self) -> None:
+        """Connects ThemeManager signal for live theme repainting."""
+        try:
+            from gui_v2.services.theme_manager import ThemeManager
+            ThemeManager.get_instance().theme_changed.connect(lambda _: self.update())
+        except Exception:
+            pass
 
     def _setup_screen_refresh_sync(self) -> None:
         """
@@ -93,9 +102,23 @@ class TriggerBar(QWidget):
 
         rect = self.rect()
 
-        # 1. Glassmorphic Background Card (#161024 background, rgba(168,85,247,0.35) border)
-        painter.setBrush(QColor("#161024"))
-        painter.setPen(QPen(QColor(168, 85, 247, 90), 1.5))
+        # Fetch dynamic colors from ThemeManager
+        try:
+            from gui_v2.services.theme_manager import ThemeManager
+            tm = ThemeManager.get_instance()
+            bg_color = tm.get_color("background")
+            accent_1 = tm.get_color("accent_1")
+            accent_2 = tm.get_color("accent_2")
+        except Exception:
+            bg_color = QColor("#161024")
+            accent_1 = QColor("#a855f7")
+            accent_2 = QColor("#00f5a0")
+
+        # 1. Glassmorphic Background Card
+        card_bg = QColor(bg_color.red(), bg_color.green(), bg_color.blue(), 215)
+        border_pen = QPen(QColor(accent_1.red(), accent_1.green(), accent_1.blue(), 90), 1.5)
+        painter.setBrush(card_bg)
+        painter.setPen(border_pen)
         painter.drawRoundedRect(rect.adjusted(1, 1, -1, -1), 8, 8)
 
         # Title Overlay
@@ -117,17 +140,17 @@ class TriggerBar(QWidget):
 
         # 2. Inner Track Bar Area
         track_rect = rect.adjusted(10, 22, -10, -8)
-        painter.setBrush(QColor(10, 6, 18))
+        painter.setBrush(QColor(bg_color.red() // 2, bg_color.green() // 2, bg_color.blue() // 2, 240))
         painter.setPen(Qt.PenStyle.NoPen)
         painter.drawRoundedRect(track_rect, 4, 4)
 
-        # 3. Proportional Level Meter Fill (Gradient #7500ab -> #a855f7)
+        # 3. Proportional Level Meter Fill (Gradient accent_1 -> accent_2)
         fill_width = int(track_rect.width() * self._value)
         if fill_width > 0:
             fill_rect = track_rect.adjusted(0, 0, -(track_rect.width() - fill_width), 0)
             gradient = QLinearGradient(fill_rect.topLeft(), fill_rect.topRight())
-            gradient.setColorAt(0.0, QColor("#7500ab"))
-            gradient.setColorAt(1.0, QColor("#a855f7"))
+            gradient.setColorAt(0.0, accent_1)
+            gradient.setColorAt(1.0, accent_2)
 
             painter.setBrush(gradient)
             painter.drawRoundedRect(fill_rect, 4, 4)

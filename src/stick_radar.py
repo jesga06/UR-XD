@@ -36,6 +36,15 @@ class StickRadar(QWidget):
 
         self.setMinimumSize(180, 180)
         self._setup_screen_refresh_sync()
+        self._setup_theme_sync()
+
+    def _setup_theme_sync(self) -> None:
+        """Connects ThemeManager signal for live theme repainting."""
+        try:
+            from gui_v2.services.theme_manager import ThemeManager
+            ThemeManager.get_instance().theme_changed.connect(lambda _: self.update())
+        except Exception:
+            pass
 
     def _setup_screen_refresh_sync(self) -> None:
         """
@@ -113,9 +122,22 @@ class StickRadar(QWidget):
         cx, cy = w / 2.0, h / 2.0 + 8.0 # Shift down slightly for header
         radius = side / 2.0
 
-        # 1. Glassmorphic Card Outer Frame (#161024 background, rgba(168,85,247,0.35) border)
-        painter.setBrush(QColor("#161024"))
-        border_pen = QPen(QColor(168, 85, 247, 90), 1.5)
+        # Fetch dynamic colors from ThemeManager
+        try:
+            from gui_v2.services.theme_manager import ThemeManager
+            tm = ThemeManager.get_instance()
+            bg_color = tm.get_color("background")
+            accent_1 = tm.get_color("accent_1")  # Input Color (Physical)
+            accent_2 = tm.get_color("accent_2")  # Output Color (Virtual)
+        except Exception:
+            bg_color = QColor("#161024")
+            accent_1 = QColor("#a855f7")
+            accent_2 = QColor("#00f5a0")
+
+        # 1. Glassmorphic Card Outer Frame
+        card_bg = QColor(bg_color.red(), bg_color.green(), bg_color.blue(), 215)
+        border_pen = QPen(QColor(accent_1.red(), accent_1.green(), accent_1.blue(), 90), 1.5)
+        painter.setBrush(card_bg)
         painter.setPen(border_pen)
         painter.drawRoundedRect(rect.adjusted(1, 1, -1, -1), 12, 12)
 
@@ -129,7 +151,7 @@ class StickRadar(QWidget):
 
         # Coordinates readout overlay
         coords_str = f"X: {self._x:+.2f}  Y: {self._y:+.2f}"
-        painter.setPen(QColor(168, 85, 247, 200))
+        painter.setPen(QColor(accent_1.red(), accent_1.green(), accent_1.blue(), 200))
         font_sub = painter.font()
         font_sub.setPointSize(8)
         font_sub.setBold(False)
@@ -137,13 +159,13 @@ class StickRadar(QWidget):
         painter.drawText(rect.adjusted(10, 6, -10, -6), Qt.AlignmentFlag.AlignRight | Qt.AlignmentFlag.AlignTop, coords_str)
 
         # 2. Axis Crosshairs
-        grid_pen = QPen(QColor(168, 85, 247, 50), 1, Qt.PenStyle.DashLine)
+        grid_pen = QPen(QColor(accent_1.red(), accent_1.green(), accent_1.blue(), 50), 1, Qt.PenStyle.DashLine)
         painter.setPen(grid_pen)
         painter.drawLine(int(cx - radius), int(cy), int(cx + radius), int(cy))
         painter.drawLine(int(cx), int(cy - radius), int(cx), int(cy + radius))
 
         # 3. Outer Unit Circle (1.0 Magnitude Boundary)
-        outer_pen = QPen(QColor(168, 85, 247, 120), 1.5, Qt.PenStyle.SolidLine)
+        outer_pen = QPen(QColor(accent_1.red(), accent_1.green(), accent_1.blue(), 120), 1.5, Qt.PenStyle.SolidLine)
         painter.setPen(outer_pen)
         painter.setBrush(Qt.BrushStyle.NoBrush)
         painter.drawEllipse(QPointF(cx, cy), radius, radius)
@@ -158,8 +180,8 @@ class StickRadar(QWidget):
                 py = cy - bound_r * radius * math.sin(angle)
                 poly.append(QPointF(px, py))
 
-            poly_pen = QPen(QColor(117, 0, 171, 200), 1.5, Qt.PenStyle.SolidLine)
-            poly_brush = QBrush(QColor(168, 85, 247, 45))
+            poly_pen = QPen(QColor(accent_1.red(), accent_1.green(), accent_1.blue(), 200), 1.5, Qt.PenStyle.SolidLine)
+            poly_brush = QBrush(QColor(accent_1.red(), accent_1.green(), accent_1.blue(), 45))
             painter.setPen(poly_pen)
             painter.setBrush(poly_brush)
             painter.drawPolygon(poly)
@@ -172,20 +194,33 @@ class StickRadar(QWidget):
             painter.setBrush(QColor(239, 68, 68, 25))
             painter.drawEllipse(QPointF(cx, cy), dz_radius, dz_radius)
 
-        # 6. Real-time Telemetry Vector Line & Position Dot
+        # 6. Real-time Telemetry Vector Line & Position Dot (Raw Input accent_1, Tuned Output accent_2)
         dot_x = cx + self._x * radius
         dot_y = cy - self._y * radius # Invert Y so positive is up on GUI
 
-        # Dotted trailing vector line
+        # Dotted trailing vector line for Raw Input (accent_1)
         if abs(self._x) > 0.001 or abs(self._y) > 0.001:
-            line_pen = QPen(QColor(168, 85, 247, 200), 1.5, Qt.PenStyle.DotLine)
+            line_pen = QPen(QColor(accent_1.red(), accent_1.green(), accent_1.blue(), 180), 1.5, Qt.PenStyle.DotLine)
             painter.setPen(line_pen)
             painter.drawLine(QPointF(cx, cy), QPointF(dot_x, dot_y))
 
-        # Position Dot (No outline pen, neon purple brush, radius 6.0)
+        # Position Dot for Raw Input (accent_1)
         painter.setPen(Qt.PenStyle.NoPen)
-        painter.setBrush(QColor("#a855f7"))
+        painter.setBrush(QBrush(accent_1))
         painter.drawEllipse(QPointF(dot_x, dot_y), 6.0, 6.0)
+
+        # If tuned output is available (e.g. self._out_x, self._out_y), render Output Dot (accent_2)
+        if hasattr(self, '_out_x') and hasattr(self, '_out_y'):
+            out_dot_x = cx + getattr(self, '_out_x') * radius
+            out_dot_y = cy - getattr(self, '_out_y') * radius
+            if abs(getattr(self, '_out_x')) > 0.001 or abs(getattr(self, '_out_y')) > 0.001:
+                out_pen = QPen(QColor(accent_2.red(), accent_2.green(), accent_2.blue(), 180), 1.5, Qt.PenStyle.SolidLine)
+                painter.setPen(out_pen)
+                painter.drawLine(QPointF(cx, cy), QPointF(out_dot_x, out_dot_y))
+
+            painter.setPen(Qt.PenStyle.NoPen)
+            painter.setBrush(QBrush(accent_2))
+            painter.drawEllipse(QPointF(out_dot_x, out_dot_y), 5.0, 5.0)
 
 
 if __name__ == "__main__":

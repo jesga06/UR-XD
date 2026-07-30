@@ -176,10 +176,11 @@ class StickRadar(QWidget):
         dot_x = cx + self._x * radius
         dot_y = cy - self._y * radius # Invert Y so positive is up on GUI
 
-        # Trailing vector line
-        line_pen = QPen(QColor("#a855f7"), 2.0, Qt.PenStyle.SolidLine)
-        painter.setPen(line_pen)
-        painter.drawLine(QPointF(cx, cy), QPointF(dot_x, dot_y))
+        # Dotted trailing vector line
+        if abs(self._x) > 0.001 or abs(self._y) > 0.001:
+            line_pen = QPen(QColor(168, 85, 247, 200), 1.5, Qt.PenStyle.DotLine)
+            painter.setPen(line_pen)
+            painter.drawLine(QPointF(cx, cy), QPointF(dot_x, dot_y))
 
         # Position Dot (No outline pen, neon purple brush, radius 6.0)
         painter.setPen(Qt.PenStyle.NoPen)

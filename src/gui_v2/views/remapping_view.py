@@ -134,6 +134,7 @@ class RemappingView(QWidget):
     def __init__(self, config_manager: Any, parent=None):
         super().__init__(parent)
         self.config = config_manager
+        self._cards: List[QGroupBox] = []
 
         # Debounced write: fires 300 ms after the last change
         self.save_timer = QTimer(self)
@@ -142,10 +143,92 @@ class RemappingView(QWidget):
         self.save_timer.timeout.connect(self._do_save)
 
         # Track per-button UI widget references for programmatic updates
-        # key → { 'std': QLineEdit, 'std_blk': QCheckBox, 'shift': QLineEdit, 'shift_blk': QCheckBox }
         self._row_widgets: Dict[str, Dict[str, QWidget]] = {}
 
         self.setup_ui()
+        self._setup_theme_sync()
+
+    def _setup_theme_sync(self) -> None:
+        try:
+            from gui_v2.services.theme_manager import ThemeManager
+            tm = ThemeManager.get_instance()
+            tm.theme_changed.connect(self.on_theme_changed)
+            self.on_theme_changed(tm.tokens)
+        except Exception:
+            pass
+
+    @Slot(dict)
+    def on_theme_changed(self, tokens: dict = None):
+        try:
+            from gui_v2.services.theme_manager import ThemeManager, color_to_rgba_str, color_to_hex8
+            tm = ThemeManager.get_instance()
+            bg_color = tm.get_color("background")
+            accent_1 = tm.get_color("accent_1")
+            accent_2 = tm.get_color("accent_2")
+
+            bg_glass = color_to_rgba_str(bg_color, alpha_override=0.85)
+            bg_inner = color_to_rgba_str(bg_color, alpha_override=0.60)
+            border_glass = color_to_rgba_str(accent_1, alpha_override=0.35)
+            accent_1_hex = color_to_hex8(accent_1)
+            accent_1_subtle = color_to_rgba_str(accent_1, alpha_override=0.20)
+            accent_1_border = color_to_rgba_str(accent_1, alpha_override=0.50)
+
+            card_qss = f"""
+            QGroupBox {{
+                background-color: {bg_glass};
+                border: 1px solid {border_glass};
+                border-radius: 10px;
+                margin-top: 12px;
+                color: {accent_1_hex};
+                font-weight: bold;
+                font-size: 11px;
+            }}
+            QGroupBox::title {{
+                subcontrol-origin: margin;
+                subcontrol-position: top left;
+                padding: 0 6px;
+            }}
+            """
+            for card in getattr(self, '_cards', []):
+                if card:
+                    card.setStyleSheet(card_qss)
+
+            input_qss = f"""
+            QLineEdit, QComboBox, QSpinBox {{
+                background-color: {bg_inner};
+                border: 1.5px solid {border_glass};
+                border-radius: 6px;
+                color: #ffffff;
+                padding: 3px 6px;
+            }}
+            QLineEdit:focus, QComboBox:focus {{
+                border: 1.5px solid {accent_1_hex};
+            }}
+            QLineEdit::placeholder {{ color: rgba(255,255,255,0.4); font-style: italic; }}
+            QComboBox QAbstractItemView {{ background: {color_to_rgba_str(bg_color, alpha_override=1.0)}; color: #ffffff; }}
+            """
+
+            cb_qss = f"""
+            QCheckBox {{ color: rgba(255, 255, 255, 0.7); }}
+            QCheckBox::indicator {{ width: 16px; height: 16px; border-radius: 4px;
+                border: 1px solid {border_glass}; background: {bg_inner}; }}
+            QCheckBox::indicator:checked {{ background: {accent_1_hex}; border-color: {accent_1_hex}; }}
+            """
+
+            btn_qss = f"""
+            QPushButton {{
+                background-color: {accent_1_subtle};
+                border: 1px solid {accent_1_border};
+                border-radius: 5px; color: #ffffff; padding: 2px 8px; font-size: 11px;
+            }}
+            QPushButton:hover {{ background-color: {color_to_rgba_str(accent_1, alpha_override=0.40)}; }}
+            QPushButton:pressed {{ background-color: {accent_1_hex}; }}
+            """
+
+            # Update QSS globally on child inputs & cards
+            self.setStyleSheet(input_qss + cb_qss + btn_qss)
+        except RuntimeError:
+            pass
 
     def _get_dynamic_extra_buttons(self) -> List[str]:
         """
@@ -214,6 +297,7 @@ class RemappingView(QWidget):
     def _build_shift_layer_panel(self) -> QGroupBox:
         """Builds the shift layer configuration card (compact 2-row layout)."""
         group = QGroupBox("SHIFT LAYERS CONFIGURATION & MANAGEMENT")
+        self._cards.append(group)
         group.setStyleSheet(_CARD_STYLE)
         layout = QVBoxLayout(group)
         layout.setContentsMargins(10, 6, 10, 8)
@@ -299,6 +383,7 @@ class RemappingView(QWidget):
     def _build_mapping_grid(self, title: str, buttons: List[Tuple[str, str]]) -> QGroupBox:
         """Builds a categorised grid card for a set of buttons with dual block controls."""
         group = QGroupBox(title.upper())
+        self._cards.append(group)
         group.setStyleSheet(_CARD_STYLE)
 
         layout = QGridLayout(group)

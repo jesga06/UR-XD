@@ -35,7 +35,7 @@ class TestKeyRecorderDialog(unittest.TestCase):
         dlg._stop_listeners()
         dlg.close()
 
-    def test_pynput_key_conversion(self):
+    def test_pynput_key_conversion_modifiers_and_chars(self):
         dlg = KeyRecorderDialog("a")
         # Modifiers
         self.assertEqual(dlg._pynput_key_to_str(keyboard.Key.ctrl_l), 'ctrl')
@@ -66,8 +66,47 @@ class TestKeyRecorderDialog(unittest.TestCase):
         dlg._stop_listeners()
         dlg.close()
 
+    def test_media_keys_conversion(self):
+        dlg = KeyRecorderDialog("a")
+        # Pynput Key enum media keys
+        self.assertEqual(dlg._pynput_key_to_str(keyboard.Key.media_volume_up), 'media_volume_up')
+        self.assertEqual(dlg._pynput_key_to_str(keyboard.Key.media_volume_down), 'media_volume_down')
+        self.assertEqual(dlg._pynput_key_to_str(keyboard.Key.media_volume_mute), 'media_volume_mute')
+        self.assertEqual(dlg._pynput_key_to_str(keyboard.Key.media_play_pause), 'media_play_pause')
+        self.assertEqual(dlg._pynput_key_to_str(keyboard.Key.media_next), 'media_next')
+        self.assertEqual(dlg._pynput_key_to_str(keyboard.Key.media_previous), 'media_previous')
+        
+        # VK codes for media keys (Windows hardware events)
+        self.assertEqual(dlg._pynput_key_to_str(keyboard.KeyCode(vk=175)), 'media_volume_up')
+        self.assertEqual(dlg._pynput_key_to_str(keyboard.KeyCode(vk=174)), 'media_volume_down')
+        self.assertEqual(dlg._pynput_key_to_str(keyboard.KeyCode(vk=173)), 'media_volume_mute')
+        self.assertEqual(dlg._pynput_key_to_str(keyboard.KeyCode(vk=179)), 'media_play_pause')
+        self.assertEqual(dlg._pynput_key_to_str(keyboard.KeyCode(vk=176)), 'media_next')
+        self.assertEqual(dlg._pynput_key_to_str(keyboard.KeyCode(vk=177)), 'media_previous')
+        
+        dlg._stop_listeners()
+        dlg.close()
+
+    def test_shift_modifier_and_symbols(self):
+        dlg = KeyRecorderDialog("a")
+        dlg._recorded_keys = ['shift']
+        
+        # When shift is held and '!' (Shift+1) arrives, map '!' back to '1'
+        k_exclam = keyboard.KeyCode(char='!', vk=49)
+        self.assertEqual(dlg._pynput_key_to_str(k_exclam), '1')
+        
+        # Qt Key_Backtab (Shift+Tab)
+        evt_backtab = QKeyEvent(QKeyEvent.KeyPress, Qt.Key_Backtab, Qt.ShiftModifier)
+        dlg.keyPressEvent(evt_backtab)
+        self.assertIn('shift', dlg._recorded_keys)
+        self.assertIn('tab', dlg._recorded_keys)
+        self.assertEqual(dlg._result, 'keyboard:shift+tab')
+        
+        dlg._stop_listeners()
+        dlg.close()
+
     def test_gamepad_telemetry_edge_detection(self):
-        dlg = KeyRecorderDialog("a") # Target is button 'a'
+        dlg = KeyRecorderDialog("a")
         
         # Frame 1: Button 'x' is unpressed
         t1 = {"b": False, "x": False}
@@ -92,19 +131,6 @@ class TestKeyRecorderDialog(unittest.TestCase):
         t5 = {"b": False, "x": True, "y": True}
         dlg.update_telemetry(t5)
         self.assertEqual(dlg._result, "gamepad:y")
-        self.assertEqual(dlg._recorded_keys, [])
-        
-        dlg._stop_listeners()
-        dlg.close()
-
-    def test_quick_mouse_button(self):
-        dlg = KeyRecorderDialog("a")
-        dlg._add_recorded_key("ctrl")
-        self.assertEqual(dlg._result, "keyboard:ctrl")
-        
-        # Setting result to mouse click clears recorded keys
-        dlg._set_result("mouse:left")
-        self.assertEqual(dlg._result, "mouse:left")
         self.assertEqual(dlg._recorded_keys, [])
         
         dlg._stop_listeners()

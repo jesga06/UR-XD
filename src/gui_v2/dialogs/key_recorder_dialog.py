@@ -37,75 +37,50 @@ except ImportError:
 # ---------------------------------------------------------------------------
 # Styling
 # ---------------------------------------------------------------------------
-try:
-    from gui_v2.services.theme_manager import ThemeManager, color_to_rgba_str, color_to_hex8
-    tm = ThemeManager.get_instance()
-    bg_color = tm.get_color("background")
-    accent_1 = tm.get_color("accent_1")
-    accent_2 = tm.get_color("accent_2")
-    bg_glass = color_to_rgba_str(bg_color, alpha_override=0.85)
-    bg_inner = color_to_rgba_str(bg_color, alpha_override=0.60)
-    border_glass = color_to_rgba_str(accent_1, alpha_override=0.35)
-    acc1_hex = color_to_hex8(accent_1)
-    acc1_subtle = color_to_rgba_str(accent_1, alpha_override=0.20)
-    acc1_border = color_to_rgba_str(accent_1, alpha_override=0.50)
-    acc2_hex = color_to_hex8(accent_2)
-    acc2_subtle = color_to_rgba_str(accent_2, alpha_override=0.20)
-    acc2_border = color_to_rgba_str(accent_2, alpha_override=0.50)
-except Exception:
-    bg_glass = "rgba(22, 16, 36, 0.85)"
-    bg_inner = "rgba(22, 16, 36, 0.60)"
-    border_glass = "rgba(168, 85, 247, 0.35)"
-    acc1_hex = "#A855F7FF"
-    acc1_subtle = "rgba(168, 85, 247, 0.20)"
-    acc1_border = "rgba(168, 85, 247, 0.50)"
-    acc2_hex = "#00F5A0FF"
-    acc2_subtle = "rgba(0, 245, 160, 0.20)"
-    acc2_border = "rgba(0, 245, 160, 0.50)"
-
-_CARD_STYLE = f"""
-QGroupBox {{
-    background-color: {bg_glass};
-    border: 1px solid {border_glass};
+_CARD_STYLE = """
+QGroupBox {
+    background-color: rgba(22, 16, 36, 0.85);
+    border: 1px solid rgba(168, 85, 247, 0.35);
     border-radius: 10px;
     margin-top: 10px;
     color: #ffffff;
     font-weight: bold;
     font-size: 11px;
-}}
-QGroupBox::title {{
+}
+QGroupBox::title {
     subcontrol-origin: margin;
     subcontrol-position: top left;
     padding: 0 6px;
-    color: {acc1_hex};
-}}
+    color: #a855f7;
+}
 """
 
-_INPUT_STYLE = f"""
-QComboBox, QSpinBox, QDoubleSpinBox {{
-    background-color: {bg_inner};
-    border: 1.5px solid {border_glass};
+_INPUT_STYLE = """
+QComboBox, QSpinBox, QDoubleSpinBox {
+    background-color: rgba(22, 16, 36, 0.85);
+    border: 1.5px solid #a855f7;
     border-radius: 6px;
     color: #ffffff;
     padding: 4px 8px;
-}}
-QComboBox::drop-down {{ border: none; }}
-QComboBox QAbstractItemView {{ background: {bg_inner}; color: #ffffff; }}
+}
+QComboBox::drop-down { border: none; }
+QComboBox QAbstractItemView { background: #161024; color: #ffffff; }
 """
 
-_BTN_ACCENT = f"""
-QPushButton {{
-    background-color: {acc1_subtle};
-    border: 1px solid {acc1_border};
+_BTN_ACCENT = """
+QPushButton {
+    background-color: rgba(168, 85, 247, 0.2);
+    border: 1px solid rgba(168, 85, 247, 0.5);
     border-radius: 6px;
     color: #ffffff;
     padding: 5px 12px;
     font-size: 11px;
-}}
-QPushButton:hover {{
-    background-color: {acc1_border};
-    border: 1px solid {acc1_hex};
-}}
+}
+QPushButton:hover {
+    background-color: rgba(168, 85, 247, 0.4);
+    border: 1px solid #a855f7;
+}
+QPushButton:pressed { background-color: #7500ab; }
 """
 
 _BTN_SAVE = """
@@ -193,30 +168,15 @@ class KeyRecorderDialog(QDialog):
 
         self.setFocusPolicy(Qt.StrongFocus)
         self.setFocus()
-        self.setup_ui()
+        self._build_ui()
         self.start_listeners()
 
     # ------------------------------------------------------------------
     # UI construction
     # ------------------------------------------------------------------
-    def setup_ui(self) -> None:
-        try:
-            from gui_v2.services.theme_manager import ThemeManager, color_to_rgba_str, color_to_hex8
-            tm = ThemeManager.get_instance()
-            window_bg = tm.get_color("window_bg")
-            accent_1 = tm.get_color("accent_1")
-            win_bg_hex = color_to_rgba_str(window_bg, alpha_override=1.0)
-            acc1_hex = color_to_hex8(accent_1)
-            acc1_subtle = color_to_rgba_str(accent_1, alpha_override=0.15)
-        except Exception:
-            win_bg_hex = "#000000FF"
-            acc1_hex = "#A855F7FF"
-            acc1_subtle = "rgba(168, 85, 247, 0.15)"
-
-        self.setStyleSheet(f"QDialog {{ background-color: {win_bg_hex}; color: #ffffff; }}")
-
+    def _build_ui(self) -> None:
         root = QVBoxLayout(self)
-        root.setContentsMargins(14, 14, 14, 14)
+        root.setContentsMargins(16, 16, 16, 16)
         root.setSpacing(10)
 
         # Instruction label
@@ -234,8 +194,8 @@ class KeyRecorderDialog(QDialog):
         self.preview_label = QLabel("Waiting for input…")
         self.preview_label.setAlignment(Qt.AlignCenter)
         self.preview_label.setStyleSheet(
-            f"color: {acc1_hex}; font-size: 15px; font-weight: bold; "
-            f"background: {acc1_subtle}; border-radius: 6px; padding: 8px;"
+            "color: #a855f7; font-size: 15px; font-weight: bold; "
+            "background: rgba(168,85,247,0.08); border-radius: 6px; padding: 8px;"
         )
         root.addWidget(self.preview_label)
 
@@ -361,27 +321,69 @@ class KeyRecorderDialog(QDialog):
         """Converts a pynput Key or KeyCode to a normalized string name."""
         if key is None:
             return ""
+
+        # Pynput Key enum
         if hasattr(key, 'name') and key.name:
             name = key.name.lower()
             if name.startswith('ctrl'): return 'ctrl'
             if name.startswith('alt'): return 'alt'
             if name.startswith('shift'): return 'shift'
             if name in ('cmd', 'win', 'super'): return 'win'
+            if name.startswith('media_') or name.startswith('volume_'):
+                return name
             return name
-        if hasattr(key, 'char') and key.char:
-            c = key.char
-            if len(c) == 1:
-                if 1 <= ord(c) <= 26:
-                    return chr(ord(c) + 96)
-                return c.lower()
+
+        # VK codes (Windows hardware events, Media keys, OEM symbols)
         if hasattr(key, 'vk') and key.vk:
             vk = key.vk
+            # Windows Media Key VK Codes
+            vk_media_map = {
+                173: 'media_volume_mute',
+                174: 'media_volume_down',
+                175: 'media_volume_up',
+                176: 'media_next',
+                177: 'media_previous',
+                178: 'media_stop',
+                179: 'media_play_pause',
+            }
+            if vk in vk_media_map:
+                return vk_media_map[vk]
+
+            # Standard alphanumeric VKs
             if 65 <= vk <= 90:
                 return chr(vk).lower()
             if 48 <= vk <= 57:
                 return chr(vk)
             if 96 <= vk <= 105:
                 return chr(vk - 48)
+
+            # OEM Symbol VK Codes
+            vk_oem_map = {
+                186: ';', 187: '=', 188: ',', 189: '-', 190: '.', 191: '/',
+                192: '`', 219: '[', 220: '\\', 221: ']', 222: "'",
+            }
+            if vk in vk_oem_map:
+                return vk_oem_map[vk]
+
+        # Char check
+        if hasattr(key, 'char') and key.char:
+            c = key.char
+            if len(c) == 1:
+                # ASCII control characters (\x01 to \x1a for Ctrl+A .. Ctrl+Z)
+                if 1 <= ord(c) <= 26:
+                    return chr(ord(c) + 96)
+
+                # Shifted symbol map: map back to unshifted character if shifted
+                shift_symbol_map = {
+                    '!': '1', '@': '2', '#': '3', '$': '4', '%': '5',
+                    '^': '6', '&': '7', '*': '8', '(': '9', ')': '0',
+                    '_': '-', '+': '=', '{': '[', '}': ']', '|': '\\',
+                    ':': ';', '"': "'", '<': ',', '>': '.', '?': '/'
+                }
+                if c in shift_symbol_map:
+                    return shift_symbol_map[c]
+                return c.lower()
+
         return ""
 
     def _add_recorded_key(self, key_name: str) -> None:
@@ -389,6 +391,12 @@ class KeyRecorderDialog(QDialog):
         if not key_name:
             return
         key_name = key_name.lower().strip()
+
+        # If key is a media key, it's a standalone action -> set result directly
+        if key_name.startswith('media_') or key_name.startswith('volume_'):
+            self._set_result(f"keyboard:{key_name}")
+            return
+
         if key_name and key_name not in self._recorded_keys:
             self._recorded_keys.append(key_name)
             combo = "keyboard:" + "+".join(self._recorded_keys)
@@ -413,23 +421,45 @@ class KeyRecorderDialog(QDialog):
             Qt.Key_Enter: 'enter',
             Qt.Key_Backspace: 'backspace',
             Qt.Key_Tab: 'tab',
+            Qt.Key_Backtab: 'tab',
             Qt.Key_Escape: 'esc',
             Qt.Key_Delete: 'delete',
             Qt.Key_Up: 'up',
             Qt.Key_Down: 'down',
             Qt.Key_Left: 'left',
             Qt.Key_Right: 'right',
+            # Media keys
+            Qt.Key_VolumeUp: 'media_volume_up',
+            Qt.Key_VolumeDown: 'media_volume_down',
+            Qt.Key_VolumeMute: 'media_volume_mute',
+            Qt.Key_MediaPlay: 'media_play_pause',
+            Qt.Key_MediaPause: 'media_play_pause',
+            Qt.Key_MediaTogglePlayPause: 'media_play_pause',
+            Qt.Key_MediaStop: 'media_stop',
+            Qt.Key_MediaNext: 'media_next',
+            Qt.Key_MediaPrevious: 'media_previous',
         }
+
+        # If Shift modifier is active in Qt event, record 'shift' modifier first
+        if (event.modifiers() & Qt.ShiftModifier) and 'shift' not in self._recorded_keys:
+            self._add_recorded_key('shift')
 
         key_name = ""
         if key in qt_key_map:
             key_name = qt_key_map[key]
-        elif event.text():
-            key_name = event.text().lower()
         elif 65 <= key <= 90:
             key_name = chr(key).lower()
         elif 48 <= key <= 57:
             key_name = chr(key)
+        elif event.text():
+            shift_symbol_map = {
+                '!': '1', '@': '2', '#': '3', '$': '4', '%': '5',
+                '^': '6', '&': '7', '*': '8', '(': '9', ')': '0',
+                '_': '-', '+': '=', '{': '[', '}': ']', '|': '\\',
+                ':': ';', '"': "'", '<': ',', '>': '.', '?': '/'
+            }
+            raw_text = event.text().lower()
+            key_name = shift_symbol_map.get(raw_text, raw_text)
 
         if key_name:
             self._add_recorded_key(key_name)

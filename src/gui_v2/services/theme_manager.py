@@ -420,7 +420,7 @@ class ThemeManager(QObject):
 
         return f"""
 /* Global Base Window & Viewport Background */
-QMainWindow, QDialog, QWidget#main_container, QTabWidget, QTabWidget::pane, QScrollArea, QAbstractScrollArea, QAbstractScrollArea::viewport {{
+QMainWindow, QDialog, QWidget#main_container, QTabWidget, QTabWidget::pane, QStackedWidget, QScrollArea, QAbstractScrollArea, QAbstractScrollArea::viewport, QScrollArea > QWidget, QScrollArea > QWidget > QWidget {{
     background-color: {window_bg_solid};
     color: #ffffff;
     font-family: "Inter", "Outfit", "Segoe UI", sans-serif;
@@ -429,7 +429,7 @@ QMainWindow, QDialog, QWidget#main_container, QTabWidget, QTabWidget::pane, QScr
 /* QTabWidget & Tab Bar Styling */
 QTabWidget::pane {{
     border: 1px solid {border_glass};
-    background-color: {bg_solid};
+    background-color: {window_bg_solid};
 }}
 
 QTabBar::tab {{

@@ -166,5 +166,60 @@ class TestMapperShiftLayers(unittest.TestCase):
         mapper.process(st)
         self.assertEqual(mapper.active_layer, 'shift_2')
 
+    def test_dynamic_per_layer_xinput_blocking(self):
+        cfg = ControllerConfig()
+        cfg.set_shift_layers([
+            {
+                "id": "shift_1",
+                "name": "Shift Layer 1",
+                "trigger_button": "home",
+                "modifier_button": "",
+                "mode": "hold",
+                "mappings": {"a": "keyboard:x"},
+                "block_xinput": {"a": "true"}
+            }
+        ])
+        vp = VirtualPad(cfg)
+        mapper = Mapper(cfg)
+        vp.mapper = mapper
+
+        st = ControllerState()
+        active_layer_id = getattr(vp.mapper, 'active_layer', 'layer_base')
+        base_blocks = vp.layer_blocked_buttons.get(active_layer_id, set())
+        self.assertNotIn('a', base_blocks)
+
+        st.home = 1.0
+        mapper.process(st)
+        self.assertEqual(mapper.active_layer, 'shift_1')
+
+        shift_blocks = vp.layer_blocked_buttons.get(mapper.active_layer, set())
+        self.assertIn('a', shift_blocks)
+
+    def test_unmapped_button_fallback_to_base(self):
+        cfg = ControllerConfig()
+        cfg.set_shift_layers([
+            {
+                "id": "shift_1",
+                "name": "Shift Layer 1",
+                "trigger_button": "home",
+                "modifier_button": "",
+                "mode": "hold",
+                "mappings": {},
+                "block_xinput": {}
+            }
+        ])
+        cfg.data["layer_base"] = {"a": "keyboard:space"}
+        mapper = Mapper(cfg)
+
+        st = ControllerState()
+        st.home = 1.0
+        mapper.process(st)
+        self.assertEqual(mapper.active_layer, 'shift_1')
+
+        st.a = 1.0
+        mapper.process(st)
+        self.assertIn('a', mapper.active_holds)
+        self.assertEqual(mapper.active_holds['a'], 'keyboard:space')
+
 if __name__ == '__main__':
     unittest.main()

@@ -129,7 +129,8 @@ class CustomizationView(QWidget):
         token_configs = [
             ("accent_1", "Accent #1 (Input Color):", "(Used for physical input visualizers)"),
             ("accent_2", "Accent #2 (Output Color):", "(Used for virtual output visualizers)"),
-            ("background", "Background Color:", "(Used for card bases and window)")
+            ("background", "Widget Background:", "(Used for card fill and container bases)"),
+            ("window_bg", "Window Background:", "(Used for main window canvas base, pure black by default)")
         ]
 
         for token_key, title, description in token_configs:
@@ -137,7 +138,7 @@ class CustomizationView(QWidget):
             row_layout.setSpacing(10)
 
             title_lbl = QLabel(title)
-            title_lbl.setFixedWidth(160)
+            title_lbl.setFixedWidth(180)
             title_lbl.setStyleSheet("font-weight: bold; font-size: 12px; color: #ffffff;")
 
             pick_btn = QPushButton("🎨 Pick Color")
@@ -277,7 +278,7 @@ class CustomizationView(QWidget):
 
     def refresh_color_display(self, tokens: dict):
         """Updates color swatches and hex labels in control rows."""
-        for token_key in ["accent_1", "accent_2", "background"]:
+        for token_key in ["accent_1", "accent_2", "background", "window_bg"]:
             if token_key in tokens:
                 hex_str = tokens[token_key]
                 color = self.theme_mgr.get_color(token_key)

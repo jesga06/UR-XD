@@ -130,6 +130,7 @@ class RemappingView(QWidget):
                 subcontrol-origin: margin;
                 subcontrol-position: top left;
                 padding: 0 6px;
+                color: {accent_1_hex};
             }}
             """
             for card in getattr(self, '_cards', []):
@@ -176,8 +177,8 @@ class RemappingView(QWidget):
             }}
             """
 
-            # Update QSS globally on child inputs, buttons, checkboxes & cards
-            self.setStyleSheet(input_qss + cb_qss + btn_qss + btn_name_qss)
+            # Update QSS globally on child inputs, buttons, checkboxes, card titles & labels
+            self.setStyleSheet(card_qss + input_qss + cb_qss + btn_qss + btn_name_qss)
         except RuntimeError:
             pass
 

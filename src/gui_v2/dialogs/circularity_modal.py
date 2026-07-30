@@ -30,53 +30,76 @@ import math_utils
 # ---------------------------------------------------------------------------
 # QSS Styling Tokens
 # ---------------------------------------------------------------------------
-_MODAL_STYLE = "QDialog { background-color: #0f0a1e; color: #ffffff; }"
+from gui_v2.services.theme_manager import ThemeManager, color_to_rgba_str, color_to_hex6
 
 # ---------------------------------------------------------------------------
-# QSS Styling Tokens
+# Pre-computed Trigonometric Lookup Tables (360 degrees)
 # ---------------------------------------------------------------------------
-_BTN_ACCENT = """
-QPushButton {
-    background-color: rgba(168, 85, 247, 0.2);
-    border: 1px solid rgba(168, 85, 247, 0.5);
+_COS_TABLE: List[float] = [math.cos(math.radians(deg)) for deg in range(360)]
+_SIN_TABLE: List[float] = [math.sin(math.radians(deg)) for deg in range(360)]
+
+
+# ---------------------------------------------------------------------------
+# Dynamic QSS Generators
+# ---------------------------------------------------------------------------
+def get_accent_btn_qss(tm: ThemeManager) -> str:
+    acc1 = tm.get_color("accent_1")
+    bg = color_to_rgba_str(acc1, 0.2)
+    border = color_to_rgba_str(acc1, 0.5)
+    hover_bg = color_to_rgba_str(acc1, 0.4)
+    pressed_bg = color_to_rgba_str(acc1, 0.7)
+    acc_hex = color_to_hex6(acc1)
+    return f"""
+QPushButton {{
+    background-color: {bg};
+    border: 1px solid {border};
     border-radius: 6px;
     color: #ffffff;
     padding: 6px 14px;
     font-size: 11px;
     font-weight: bold;
-}
-QPushButton:hover {
-    background-color: rgba(168, 85, 247, 0.4);
-    border: 1px solid #a855f7;
-}
-QPushButton:pressed { background-color: #7500ab; }
-QPushButton:disabled {
+}}
+QPushButton:hover {{
+    background-color: {hover_bg};
+    border: 1px solid {acc_hex};
+}}
+QPushButton:pressed {{ background-color: {pressed_bg}; }}
+QPushButton:disabled {{
     background-color: rgba(60, 60, 60, 0.2);
     border: 1px solid rgba(80, 80, 80, 0.3);
     color: #666666;
-}
+}}
 """
 
-_BTN_SAVE = """
-QPushButton {
-    background-color: rgba(34, 197, 94, 0.2);
-    border: 1px solid rgba(34, 197, 94, 0.5);
+
+def get_save_btn_qss(tm: ThemeManager) -> str:
+    acc2 = tm.get_color("accent_2")
+    bg = color_to_rgba_str(acc2, 0.2)
+    border = color_to_rgba_str(acc2, 0.5)
+    hover_bg = color_to_rgba_str(acc2, 0.4)
+    pressed_bg = color_to_rgba_str(acc2, 0.7)
+    return f"""
+QPushButton {{
+    background-color: {bg};
+    border: 1px solid {border};
     border-radius: 6px;
     color: #ffffff;
     padding: 6px 14px;
     font-size: 11px;
     font-weight: bold;
-}
-QPushButton:hover { background-color: rgba(34, 197, 94, 0.4); }
-QPushButton:pressed { background-color: #14532d; }
-QPushButton:disabled {
+}}
+QPushButton:hover {{ background-color: {hover_bg}; }}
+QPushButton:pressed {{ background-color: {pressed_bg}; }}
+QPushButton:disabled {{
     background-color: rgba(60, 60, 60, 0.2);
     border: 1px solid rgba(80, 80, 80, 0.3);
     color: #666666;
-}
+}}
 """
 
-_BTN_CANCEL = """
+
+def get_cancel_btn_qss() -> str:
+    return """
 QPushButton {
     background-color: rgba(100, 100, 100, 0.2);
     border: 1px solid rgba(150, 150, 150, 0.4);
@@ -97,9 +120,9 @@ class CircularityPolarCanvas(QWidget):
     Hardware-accelerated polar coordinate radar canvas rendering:
       - Concentric grid rings (0.25, 0.5, 0.75, 1.0)
       - Crosshair X/Y axes
-      - 360-degree max radius bounds polygon (neon green)
+      - 360-degree max radius bounds polygon (theme accent_2)
       - Center offset marker (amber dot)
-      - Live stick coordinate marker (neon purple dot)
+      - Live stick coordinate marker (theme accent_1 dot)
     """
     def __init__(self, parent=None):
         super().__init__(parent)
@@ -126,8 +149,13 @@ class CircularityPolarCanvas(QWidget):
         w = rect.width()
         h = rect.height()
 
-        # Canvas background
-        painter.fillRect(rect, QColor(22, 16, 36, 215))
+        tm = ThemeManager.get_instance()
+        bg_col = tm.get_color("background")
+        acc1_col = tm.get_color("accent_1")
+        acc2_col = tm.get_color("accent_2")
+
+        # Canvas background (theme background token)
+        painter.fillRect(rect, QColor(bg_col.red(), bg_col.green(), bg_col.blue(), 215))
 
         cx = w / 2.0
         cy = h / 2.0
@@ -137,29 +165,28 @@ class CircularityPolarCanvas(QWidget):
             painter.end()
             return
 
-        # 1. Draw Concentric Grid Circles
-        painter.setPen(QPen(QColor(168, 85, 247, 60), 1, Qt.DashLine))
+        # 1. Draw Concentric Grid Circles (Accent #1, 60 alpha)
+        painter.setPen(QPen(QColor(acc1_col.red(), acc1_col.green(), acc1_col.blue(), 60), 1, Qt.DashLine))
         for r_step in (0.25, 0.50, 0.75, 1.00):
             r_px = max_r * r_step
             painter.drawEllipse(QPointF(cx, cy), r_px, r_px)
 
-        # 2. Draw Crosshair Axes
-        painter.setPen(QPen(QColor(168, 85, 247, 90), 1.5))
+        # 2. Draw Crosshair Axes (Accent #1, 90 alpha)
+        painter.setPen(QPen(QColor(acc1_col.red(), acc1_col.green(), acc1_col.blue(), 90), 1.5))
         painter.drawLine(QPointF(cx - max_r - 5, cy), QPointF(cx + max_r + 5, cy))
         painter.drawLine(QPointF(cx, cy - max_r - 5), QPointF(cx, cy + max_r + 5))
 
-        # 3. Draw 360-degree Bounds Polygon
+        # 3. Draw 360-degree Bounds Polygon (Accent #2)
         if self.bounds_data and any(r > 0.05 for r in self.bounds_data):
             poly = QPolygonF()
             for deg in range(360):
-                rad = math.radians(deg)
                 r_val = min(1.3, max(0.0, self.bounds_data[deg]))
-                px = cx + (r_val * max_r * math.cos(rad))
-                py = cy - (r_val * max_r * math.sin(rad))  # Y inverted for screen
+                px = cx + (r_val * max_r * _COS_TABLE[deg])
+                py = cy - (r_val * max_r * _SIN_TABLE[deg])  # Y inverted for screen
                 poly.append(QPointF(px, py))
 
-            painter.setPen(QPen(QColor(0, 245, 160, 220), 2.0))
-            painter.setBrush(QBrush(QColor(0, 245, 160, 35)))
+            painter.setPen(QPen(QColor(acc2_col.red(), acc2_col.green(), acc2_col.blue(), 220), 2.0))
+            painter.setBrush(QBrush(QColor(acc2_col.red(), acc2_col.green(), acc2_col.blue(), 35)))
             painter.drawPolygon(poly)
 
         # 4. Draw Center Offset Marker (Amber Dot)
@@ -170,11 +197,11 @@ class CircularityPolarCanvas(QWidget):
             painter.setBrush(QBrush(QColor(245, 158, 11)))
             painter.drawEllipse(QPointF(ocx, ocy), 5.0, 5.0)
 
-        # 5. Draw Live Stick Position Dot (Neon Purple)
+        # 5. Draw Live Stick Position Dot (Accent #1)
         lx_px = cx + (self.live_x * max_r)
         ly_px = cy - (self.live_y * max_r)
         painter.setPen(Qt.NoPen)
-        painter.setBrush(QBrush(QColor(168, 85, 247)))
+        painter.setBrush(QBrush(QColor(acc1_col.red(), acc1_col.green(), acc1_col.blue())))
         painter.drawEllipse(QPointF(lx_px, ly_px), 7.2, 7.2)
 
         painter.end()
@@ -208,7 +235,6 @@ class CircularityCalibrationModal(QDialog):
         self.setWindowTitle(f"Circularity Calibration — {section_name.replace('_', ' ').title()}")
         self.setMinimumSize(420, 520)
         self.setModal(True)
-        self.setStyleSheet(_MODAL_STYLE)
 
         # Calibration State Variables
         self.calib_state: str = "REST"  # REST -> WAIT_SWEEP -> SWEEP -> DONE
@@ -216,11 +242,17 @@ class CircularityCalibrationModal(QDialog):
         self.center_x: float = 0.0
         self.center_y: float = 0.0
         self._rest_samples: List[Tuple[float, float]] = []
+        self._last_status_text: str = ""
 
         self.live_x: float = 0.0
         self.live_y: float = 0.0
 
         self.setup_ui()
+
+        # Connect to dynamic ThemeManager signals
+        tm = ThemeManager.get_instance()
+        tm.theme_changed.connect(self.apply_theme)
+        self.apply_theme()
 
         # 60Hz Update Timer
         self.timer = QTimer(self)
@@ -228,20 +260,61 @@ class CircularityCalibrationModal(QDialog):
         self.timer.timeout.connect(self.update_loop)
         self.timer.start()
 
+    def _set_status(self, text: str) -> None:
+        """Sets status label text only if string changed to eliminate layout re-evaluations."""
+        if text != self._last_status_text:
+            self.status_label.setText(text)
+            self._last_status_text = text
+
+    def apply_theme(self) -> None:
+        """Applies dynamic QSS tokens from ThemeManager."""
+        tm = ThemeManager.get_instance()
+        win_bg = tm.get_color("window_bg")
+        acc1 = tm.get_color("accent_1")
+        acc2 = tm.get_color("accent_2")
+        bg = tm.get_color("background")
+
+        win_bg_rgba = color_to_rgba_str(win_bg, 1.0)
+        acc1_hex = color_to_hex6(acc1)
+        acc2_hex = color_to_hex6(acc2)
+        bg_rgba = color_to_rgba_str(bg, 0.9)
+        border_rgba = color_to_rgba_str(acc1, 0.35)
+
+        self.setStyleSheet(f"""
+        QDialog {{ background-color: {win_bg_rgba}; color: #ffffff; }}
+        QGroupBox {{
+            background-color: {bg_rgba};
+            border: 1px solid {border_rgba};
+            border-radius: 8px;
+            margin-top: 10px;
+            color: #ffffff;
+            font-weight: bold;
+            font-size: 11px;
+        }}
+        QGroupBox::title {{
+            subcontrol-origin: margin;
+            subcontrol-position: top left;
+            padding: 0 6px;
+            color: #ffffff;
+        }}
+        """)
+
+        if hasattr(self, "header_label"):
+            self.header_label.setStyleSheet(f"color: {acc1_hex}; font-weight: bold; font-size: 13px;")
+        if hasattr(self, "center_label"):
+            self.center_label.setStyleSheet("color: #f59e0b; font-family: 'JetBrains Mono', monospace; font-size: 11px;")
+        if hasattr(self, "error_label"):
+            self.error_label.setStyleSheet(f"color: {acc2_hex}; font-family: 'JetBrains Mono', monospace; font-size: 11px; font-weight: bold;")
+        if hasattr(self, "btn_sweep"):
+            self.btn_sweep.setStyleSheet(get_accent_btn_qss(tm))
+        if hasattr(self, "btn_save"):
+            self.btn_save.setStyleSheet(get_save_btn_qss(tm))
+        if hasattr(self, "btn_cancel"):
+            self.btn_cancel.setStyleSheet(get_cancel_btn_qss())
+        if hasattr(self, "canvas"):
+            self.canvas.update()
+
     def setup_ui(self) -> None:
-        try:
-            from gui_v2.services.theme_manager import ThemeManager, color_to_rgba_str, color_to_hex6
-            tm = ThemeManager.get_instance()
-            window_bg = tm.get_color("window_bg")
-            accent_1 = tm.get_color("accent_1")
-            win_bg_hex = color_to_rgba_str(window_bg, alpha_override=1.0)
-            acc1_hex = color_to_hex6(accent_1)
-        except Exception:
-            win_bg_hex = "#000000FF"
-            acc1_hex = "#A855F7"
-
-        self.setStyleSheet(f"QDialog {{ background-color: {win_bg_hex}; color: #ffffff; }}")
-
         root = QVBoxLayout(self)
         root.setContentsMargins(14, 14, 14, 14)
         root.setSpacing(10)
@@ -249,7 +322,6 @@ class CircularityCalibrationModal(QDialog):
         # Header Title Label
         title_text = f"🎯 CIRCULARITY SWEEP — {self.section_name.replace('_', ' ').upper()}"
         self.header_label = QLabel(title_text)
-        self.header_label.setStyleSheet(f"color: {acc1_hex}; font-weight: bold; font-size: 13px;")
         root.addWidget(self.header_label)
 
         # Polar Radar Canvas Widget
@@ -264,15 +336,12 @@ class CircularityCalibrationModal(QDialog):
 
         self.status_label = QLabel("Status: Measuring resting center offset… Keep stick centered.")
         self.status_label.setWordWrap(True)
-        self.status_label.setStyleSheet("color: #ffffff; font-size: 11px; font-weight: bold;")
         status_layout.addWidget(self.status_label)
 
         self.center_label = QLabel("Center Offset: X: +0.0000 | Y: +0.0000")
-        self.center_label.setStyleSheet("color: #f59e0b; font-family: 'JetBrains Mono', monospace; font-size: 11px;")
         status_layout.addWidget(self.center_label)
 
         self.error_label = QLabel("Average Circularity Error: -- % (Uncalibrated)")
-        self.error_label.setStyleSheet("color: #00f5a0; font-family: 'JetBrains Mono', monospace; font-size: 11px; font-weight: bold;")
         status_layout.addWidget(self.error_label)
 
         root.addWidget(status_grp)
@@ -283,19 +352,16 @@ class CircularityCalibrationModal(QDialog):
 
         self.btn_sweep = QPushButton("Start Sweep")
         self.btn_sweep.setFocusPolicy(Qt.NoFocus)
-        self.btn_sweep.setStyleSheet(_BTN_ACCENT)
         self.btn_sweep.setEnabled(False)
         self.btn_sweep.clicked.connect(self.start_sweep)
 
         self.btn_save = QPushButton("Apply & Save")
         self.btn_save.setFocusPolicy(Qt.NoFocus)
-        self.btn_save.setStyleSheet(_BTN_SAVE)
         self.btn_save.setEnabled(False)
         self.btn_save.clicked.connect(self.save_and_close)
 
         self.btn_cancel = QPushButton("Cancel")
         self.btn_cancel.setFocusPolicy(Qt.NoFocus)
-        self.btn_cancel.setStyleSheet(_BTN_CANCEL)
         self.btn_cancel.clicked.connect(self.reject)
 
         btn_row.addWidget(self.btn_sweep)
@@ -332,13 +398,13 @@ class CircularityCalibrationModal(QDialog):
         if self.calib_state == "REST":
             self._rest_samples.append((lx, ly))
             count = len(self._rest_samples)
-            self.status_label.setText(f"Status: Sampling resting center ({count}/60)… Keep stick centered.")
+            self._set_status(f"Status: Sampling resting center ({count}/60)… Keep stick centered.")
             if count >= 60:
                 self.center_x = sum(s[0] for s in self._rest_samples) / float(count)
                 self.center_y = sum(s[1] for s in self._rest_samples) / float(count)
                 self.center_label.setText(f"Center Offset: X: {self.center_x:+.4f} | Y: {self.center_y:+.4f}")
                 self.calib_state = "WAIT_SWEEP"
-                self.status_label.setText("Status: Center offset captured! Click 'Start Sweep' and rotate stick 3 times CW & CCW.")
+                self._set_status("Status: Center offset captured! Click 'Start Sweep' and rotate stick 3 times CW & CCW.")
                 self.btn_sweep.setEnabled(True)
 
         elif self.calib_state == "WAIT_SWEEP":
@@ -355,7 +421,7 @@ class CircularityCalibrationModal(QDialog):
 
             sampled_count = sum(1 for radius in self.bounds_data if radius > 0.3)
             pct = (sampled_count / 360.0) * 100.0
-            self.status_label.setText(f"Status: Sweeping outer boundary… Coverage: {pct:.1f}% ({sampled_count}/360 deg)")
+            self._set_status(f"Status: Sweeping outer boundary… Coverage: {pct:.1f}% ({sampled_count}/360 deg)")
 
             if sampled_count >= 350:
                 self.finish_sweep()
@@ -370,12 +436,9 @@ class CircularityCalibrationModal(QDialog):
         """Transitions state machine from WAIT_SWEEP to SWEEP."""
         self.calib_state = "SWEEP"
         self.btn_sweep.setText("Finish Sweep")
-        try:
-            self.btn_sweep.clicked.disconnect()
-        except Exception:
-            pass
+        self.btn_sweep.disconnect()
         self.btn_sweep.clicked.connect(self.finish_sweep)
-        self.status_label.setText("Status: Rotate stick smoothly around the outer edge (3 times CW & CCW)…")
+        self._set_status("Status: Rotate stick smoothly around the outer edge (3 times CW & CCW)…")
 
     def finish_sweep(self) -> None:
         """Completes sweep phase, interpolates degree gaps, and evaluates error grade."""
@@ -390,7 +453,7 @@ class CircularityCalibrationModal(QDialog):
         else:
             grade = "Poor"
 
-        self.status_label.setText(f"Status: Calibration Complete! Polar bounds stored for 360 degrees.")
+        self._set_status("Status: Calibration Complete! Polar bounds stored for 360 degrees.")
         self.error_label.setText(f"Average Circularity Error: {error_pct:.2f}% ({grade})")
 
         self.btn_sweep.setEnabled(False)

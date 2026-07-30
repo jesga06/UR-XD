@@ -34,6 +34,29 @@ class DashboardView(QWidget):
         self.last_active_chord: str = ""
         self.setup_ui()
         self._sync_config()
+        self._setup_theme_sync()
+
+    def _setup_theme_sync(self) -> None:
+        try:
+            from gui_v2.services.theme_manager import ThemeManager
+            tm = ThemeManager.get_instance()
+            tm.theme_changed.connect(self.on_theme_changed)
+            self.on_theme_changed(tm.tokens)
+        except Exception:
+            pass
+
+    @Slot(dict)
+    def on_theme_changed(self, tokens: dict):
+        try:
+            accent_1 = tokens.get("accent_1", "#A855F7FF")
+            if hasattr(self, 'left_readout'):
+                self.left_readout.setStyleSheet(f"color: {accent_1}; font-family: 'JetBrains Mono', 'Consolas', monospace; font-size: 11px; font-weight: bold;")
+            if hasattr(self, 'right_readout'):
+                self.right_readout.setStyleSheet(f"color: {accent_1}; font-family: 'JetBrains Mono', 'Consolas', monospace; font-size: 11px; font-weight: bold;")
+            if hasattr(self, 'chords_header'):
+                self.chords_header.setStyleSheet(f"color: {accent_1}; font-weight: bold; font-size: 10px;")
+        except RuntimeError:
+            pass
 
     def set_config(self, controller_config) -> None:
         self.controller_config = controller_config

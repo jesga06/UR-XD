@@ -369,10 +369,15 @@ class ThemePreviewWidget(QWidget):
     @Slot(dict)
     def on_theme_changed(self, tokens: dict):
         """Refreshes sub-canvas painting and updates dynamic widget styles."""
-        self.update_styles()
-        self.curve_canvas.update()
-        self.radar_canvas.update()
-        self.update()
+        try:
+            self.update_styles()
+            if hasattr(self, 'curve_canvas'):
+                self.curve_canvas.update()
+            if hasattr(self, 'radar_canvas'):
+                self.radar_canvas.update()
+            self.update()
+        except RuntimeError:
+            pass
 
     def update_styles(self):
         """Applies dynamic QSS tokens to sample preview cards and controls."""

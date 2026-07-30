@@ -40,8 +40,15 @@ class TriggerBar(QWidget):
         """Connects ThemeManager signal for live theme repainting."""
         try:
             from gui_v2.services.theme_manager import ThemeManager
-            ThemeManager.get_instance().theme_changed.connect(lambda _: self.update())
+            ThemeManager.get_instance().theme_changed.connect(self._safe_theme_update)
         except Exception:
+            pass
+
+    @Slot(dict)
+    def _safe_theme_update(self, tokens: dict) -> None:
+        try:
+            self.update()
+        except RuntimeError:
             pass
 
     def _setup_screen_refresh_sync(self) -> None:

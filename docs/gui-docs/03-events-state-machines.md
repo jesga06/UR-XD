@@ -2,8 +2,7 @@
 
 This section documents every asynchronous event stream, signal, callback, and communication channel operating within the system architecture. All components must strictly adhere to the defined communication protocols, payload schemas, and timing constraints.
 
-## 3.1 UDP Telemetry Broadcast
-- **Source Module**: `utilities_backend.py` -> `gui.py` / `input_graph.py`
+- **Source Module**: `utilities_backend.py` -> `UDPTelemetryWorker` (`src/gui_v2/workers/telemetry_worker.py`) / `input_graph.py`
 - **Originating Function**: `LatencyMonitor.broadcast_state()` invoked within the `main.py` data handler callback context.
 - **Protocol & Transport**: UDP datagrams.
 - **Network Interface**:
@@ -16,13 +15,14 @@ This section documents every asynchronous event stream, signal, callback, and co
   - **XInput Backend**: ~500Hz fixed interval.
   - **DInput Backend**: Variable, dependent on underlying hardware polling capabilities (typically 125Hz - 1000Hz).
 - **Consumer Registration Mechanism**:
-  - The GUI application initializes a dedicated daemon thread via `start_hid_polling()`.
+  - The PySide6 GUI initializes a dedicated thread-safe `UDPTelemetryWorker` (`QThread` subclass) on startup.
   - The inbound UDP socket is bound to address `0.0.0.0` on port `9999`.
   - Socket flag `SO_REUSEADDR` is explicitly set to `1` to prevent binding conflicts upon restarts.
+  - Telemetry snapshots are passed to Qt views via atomic mutex locks (`QMutex`) and signals (`telemetry_updated`).
 - **Stale State & Fallback Handling**:
   - The consumer independently tracks receipt timestamps (`time.time()`).
   - **Condition**: If `(current_time - self.last_udp_time) > 1.0` seconds.
-  - **Action**: The GUI listener flags the telemetry stream as stale and gracefully degrades to direct hardware polling mechanisms.
+  - **Action**: The GUI listener flags the telemetry stream as stale and gracefully degrades to direct file polling workers (`FilePollerWorker`).
 
 ## 3.2 HID Reader Data Callback
 - **Source Module**: `hid_reader.py` -> `backend_dinput.py`

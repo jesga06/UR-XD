@@ -27,7 +27,7 @@
 
 ### 3. `open_config(icon, item)`
 1. **Function Name & Signature**: `open_config(icon, item)`
-2. **Purpose**: Launches the GUI process (`gui.py`) from the system tray menu.
+2. **Purpose**: Launches the GUI process (`src/main_gui.py`) from the system tray menu.
 3. **Parameters**:
    - `icon`: pystray Icon instance.
    - `item`: pystray MenuItem instance.

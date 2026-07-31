@@ -212,16 +212,15 @@
 | mode | `str` | No | `'xinput'`, `'dinput'`, `'auto'` | None | Backend selection dropdown |
 
 ### Theme JSON Schema
-- **Source File:** `src/themes/*.json`
-- **Python Type:** `dict`
+- **Source File:** `themes/presets/*.json`, `themes/user/*.json`, `themes/custom_theme.json`
+- **Python Type:** `dict` (managed by `src/gui_v2/services/theme_manager.py`)
 
 | Field Name | Data Type | Nullable | Valid Range / Constraints | Default Value | GUI Mapping |
 | --- | --- | --- | --- | --- | --- |
-| [color_properties] | `list` | No | Array of `[light_color_hex, dark_color_hex]` | None | Applied to CTk widgets (e.g. `fg_color`, `text_color`, `border_color`, etc.) |
-| corner_radius | `int` | No | `>= 0` | None | Widget corner rounding |
-| border_width | `int` | No | `>= 0` | None | Widget border thickness |
-| button_length | `int` | No | `>= 0` | None | Specific dimension constraint |
-| [font_properties] | `dict` | No | OS-specific font configurations | None | Application fonts |
+| accent_1 | `str` | No | 8-character Hex+Alpha (e.g. `#a855f7ff`) | `#a855f7ff` | Physical/hardware input signals and control points |
+| accent_2 | `str` | No | 8-character Hex+Alpha (e.g. `#00f5a0ff`) | `#00f5a0ff` | Virtual gamepad output signals and active indicators |
+| background | `str` | No | 8-character Hex+Alpha | `#161024ff` | Card & container widget fill background |
+| window_bg | `str` | No | 8-character Hex+Alpha | `#000000ff` | Main window base canvas background |
 
 ### _SAFE_MATH_DICT
 - **Source File:** `src/curves.py`

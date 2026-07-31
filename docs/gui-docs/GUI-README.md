@@ -14,20 +14,19 @@ This documentation serves as the **single source of truth** for building a graph
 The system operates as a **dual-process architecture**:
 
 1. **Daemon Process** (`main.py`) — Runs in the background, managing hardware input, virtual gamepad emulation, input mapping, and macro execution. Communicates with the GUI via file-based state exchange and UDP telemetry.
-2. **GUI Process** (`gui.py`) — A standalone frontend that reads/writes shared configuration files and receives real-time controller state via UDP broadcast.
+2. **GUI Process** (`src/main_gui.py` / `src/gui_v2/`) — A PySide6 standalone frontend that reads/writes shared configuration files and receives real-time controller state via UDP broadcast.
 
 ```
 ┌─────────────────────────────┐     UDP (9999)     ┌───────────────────────┐
 │         DAEMON              │ ──────────────────► │         GUI           │
-│   main.py                   │                     │   gui.py              │
-│   ├── Backend (XInput/DIn)  │  status.json (1Hz)  │   ├── Dashboard       │
-│   ├── Decoder               │ ──────────────────► │   ├── Remapping       │
-│   ├── HardwareChordEngine   │                     │   ├── Analog Tuning   │
-│   ├── Mapper                │  diagnostics.json   │   ├── Advanced        │
-│   ├── VirtualPad            │ ──────────────────► │   ├── Utilities       │
-│   ├── HapticEngine          │                     │   └── Customization   │
-│   └── MacroExecutor         │  config.ini (R/W)   │                       │
-│                             │ ◄──────────────────►│                       │
+│   main.py                   │                     │   main_gui.py         │
+│   ├── Backend (XInput/DIn)  │  status.json (1Hz)  │   │   (gui_v2 package)│
+│   ├── Decoder               │ ──────────────────► │   ├── Dashboard       │
+│   ├── HardwareChordEngine   │                     │   ├── Remapping       │
+│   ├── Mapper                │  diagnostics.json   │   ├── Analog Tuning   │
+│   ├── VirtualPad            │ ──────────────────► │   ├── Advanced        │
+│   ├── HapticEngine          │  config.ini (R/W)   │   ├── Utilities       │
+│   └── MacroExecutor         │ ◄──────────────────►│   └── Customization   │
 │                             │  profiles/*.json    │                       │
 │                             │ ◄──────────────────►│                       │
 └─────────────────────────────┘                     └───────────────────────┘
@@ -147,7 +146,8 @@ Split into 4 parts for manageability:
 | Backend Source File | Size | Primary GUI Surface |
 |---|---|---|
 | `src/main.py` | 17KB | System tray, daemon lifecycle |
-| `src/gui.py` | 178KB | Entire GUI (being replaced) |
+| `src/main_gui.py` | 1KB | PySide6 GUI entry point launcher |
+| `src/gui_v2/` | — | Modular PySide6 GUI package (views, dialogs, widgets, workers, services) |
 | `src/backend_base.py` | 2KB | Abstract interface |
 | `src/backend_dinput.py` | 3KB | DInput hardware connection |
 | `src/backend_xinput.py` | 9KB | XInput hardware connection |

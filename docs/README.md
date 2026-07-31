@@ -26,6 +26,7 @@ Welcome to the **Universal Remapper & DInput Fixer (UR-XD)** documentation hub! 
 
 - **[Architecture & Input Pipeline](architecture.md):** Technical breakdown of the runtime pipeline (`Controller -> Backend -> Raw Telemetry -> Decoder -> Chords -> Mapper -> Virtual Gamepad`), threading model, live reload mechanics, and rumble reverse-engineering notes.
 - **[Developer Guide](developer_guide.md):** Repository structure (`src/`), custom HID report decoders, JSON profile schema reference, automated diagnostic suite, contribution guidelines, PR formats/templates, and testing workflows.
+- **[GUI Integration & Backend Specification](gui-docs/GUI-README.md):** Complete data dictionary, PySide6 frontend event state machines, design blueprint mockups, and exhaustive function specifications for GUI developers.
 
 ## ⚡ Quick Reference
 

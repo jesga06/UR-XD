@@ -16,6 +16,7 @@ The **Dashboard** is your live input control room. It visualizes both physical i
 
 - **Live Controller Model:** Displays real-time button highlights, thumbstick positions, and analog trigger depths as you move your hardware controls.
 - **Active Backend & Profile Status:** Shows current device profile (`profiles/*.json`), output mode (XInput/DInput), and connection state.
+- **Selective Calibration:** Click **"🎯 Selective Calibration"** on the header card to launch targeted recalibration for specific buttons, thumbsticks, triggers, or custom back paddles without repeating full device setup.
 
 ## Remapping Tab
 
@@ -27,10 +28,10 @@ The **Remapping** tab allows you to assign any physical controller button (stand
 - **Interactive Recorder:** Click the **Record** button next to any input and press the physical keys on your keyboard/mouse to record bindings automatically.
 - **Keyboard Combos:** Chain multiple keys together with `+` (e.g. `keyboard:ctrl+shift+esc` or `keyboard:f13`). Keys are pressed sequentially and released in reverse order.
 - **Mouse Simulation:** Assign inputs to `mouse1` (Left Click), `mouse2` (Right Click), `mouse4` (X1 / Back), `mouse5` (X2 / Forward), or mouse wheel scrolls.
-- **Standard Button Blocking:** When remapping standard gamepad buttons (like 'A' or 'LB'), UR-XD automatically blocks the underlying physical button from reaching the virtual controller, preventing annoying double-input issues in games.
-- **Shift Layer Remapping:** Configure alternate mapping profiles activated dynamically by holding down a assigned modifier button.
-  - **Layer Management:** Create, name, and switch between multiple custom shift layers (`Shift 1`, `Shift 2`, etc.) with tab-based navigation.
-  - **Activation Chords & Order Logic:** Activate shift layers using a primary shift key or a primary shift key + modifier button combination (e.g. `LB + RB`). Requires strict press timing to prevent accidental base layer triggers.
+- **Dual XInput Blocking (`Blk` & `S.Blk`):** Toggle independent XInput suppression checkboxes for standard mappings (`Blk`) and shift layer mappings (`S.Blk`). When checked, UR-XD swallows the physical button input to prevent double-input issues in games while triggering remapped actions.
+- **Shift Layer Remapping:** Configure alternate mapping profiles activated dynamically by holding down assigned modifier buttons.
+  - **Layer Management:** Create, rename, delete, and switch between multiple custom shift layers with tab-based navigation.
+  - **Activation Chords & 2-Key Priority:** Activate shift layers using a primary shift key (e.g. `[HOME]`) or a 2-key chord combination (e.g. `[HOME+RB]`). 2-key chord layers automatically take precedence over single-trigger layers when both keys are pressed simultaneously.
 
 ## Tuning Tab
 

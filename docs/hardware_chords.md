@@ -23,6 +23,9 @@ To solve both problems, UR-XD evaluates chord combinations upstream:
 1. It creates synthetic input slots for extra buttons and combinations.
 2. It swallows the physical member button presses before they reach the game via **Input Suppression**, eliminating accidental double inputs entirely.
 
+> [!IMPORTANT]
+> Hardware Chords require **XInput mode**. When connected in DirectInput (DInput) mode, an XInput backend warning banner appears in the Advanced tab and hardware chord creation controls are automatically disabled.
+
 ## How to Set It Up
 
 Setting up Hardware Chords is done visually in the GUI:
@@ -36,4 +39,4 @@ Setting up Hardware Chords is done visually in the GUI:
 5. **Toggle Input Suppression:**
    - Keep **Input Suppression** checked (recommended) so the base physical buttons are swallowed when the chord triggers.
 6. **Save Mappings:**
-   - Click **Save Settings** (or press Enter). The wrapper process reloads your changes live within 5 seconds!
+   - Changes are debounced and saved automatically to your controller profile in real-time.

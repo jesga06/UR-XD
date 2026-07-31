@@ -2,60 +2,58 @@
 
 <div align="center">
 
-[Overview](#overview) • [Device Selection & Setup](#device-selection--setup) • [Step-by-Step Profiling](#step-by-step-button--axis-profiling) • [Interactive Layout Builder](#interactive-layout-builder)
+[Overview](#overview) • [Native GUI Wizard](#native-gui-calibration-wizard) • [Selective Input Calibration](#selective-input-calibration) • [Step-by-Step Profiling](#step-by-step-button--axis-profiling) • [CLI Fallback](#cli-calibration-fallback)
 
 </div>
 
 <br>
 
-UR-XD uses custom profile files stored in `profiles/` to translate raw controller signals into virtual gamepad inputs. If you are using a new or unsupported controller, the interactive CLI calibration tool guides you through creating a profile in minutes.
+UR-XD uses custom profile files stored in `profiles/` to translate raw controller signals into virtual gamepad inputs. If you connect an unprofiled controller, UR-XD launches an interactive calibration wizard to create a precise device profile in minutes.
 
 ## Overview
 
-Unlike standard Windows utilities that blindly trust whatever garbage HID descriptors a hardware vendor programmed into their device's firmware, UR-XD directly reads raw payload bytes. Calibration establishes a precise baseline mapping between byte offsets and physical controls.
+Unlike standard Windows utilities that blindly trust whatever HID descriptors a hardware vendor programmed into their device's firmware, UR-XD directly reads raw payload bytes. Calibration establishes a precise baseline mapping between byte offsets and physical controls.
 
-Run calibration anytime via:
+Calibration can be launched directly from the **Dashboard Tab** in the GUI or executed via CLI scripts.
+
+## Native GUI Calibration Wizard
+
+When launching UR-XD with a newly connected or unprofiled gamepad, the **Profile Decision Engine** automatically presents the native PySide6 Calibration Wizard dialog. You can also trigger full calibration manually at any time by clicking **"Calibrate Controller"** on the GUI Dashboard.
+
+1. **Device Selection & API Mode:**
+   - UR-XD enumerates connected USB HID interfaces automatically. Select your controller and choose between **XInput Mode** and **DInput Mode**.
+2. **Visual Layout Selection:**
+   - Choose your preferred button layout template (**Xbox**, **PlayStation**, or **Nintendo**). This preference is saved to your profile to customize visualizer prompts throughout the application.
+3. **Motion Sensor Query:**
+   - Indicate whether your controller streams continuous gyroscope telemetry so UR-XD can apply dynamic noise filtering during button baselining.
+
+## Selective Input Calibration
+
+If only a specific control (such as a thumbstick, trigger, D-Pad, or back paddle) needs recalibration, you do not need to repeat the full calibration process.
+
+1. Click **"🎯 Selective Calibration"** on the Dashboard header card.
+2. Select the specific buttons, axes, or D-Pad controls you wish to re-map, or type custom extra button names (e.g. `C`, `Z`, `P1`, `P2`) on the fly.
+3. The wizard runs a quick 2-second rest baseline capture, prompts only for your selected controls, and safely merges updated mappings directly into your existing profile JSON without disturbing other inputs.
+
+## Step-by-Step Button & Axis Profiling
+
+Whether running full or selective calibration, the wizard guides you through each target input:
+
+1. **Button Prompts:** Press standard face buttons, shoulder bumpers, stick clicks (`L3`/`R3`), and extra paddles (**L4**, **R4**). When an input registers, release it when prompted to allow rest state settling.
+2. **Axis Baselining:** Push Left Stick Up, Left Stick Left, Right Stick Up, and Right Stick Left, followed by real-time interactive stick radar verification.
+3. **Trigger Calibration:** Squeeze Left Trigger and Right Trigger fully.
+4. **Navigation Controls:**
+   - Click **Skip** (or press **`s`** in CLI) to bypass non-existent physical controls.
+   - Click **Undo** (or press **`u`** in CLI) to step backward if an input was pressed by mistake.
+
+Once complete, the profile is saved automatically to `profiles/<VID>_<PID>.json`.
+
+## CLI Calibration Fallback
+
+If running without a graphical interface or in debug environments, launch calibration anytime via:
+
 ```powershell
 .\calibrate.bat
 ```
 *(You can also double-click `tools_and_diagnostics.bat` and select Option 2).*
 
-## Device Selection & Setup
-
-When you start calibration, UR-XD initializes the input device scanner:
-
-1. **Gamepad Selection Menu:**
-   - UR-XD scans all connected USB and Bluetooth input devices and displays a numbered list.
-   - If only one controller is connected on your system, UR-XD automatically selects it and skips the manual menu.
-2. **API Mode Selection:**
-   - Choose between **DInput Mode** (for DirectInput controllers with broken descriptors or missing analog triggers) and **XInput Mode**.
-3. **Layout Template & Gyro Filter Prompts:**
-   - Select your preferred button layout template (**Xbox**, **PlayStation**, or **Nintendo**). This layout is stored in the device profile to customize future visualizer prompts.
-   - Indicate whether your controller sends continuous motion sensor data (gyroscope). If enabled, UR-XD activates a sensor filter to prevent gyro drift from interfering with button calibration.
-
-## Step-by-Step Button Baselining
-
-Once endpoints are selected, the CLI walks you through mapping each standard control:
-
-1. **Button Prompts:** Press **A**, **B**, **X**, **Y**, **LB**, **RB**, **Back**, **Start**, **L3**, **R3**, **Guide/Home**, and extra paddles (**L4**, **R4**).
-2. **Axis Baselining:** Push Left Stick Up, Left Stick Left, Right Stick Up, Right Stick Left.
-3. **Trigger Calibration:** Squeeze Left Trigger fully, then Right Trigger.
-4. **Interactive Controls:**
-   - Press **`s`** on your keyboard to **Skip** a non-existent button.
-   - Press **`u`** on your keyboard to **Undo** the previous step if you mispressed something.
-
-Once complete, the profile is saved automatically to `profiles/<vendor_product_name>.json`.
-
-## Interactive Layout Builder
-
-If your controller layout in the GUI dashboard appears misaligned or overlapping, you can visually reposition button anchors:
-
-```powershell
-python technical-stuff/interactive_layout_builder.py
-```
-
-[screenshot of interactive layout builder tool][Snap-to-Grid Button Layout Builder]
-
-- Switch between **Xbox**, **PlayStation**, or **Generic** layout templates.
-- Adjust the **Grid Snap Slider** (5px to 20px) for automatic alignment.
-- Drag button anchors visually and click **Save Layout** to update `resources/button_layout.json`.

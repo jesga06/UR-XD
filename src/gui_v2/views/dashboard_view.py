@@ -13,7 +13,8 @@ import logging
 from typing import Dict, Any, Optional
 
 from PySide6.QtWidgets import (
-    QWidget, QApplication, QVBoxLayout, QHBoxLayout, QLabel, QFrame, QScrollArea, QStackedWidget
+    QWidget, QApplication, QVBoxLayout, QHBoxLayout, QLabel, QFrame, QScrollArea, QStackedWidget,
+    QPushButton, QDialog
 )
 from PySide6.QtGui import QFont
 from PySide6.QtCore import Qt, Slot
@@ -112,9 +113,49 @@ class DashboardView(QWidget):
         self.device_label = QLabel("🎮 Waiting for Controller...")
         self.device_label.setStyleSheet("color: #ffffff; font-size: 15px; font-weight: bold;")
 
+        self.btn_selective_calib = QPushButton("🎯 Selective Calibration")
+        self.btn_selective_calib.setCursor(Qt.CursorShape.PointingHandCursor)
+        self.btn_selective_calib.setStyleSheet("""
+            QPushButton {
+                background-color: rgba(255, 255, 255, 0.1);
+                border: 1px solid rgba(255, 255, 255, 0.25);
+                border-radius: 6px;
+                color: #ffffff;
+                padding: 5px 12px;
+                font-weight: bold;
+                font-size: 11px;
+            }
+            QPushButton:hover {
+                background-color: #0ea5e9;
+                color: #ffffff;
+            }
+        """)
+        self.btn_selective_calib.clicked.connect(self._on_launch_selective_calibration)
+
+        self.btn_full_wizard = QPushButton("⚙️ Full Wizard")
+        self.btn_full_wizard.setCursor(Qt.CursorShape.PointingHandCursor)
+        self.btn_full_wizard.setStyleSheet("""
+            QPushButton {
+                background-color: rgba(255, 255, 255, 0.1);
+                border: 1px solid rgba(255, 255, 255, 0.25);
+                border-radius: 6px;
+                color: #ffffff;
+                padding: 5px 12px;
+                font-weight: bold;
+                font-size: 11px;
+            }
+            QPushButton:hover {
+                background-color: #3b82f6;
+                color: #ffffff;
+            }
+        """)
+        self.btn_full_wizard.clicked.connect(self._on_recalibrate_full_wizard)
+
         header_layout.addWidget(self.status_badge)
         header_layout.addWidget(self.device_label)
         header_layout.addStretch()
+        header_layout.addWidget(self.btn_selective_calib)
+        header_layout.addWidget(self.btn_full_wizard)
 
         main_layout.addWidget(self.header_card)
 
@@ -180,22 +221,7 @@ class DashboardView(QWidget):
         self.button_matrix = ButtonMatrixWidget()
         main_layout.addWidget(self.button_matrix)
 
-        # 5. Active Hardware Chords Telemetry Card
-        self.chords_card = QFrame()
-        self.chords_card.setObjectName("glass_card")
-        chords_layout = QVBoxLayout(self.chords_card)
-        chords_layout.setContentsMargins(12, 10, 12, 10)
-
-        self.chords_header = QLabel("⚡ ACTIVE HARDWARE CHORDS TELEMETRY")
-        chords_layout.addWidget(self.chords_header)
-
-        self.chords_status_label = QLabel("Status: Idle")
-        self.chords_status_label.setStyleSheet("color: rgba(255, 255, 255, 0.8); font-family: 'JetBrains Mono', 'Consolas', monospace; font-size: 12px;")
-        chords_layout.addWidget(self.chords_status_label)
-
-        main_layout.addWidget(self.chords_card)
-
-        # 6. Telemetry Footer Bar
+        # 5. Telemetry Footer Bar
         self.footer_label = QLabel("TELEMETRY FOOTER: Polling Rate: -- Hz | Latency: <1.0 ms")
         self.footer_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
         self.footer_label.setStyleSheet("color: rgba(255, 255, 255, 0.5); font-family: 'JetBrains Mono', 'Consolas', monospace; font-size: 10px; padding: 4px;")
@@ -277,6 +303,53 @@ class DashboardView(QWidget):
         dlg = NativeCalibrationWizardDialog(device_info, self)
         dlg.calibration_complete.connect(self._on_profile_resolved)
         dlg.exec()
+
+    def _on_launch_selective_calibration(self) -> None:
+        """Launch Selective Calibration Dialog and start partial wizard."""
+        device_info = getattr(self, "_current_device_info", None) or getattr(self.decision_engine, "active_device_info", None)
+        if not device_info:
+            from PySide6.QtWidgets import QMessageBox
+            QMessageBox.warning(self, "No Device Connected", "Please connect a controller before performing selective calibration.")
+            return
+
+        vid = device_info.get("vendor_id", 0)
+        pid = device_info.get("product_id", 0)
+        profile_path = f"profiles/{vid:04X}_{pid:04X}.json".lower()
+        existing_profile = {}
+        if os.path.exists(profile_path):
+            try:
+                import json
+                with open(profile_path, "r", encoding="utf-8") as f:
+                    existing_profile = json.load(f)
+            except Exception as e:
+                logger.warning(f"Failed to read existing profile: {e}")
+
+        from gui_v2.dialogs.selective_calibration_dialog import SelectiveCalibrationDialog
+        dlg_select = SelectiveCalibrationDialog(device_info, existing_profile, self)
+        if dlg_select.exec() == QDialog.DialogCode.Accepted:
+            selected_inputs = dlg_select.selected_inputs
+            new_extra = dlg_select.new_extra_buttons
+
+            self.overlay.hide()
+            wiz = NativeCalibrationWizardDialog(
+                device_info,
+                parent=self,
+                selected_inputs=selected_inputs,
+                new_extra_buttons=new_extra,
+                existing_profile=existing_profile
+            )
+            wiz.calibration_complete.connect(self._on_profile_resolved)
+            wiz.exec()
+
+    def _on_recalibrate_full_wizard(self) -> None:
+        """Launch Full Calibration Wizard on connected device."""
+        device_info = getattr(self, "_current_device_info", None) or getattr(self.decision_engine, "active_device_info", None)
+        if not device_info:
+            from PySide6.QtWidgets import QMessageBox
+            QMessageBox.warning(self, "No Device Connected", "Please connect a controller before starting calibration.")
+            return
+
+        self._on_launch_wizard(device_info)
 
     def transition_to_state(self, state: ConnectionState) -> None:
         """Swaps between State A (WAITING) and State B (CONNECTED) view."""

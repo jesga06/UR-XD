@@ -40,13 +40,26 @@ class NativeCalibrationWizardDialog(QDialog):
     calibration_complete = Signal(str)  # Emits path to saved profile JSON
     hid_report_received = Signal(object)  # Thread-safe signal for incoming RawHIDReport
 
-    def __init__(self, device_info: dict, parent: Optional[QWidget] = None):
+    def __init__(
+        self,
+        device_info: dict,
+        parent: Optional[QWidget] = None,
+        selected_inputs: Optional[List[str]] = None,
+        new_extra_buttons: Optional[List[str]] = None,
+        existing_profile: Optional[dict] = None
+    ):
         super().__init__(parent)
         self.device_info = device_info
-        self.setWindowTitle("Controller Calibration Wizard")
+        self.selected_inputs = selected_inputs
+        self.new_extra_buttons = new_extra_buttons or []
+        self.existing_profile = existing_profile or {}
+        self.selective_mode: bool = bool(selected_inputs or new_extra_buttons)
+
+        title_suffix = " (Selective Mode)" if self.selective_mode else ""
+        self.setWindowTitle(f"Controller Calibration Wizard{title_suffix}")
         self.setMinimumSize(720, 600)
 
-        self.layout_type: str = "xbox"
+        self.layout_type: str = self.existing_profile.get("layout", "xbox")
         self.reader: Optional[HIDReader] = None
         self.latest_report: Optional[RawHIDReport] = None
         self.report_payloads: Dict[str, List[int]] = {}
@@ -58,6 +71,14 @@ class NativeCalibrationWizardDialog(QDialog):
         self.engine.status_updated.connect(self._on_engine_status_updated)
         self.engine.calibration_finished.connect(self._on_engine_finished)
         self.engine.stick_position_updated.connect(self._on_stick_position_updated)
+
+        if self.selective_mode:
+            self.engine.reconfigure(
+                layout_type=self.layout_type,
+                extra_buttons=self.new_extra_buttons,
+                selected_keys=self.selected_inputs,
+                existing_profile=self.existing_profile
+            )
 
         # XInput Detection 15s Timer
         self.xinput_time_remaining: float = 15.0
@@ -72,8 +93,14 @@ class NativeCalibrationWizardDialog(QDialog):
         self._setup_theme_sync()
         self._start_hid_listener()
 
-        # Start Step 0 XInput detection immediately
-        self._start_xinput_detection()
+        if self.selective_mode:
+            # Skip Step 0 and 1, go straight to Baseline Capture (Page 2)
+            self.stacked_widget.setCurrentIndex(2)
+            self.progress_bar.setValue(2)
+            self.back_btn.setEnabled(False)
+        else:
+            # Start Step 0 XInput detection immediately
+            self._start_xinput_detection()
 
     def setup_ui(self) -> None:
         main_layout = QVBoxLayout(self)

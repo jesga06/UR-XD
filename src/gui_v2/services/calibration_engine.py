@@ -112,15 +112,29 @@ class CalibrationEngine(QObject):
         self.trigger_start_time: float = 0.0
         self.trigger_samples: List[Tuple[str, List[int]]] = []
 
-    def reconfigure(self, layout_type: str, extra_buttons: Optional[List[str]] = None) -> None:
+    def reconfigure(
+        self,
+        layout_type: str,
+        extra_buttons: Optional[List[str]] = None,
+        selected_keys: Optional[List[str]] = None,
+        existing_profile: Optional[dict] = None
+    ) -> None:
         self.layout_type = layout_type
-        self.extra_buttons = extra_buttons or []
+        self.extra_buttons = [e.lower() for e in (extra_buttons or [])]
+        if existing_profile:
+            import copy
+            self.profile = copy.deepcopy(existing_profile)
         self.profile["layout"] = layout_type
+
         if self.extra_buttons:
-            self.profile["extra_buttons"] = {eb.lower(): {} for eb in self.extra_buttons}
+            if "extra_buttons" not in self.profile or not isinstance(self.profile["extra_buttons"], dict):
+                self.profile["extra_buttons"] = {}
+            for eb in self.extra_buttons:
+                if eb not in self.profile["extra_buttons"]:
+                    self.profile["extra_buttons"][eb] = {}
 
         labels = get_layout_labels(self.layout_type)
-        self.steps = [
+        all_steps = [
             ("a", "buttons", f"Press the '{labels['a']}' button"),
             ("b", "buttons", f"Press the '{labels['b']}' button"),
             ("x", "buttons", f"Press the '{labels['x']}' button"),
@@ -143,7 +157,23 @@ class CalibrationEngine(QObject):
             ("dpad", "hat", "Press the D-Pad UP (Assuming standard Hat switch)")
         ]
         for extra in self.extra_buttons:
-            self.steps.append((extra, "buttons", f"Press the '{extra.upper()}' extra button"))
+            all_steps.append((extra, "buttons", f"Press the '{extra.upper()}' extra button"))
+
+        if selected_keys is not None and len(selected_keys) > 0:
+            target_set: Set[str] = set()
+            for k in selected_keys:
+                k_lower = k.lower()
+                if k_lower in ("left_stick", "ls"):
+                    target_set.update({"lx", "ly", "verify_ls"})
+                elif k_lower in ("right_stick", "rs"):
+                    target_set.update({"rx", "ry", "verify_rs"})
+                else:
+                    target_set.add(k_lower)
+
+            self.steps = [s for s in all_steps if s[0] in target_set]
+            logger.info(f"[CALIB-ENGINE] Selective Calibration mode: {len(self.steps)} steps selected: {[s[0] for s in self.steps]}")
+        else:
+            self.steps = all_steps
 
     def start(self) -> None:
         self.current_step_idx = 0

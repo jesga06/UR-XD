@@ -7,7 +7,7 @@
 
 ## Purpose
 
-This documentation serves as the **single source of truth** for building a graphical user interface (GUI) against the `ultimate-2c-dinput-fix` backend. The target reader can hook up every visual element, form, slider, button, state listener, and data view without reading raw backend code or guessing any data types, units, or behaviors.
+This documentation serves as the **single source of truth** for building a graphical user interface (GUI) against the `UR-XD` backend. The target reader can hook up every visual element, form, slider, button, state listener, and data view without reading raw backend code or guessing any data types, units, or behaviors.
 
 ## Architecture Overview
 

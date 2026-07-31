@@ -105,7 +105,7 @@ All GUI polling loops utilize non-blocking after-callbacks or dedicated threadin
 This section governs the precise boot execution, teardown, and lifecycle state management of the background daemon and frontend GUI. 
 
 ## 4.1 Initialization Sequence (Daemon Process: `main.py`)
-1. **Singleton Lock**: `ensure_single_instance('ultimate_2c_dinput_fix', 49152)` — Attempts to bind a TCP socket to localhost:49152. Forcefully exits process with error code `1` if port is locked (indicating already running).
+1. **Singleton Lock**: `ensure_single_instance('UR-XD', 49152)` — Attempts to bind a TCP socket to localhost:49152. Forcefully exits process with error code `1` if port is locked (indicating already running).
 2. **CLI Parsing**: Evaluate `sys.argv` for `--debug` and `--append-log` modifiers.
 3. **Configuration Boot**: `load_config('config.ini')` — Parses local INI structure into runtime dictionary.
 4. **Logger Boot**: `setup_logger()` — Hooks stdout and file handlers based on log level settings.

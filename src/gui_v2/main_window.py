@@ -50,7 +50,7 @@ class MainWindow(QMainWindow):
     def __init__(self, config_manager=None, theme_manager=None, parent=None):
         super().__init__(parent)
         # Ensure single instance GUI guard
-        ensure_single_instance("Ultimate-2C-GUI", PORT_GUI)
+        ensure_single_instance("UR-XD-GUI", PORT_GUI)
 
         self.config = config_manager
         self.theme_mgr = theme_manager

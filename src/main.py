@@ -21,6 +21,7 @@ from virtual_pad import VirtualPad
 from config_manager import ControllerConfig, get_sanitized_filename
 from hardware_chords import HardwareChordEngine
 from backend_dinput import DInputBackend
+from backend_base import ConnectionState
 from backend_xinput import XInputBackend
 
 import ctypes
@@ -89,7 +90,8 @@ def write_status(state, device_name="None"):
         target_path = 'status.json'
         dir_name = os.path.dirname(os.path.abspath(target_path)) or '.'
         with tempfile.NamedTemporaryFile('w', dir=dir_name, delete=False, encoding='utf-8') as tf:
-            json.dump({"status": state, "device": device_name}, tf)
+            status_str = state.name if hasattr(state, 'name') else str(state)
+            json.dump({"status": status_str, "device": device_name}, tf)
             temp_name = tf.name
         os.replace(temp_name, target_path)
     except Exception as e:
@@ -101,7 +103,7 @@ def write_status(state, device_name="None"):
 
 def quit_app(icon, item):
     icon.stop()
-    write_status("Disconnected")
+    write_status(ConnectionState.DISCONNECTED)
     os._exit(0)
 
 
@@ -141,7 +143,7 @@ def main():
     telemetry_logger = setup_telemetry_logger('wrapper_telemetry.log')
 
     hide_console()
-    write_status("Starting...")
+    write_status(ConnectionState.CONNECTING)
     logger.info("UR-XD Wrapper Starting...")
 
     config_file = 'config.ini'
@@ -313,7 +315,7 @@ def main():
         if not backend.initialize():
             if backend_mode == 'xinput':
                 logger.error("XInput backend selected but no XInput device found.")
-                write_status("Disconnected")
+                write_status(ConnectionState.INIT_FAILED)
                 show_console()
                 time.sleep(5)
                 sys.exit(1)
@@ -327,7 +329,7 @@ def main():
         backend = DInputBackend(hid_map_path, selected_vid, selected_pid, req_ifaces)
         if not backend.initialize():
             logger.error("Failed to initialize DInput backend.")
-            write_status("Disconnected")
+            write_status(ConnectionState.INIT_FAILED)
             show_console()
             time.sleep(5)
             sys.exit(1)
@@ -356,12 +358,13 @@ def main():
     except Exception as e:
         logger.error(f"Failed to initialize mapper or virtual pad: {e}", exc_info=True)
         logger.info("Please ensure ViGEmBus is installed.")
+        write_status(ConnectionState.INIT_FAILED)
         show_console()
         time.sleep(5)
         sys.exit(1)
 
 
-    write_status("Connected", device_name)
+    write_status(ConnectionState.CONNECTED, device_name)
 
     def rumble_callback(left_motor, right_motor):
         backend.set_vibration(left_motor / 255.0, right_motor / 255.0)

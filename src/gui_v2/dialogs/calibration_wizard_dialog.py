@@ -393,14 +393,27 @@ class NativeCalibrationWizardDialog(QDialog):
     # -------------------------------------------------------------------
     @Slot(str, str, str, int, int)
     def _on_engine_prompt_changed(self, key: str, cat: str, prompt: str, step_idx: int, total_steps: int) -> None:
+        try:
+            tm = ThemeManager.get_instance()
+            accent_1_hex = color_to_hex6(tm.get_color("accent_1"))
+        except Exception:
+            accent_1_hex = "#00f0ff"
+
+        is_release = "RELEASE" in prompt.upper()
+        prompt_color = "#FFAA00" if is_release else accent_1_hex
+
         if cat in ("buttons", "stick_clicks"):
             self.lbl_target_btn.setText(prompt)
+            self.lbl_target_btn.setStyleSheet(f"color: {prompt_color}; font-size: 18px; font-weight: bold;")
             self.stacked_widget.setCurrentIndex(3)
         elif cat in ("axes", "triggers"):
             self.lbl_target_axis.setText(prompt)
+            self.lbl_target_axis.setStyleSheet(f"color: {prompt_color}; font-size: 18px; font-weight: bold;")
             self.stacked_widget.setCurrentIndex(4)
         elif cat == "hat":
-            self.lbl_target_btn.setText("Press D-Pad UP (Hat Switch)")
+            display_text = prompt if is_release else "Press D-Pad UP (Hat Switch)"
+            self.lbl_target_btn.setText(display_text)
+            self.lbl_target_btn.setStyleSheet(f"color: {prompt_color}; font-size: 18px; font-weight: bold;")
             self.stacked_widget.setCurrentIndex(3)
 
     @Slot(str, str)

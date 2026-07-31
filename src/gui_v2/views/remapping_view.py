@@ -512,6 +512,13 @@ class RemappingView(QWidget):
             self.config.data["layer_base"][key.lower()] = value
         else:
             self.config.data["layer_base"].pop(key.lower(), None)
+
+        if "extra_buttons" in self.config.data and isinstance(self.config.data["extra_buttons"], dict):
+            if key.lower() in self.config.data["extra_buttons"]:
+                if value:
+                    self.config.data["extra_buttons"][key.lower()] = value
+                else:
+                    self.config.data["extra_buttons"].pop(key.lower(), None)
         logger.debug(f"[REMAP] _set_base_mapping({key!r}, {value!r}) — layer_base={self.config.data.get('layer_base')}")
 
     def _set_base_block_state(self, key: str, blocked: bool) -> None:

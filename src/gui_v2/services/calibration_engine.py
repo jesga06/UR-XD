@@ -12,6 +12,7 @@ import time
 from typing import Dict, Any, Optional, List, Tuple, Set
 
 from PySide6.QtCore import QObject, Signal
+from PySide6.QtWidgets import QApplication
 
 
 def get_layout_labels(layout_type: str) -> Dict[str, str]:
@@ -243,7 +244,7 @@ class CalibrationEngine(QObject):
                                 self.profile["reports"][fid]["inputs"][name] = cfg
                                 self.status_updated.emit(f"Confirmed {name.upper()} at {fid}, byte {b_idx}, mask {bitmask}", "#55FF55")
                                 self.input_mapped.emit(name, cfg)
-                                self._advance_step()
+                                self._advance_step(name)
                                 return
 
         # -------------------------------------------------------------------
@@ -298,7 +299,7 @@ class CalibrationEngine(QObject):
                 self.profile["reports"][fid]["inputs"][name] = cfg
                 self.status_updated.emit(f"Detected {name.upper()} at {fid}, byte {b_idx}, mask {bit_mask}", "#55FF55")
                 self.input_mapped.emit(name, cfg)
-                self._advance_step()
+                self._advance_step(name)
                 return
 
         # -------------------------------------------------------------------
@@ -366,7 +367,7 @@ class CalibrationEngine(QObject):
                 self.status_updated.emit(f"Detected Analog {name.upper()} at {best_full_id}, byte {best_byte} ({max_uniques} uniques)", "#55FF55")
                 self.input_mapped.emit(name, cfg)
                 self.trigger_start_time = 0
-                self._advance_step()
+                self._advance_step(name)
                 return
             else:
                 # Digital Trigger Fallback (calibration.py lines 906-950)
@@ -410,7 +411,7 @@ class CalibrationEngine(QObject):
                     self.status_updated.emit(f"Detected Digital {name.upper()} Fallback at {best_full_id}, byte {best_byte}, mask {best_mask}", "#55FF55")
                     self.input_mapped.emit(name, cfg)
                     self.trigger_start_time = 0
-                    self._advance_step()
+                    self._advance_step(name)
                     return
 
         # -------------------------------------------------------------------
@@ -470,7 +471,7 @@ class CalibrationEngine(QObject):
                 self.profile["reports"][fid]["inputs"][name] = cfg
                 self.status_updated.emit(f"Detected {name.upper()} at {fid}, byte {best_idx}", "#55FF55")
                 self.input_mapped.emit(name, cfg)
-                self._advance_step()
+                self._advance_step(name)
                 return
 
         # -------------------------------------------------------------------
@@ -487,17 +488,55 @@ class CalibrationEngine(QObject):
                 self.profile["reports"][fid]["inputs"]["dpad"] = cfg
                 self.status_updated.emit(f"Detected D-Pad Hat Switch at {fid}, byte {b_idx}", "#55FF55")
                 self.input_mapped.emit("dpad", cfg)
-                self._advance_step()
+                self._advance_step("dpad")
                 return
 
-    def _advance_step(self) -> None:
+    def _advance_step(self, released_name: str = "") -> None:
         """
-        Re-synchronize baselines and advance to next step.
-        Verbatim port of calibration.py lines 1054-1060.
+        Prompt user to release button, wait until input returns to baseline,
+        pause 0.8s for rest state settling, re-baseline, and advance to next step.
         """
-        time.sleep(0.4)
-        # Re-baseline
-        for fid, latest_data in self.latest_reports.items():
+        if released_name and self.current_step_idx < len(self.steps):
+            name, cat, prompt = self.steps[self.current_step_idx]
+            rel_upper = released_name.upper()
+            self.status_updated.emit(f"✅ Registered {rel_upper}! RELEASE the button...", "#FFAA00")
+            self.prompt_changed.emit(name, cat, f"RELEASE {rel_upper}...", self.current_step_idx, len(self.steps))
+            try:
+                QApplication.processEvents()
+            except Exception:
+                pass
+
+            # Wait for button to be physically released (up to 1.5s)
+            start_wait = time.time()
+            while time.time() - start_wait < 1.5:
+                time.sleep(0.04)
+                try:
+                    QApplication.processEvents()
+                except Exception:
+                    pass
+
+                diff_count = 0
+                for fid, latest_data in list(self.latest_reports.items()):
+                    if fid in self.baselines:
+                        b_data = self.baselines[fid]
+                        if len(latest_data) == len(b_data):
+                            for b_idx in range(len(latest_data)):
+                                if latest_data[b_idx] != b_data[b_idx]:
+                                    diff_count += 1
+                if diff_count == 0:
+                    break
+
+        # Post-release rest settling delay (0.8s)
+        start_rest = time.time()
+        while time.time() - start_rest < 0.8:
+            time.sleep(0.04)
+            try:
+                QApplication.processEvents()
+            except Exception:
+                pass
+
+        # Re-baseline on clean rest state
+        for fid, latest_data in list(self.latest_reports.items()):
             self.baselines[fid] = list(latest_data)
 
         # Clear per-step history
@@ -509,6 +548,10 @@ class CalibrationEngine(QObject):
 
         self.current_step_idx += 1
         self._emit_current_prompt()
+        try:
+            QApplication.processEvents()
+        except Exception:
+            pass
 
     def skip_step(self) -> None:
         self.status_updated.emit(f"Skipped step {self.current_step_idx + 1}.", "#FFFF55")

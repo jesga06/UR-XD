@@ -7,7 +7,16 @@ hardware buttons, handling real-time button activation illumination, theme token
 import sys
 import os
 import re
+import json
 from typing import Dict, List, Any, Optional
+
+STANDARD_INPUT_KEYS = {
+    'a', 'b', 'x', 'y', 'lb', 'rb', 'lt', 'rt',
+    'select', 'start', 'home', 'l3', 'r3',
+    'dpad_up', 'dpad_down', 'dpad_left', 'dpad_right', 'dpad',
+    'lx', 'ly', 'rx', 'ry'
+}
+
 
 from PySide6.QtWidgets import (
     QWidget, QApplication, QVBoxLayout, QHBoxLayout, QGridLayout,
@@ -307,7 +316,16 @@ class ExtraButtonArray(QFrame):
             extra_inputs = {}
 
         for key_lower, pill in self.pills.items():
-            val = state_dict.get(key_lower, extra_inputs.get(key_lower, state_dict.get(key_lower.upper(), 0)))
+            val = state_dict.get(
+                key_lower,
+                extra_inputs.get(
+                    key_lower,
+                    state_dict.get(
+                        key_lower.upper(),
+                        extra_inputs.get(key_lower.upper(), 0)
+                    )
+                )
+            )
             if isinstance(val, (int, float, bool)):
                 is_pressed = bool(val > 0.1 if isinstance(val, float) else val)
             else:
@@ -315,13 +333,13 @@ class ExtraButtonArray(QFrame):
             pill.set_active(is_pressed)
 
 
-def get_extra_button_actions(config_data: Dict[str, Any]) -> List[str]:
+def get_extra_button_actions(config_data: Dict[str, Any], hid_map_path: Optional[str] = None) -> List[str]:
     """
     Extracts human-configured extra button actions (e.g. L4, R4, M1, M2)
-    from extra_buttons, settings.extra_inputs, and hardware_chords.
+    from extra_buttons, settings.extra_inputs, hardware_chords, and HID descriptor maps.
     """
     if not isinstance(config_data, dict):
-        return []
+        config_data = {}
 
     extra_buttons: List[str] = []
 
@@ -331,18 +349,18 @@ def get_extra_button_actions(config_data: Dict[str, Any]) -> List[str]:
             k_lower = str(k).strip().lower()
             if k_lower and k_lower not in extra_buttons:
                 extra_buttons.append(k_lower)
-    else:
-        eb_settings = config_data.get("settings", {}).get("extra_inputs", [])
-        if isinstance(eb_settings, list):
-            for x in eb_settings:
-                x_lower = str(x).strip().lower()
-                if x_lower and x_lower not in extra_buttons:
-                    extra_buttons.append(x_lower)
-        elif isinstance(eb_settings, dict):
-            for k in eb_settings.keys():
-                k_lower = str(k).strip().lower()
-                if k_lower and k_lower not in extra_buttons:
-                    extra_buttons.append(k_lower)
+
+    eb_settings = config_data.get("settings", {}).get("extra_inputs", [])
+    if isinstance(eb_settings, list):
+        for x in eb_settings:
+            x_lower = str(x).strip().lower()
+            if x_lower and x_lower not in extra_buttons:
+                extra_buttons.append(x_lower)
+    elif isinstance(eb_settings, dict):
+        for k in eb_settings.keys():
+            k_lower = str(k).strip().lower()
+            if k_lower and k_lower not in extra_buttons:
+                extra_buttons.append(k_lower)
 
     hw_chords = config_data.get("hardware_chords", {})
     chord_items = []
@@ -364,6 +382,41 @@ def get_extra_button_actions(config_data: Dict[str, Any]) -> List[str]:
             act_lower = str(action_name).strip().lower()
             if act_lower and act_lower not in extra_buttons:
                 extra_buttons.append(act_lower)
+
+    # Inspect active controller HID map to discover hardware DInput extra buttons (e.g. l4, r4)
+    hid_map_paths_to_check = []
+    if hid_map_path and os.path.exists(hid_map_path):
+        hid_map_paths_to_check.append(hid_map_path)
+
+    if os.path.exists('config.ini'):
+        try:
+            import configparser
+            cp = configparser.ConfigParser()
+            cp.read('config.ini', encoding='utf-8')
+            lp = cp.get('controller', 'last_profile', fallback='')
+            if lp and os.path.exists(lp) and lp not in hid_map_paths_to_check:
+                hid_map_paths_to_check.append(lp)
+        except Exception:
+            pass
+
+    for map_file in hid_map_paths_to_check:
+        try:
+            with open(map_file, 'r', encoding='utf-8') as f:
+                map_json = json.load(f)
+                reports = map_json.get("reports", {})
+                if isinstance(reports, dict):
+                    for rep in reports.values():
+                        if isinstance(rep, dict):
+                            inputs = rep.get("inputs", {})
+                            if isinstance(inputs, dict):
+                                for input_name in inputs.keys():
+                                    inp_lower = str(input_name).strip().lower()
+                                    if (inp_lower and
+                                            inp_lower not in STANDARD_INPUT_KEYS and
+                                            inp_lower not in extra_buttons):
+                                        extra_buttons.append(inp_lower)
+        except Exception:
+            pass
 
     return extra_buttons
 

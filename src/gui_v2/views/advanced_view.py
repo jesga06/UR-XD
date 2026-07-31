@@ -104,7 +104,6 @@ class AdvancedView(QWidget):
         # Backend Mode Notice
         self.lbl_backend_notice = QLabel(self.hw_card)
         self.lbl_backend_notice.setWordWrap(True)
-        self.check_backend_mode()
         self.hw_card_layout.addWidget(self.lbl_backend_notice)
 
         # Container for Hardware Chord Rows
@@ -122,6 +121,8 @@ class AdvancedView(QWidget):
         hw_action_layout.addWidget(self.btn_add_hw)
         hw_action_layout.addStretch()
         self.hw_card_layout.addLayout(hw_action_layout)
+
+        self.check_backend_mode()
 
         self.container_layout.addWidget(self.hw_card)
 

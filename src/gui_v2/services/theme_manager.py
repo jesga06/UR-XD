@@ -1,8 +1,9 @@
 """
 Dynamic Theme Engine and Color Token Manager for PySide6 UI.
-Manages active theme tokens (accent_1, accent_2, background), dynamic QSS generation,
-hex with alpha parsing, JSON theme import/export, preset theme discovery, theme CRUD,
-and persistence sync with config.ini.
+Manages active exposed base colors (window_bg, accent_1, accent_2, text),
+theme behavior toggles (button_color_source, widget_bg_source, outline_source),
+brightness sliders (widget_brightness, graph_brightness), dynamic HSV brightness recalculation,
+QSS generation, JSON theme import/export, preset theme discovery, theme CRUD, and config.ini sync.
 """
 
 import os
@@ -17,11 +18,22 @@ from PySide6.QtGui import QColor
 
 logger = logging.getLogger("theme_manager")
 
-DEFAULT_TOKENS: Dict[str, str] = {
-    "accent_1": "#A855F7FF",   # Input Color (Physical/hardware visualizers)
-    "accent_2": "#00F5A0FF",   # Output Color (Virtual/emulated output visualizers)
-    "background": "#0C0914FF", # Widget/Card Base Background
-    "window_bg": "#000000FF"   # Window Canvas Base Background (Pure Black)
+DEFAULT_BASE_COLORS: Dict[str, str] = {
+    "window_bg": "#0C0914FF",   # Application Frame & Main Canvas Background
+    "accent_1": "#A855F7FF",   # Primary Input Color (Physical/hardware visualizers)
+    "accent_2": "#00F5A0FF",   # Secondary Output Color (Virtual/emulated output visualizers)
+    "text": "#FFFFFFFF"        # Global Text Color
+}
+
+DEFAULT_SOURCES: Dict[str, str] = {
+    "button_color_source": "accent_1",   # accent_1 | accent_2
+    "widget_bg_source": "window_bg",     # window_bg | accent_1 | accent_2
+    "outline_source": "accent_1"        # accent_1 | accent_2
+}
+
+DEFAULT_BRIGHTNESS: Dict[str, int] = {
+    "widget_brightness": 0,             # Percentage delta (-80 to +80)
+    "graph_brightness": 0               # Percentage delta (-80 to +80)
 }
 
 CUSTOM_THEME_RELATIVE_PATH = os.path.join("themes", "custom_theme.json")
@@ -104,7 +116,7 @@ def sanitize_filename(name: str) -> str:
 class ThemeManager(QObject):
     """
     Central singleton service for dynamic UI color tokens and QSS generation.
-    Emits theme_changed(dict) whenever theme tokens are updated.
+    Emits theme_changed(dict) whenever theme base colors, sources, or sliders change.
     """
     theme_changed = Signal(dict)
     _instance: Optional["ThemeManager"] = None
@@ -121,10 +133,16 @@ class ThemeManager(QObject):
         if ThemeManager._instance is None:
             ThemeManager._instance = self
 
-        self.tokens: Dict[str, str] = DEFAULT_TOKENS.copy()
-        self.active_theme_name: str = "Default Neon Purple"
+        self.base_colors: Dict[str, str] = DEFAULT_BASE_COLORS.copy()
+        self.sources: Dict[str, str] = DEFAULT_SOURCES.copy()
+        self.brightness: Dict[str, int] = DEFAULT_BRIGHTNESS.copy()
+        self.tokens: Dict[str, str] = {}
+        self.current_tokens: Dict[str, str] = {}
+        self.active_theme_name: str = "Neon Purple"
+
         self._ensure_theme_directories()
         self._load_saved_theme()
+        self.recalculate_theme()
 
     def _ensure_theme_directories(self):
         """Creates themes, themes/presets, and themes/user directories if missing."""
@@ -132,9 +150,74 @@ class ThemeManager(QObject):
         os.makedirs(PRESETS_DIR, exist_ok=True)
         os.makedirs(USER_THEMES_DIR, exist_ok=True)
 
+    def adjust_brightness(self, color_hex: str, percent_delta: float) -> str:
+        """
+        Adjusts the HSV value/brightness of a color by percent_delta (-1.0 to 1.0).
+        Returns 8-character Hex string (#RRGGBBAA).
+        """
+        color = hex8_to_color(color_hex)
+        h, s, v, a = color.getHsvF()
+        new_v = max(0.0, min(1.0, v + percent_delta))
+        color.setHsvF(h, s, new_v, a)
+        return color_to_hex8(color)
+
+    def recalculate_theme(self) -> None:
+        """
+        Calculates all derived tokens based on base_colors, sources, and brightness sliders.
+        Emits theme_changed signal with full calculated token dictionary.
+        """
+        tokens = dict(self.base_colors)
+
+        # 1. Widget Background
+        wb_src = self.sources.get("widget_bg_source", "window_bg")
+        if wb_src == "window_bg":
+            tokens["widget_bg"] = self.adjust_brightness(
+                self.base_colors["window_bg"],
+                self.brightness.get("widget_brightness", 0) / 100.0
+            )
+        elif wb_src == "accent_1":
+            tokens["widget_bg"] = self.adjust_brightness(self.base_colors["accent_1"], -0.10)
+        else:
+            tokens["widget_bg"] = self.adjust_brightness(self.base_colors["accent_2"], -0.10)
+
+        # Backward compatibility alias
+        tokens["background"] = tokens["widget_bg"]
+
+        # 2. Graph Background & Axis
+        tokens["graph_bg"] = self.adjust_brightness(
+            tokens["widget_bg"],
+            self.brightness.get("graph_brightness", 0) / 100.0
+        )
+        tokens["graph_axis"] = self.adjust_brightness(
+            tokens["graph_bg"],
+            -(self.brightness.get("graph_brightness", 0) / 100.0)
+        )
+
+        # 3. Outline Color
+        outline_src_key = self.sources.get("outline_source", "accent_1")
+        base_outline = self.base_colors.get(outline_src_key, self.base_colors.get("accent_1", "#A855F7FF"))
+        tokens["outline"] = self.adjust_brightness(base_outline, 0.50)
+
+        # 4. Button Colors
+        btn_src_key = self.sources.get("button_color_source", "accent_1")
+        base_btn = self.base_colors.get(btn_src_key, self.base_colors.get("accent_1", "#A855F7FF"))
+        tokens["button_bg"] = base_btn
+        tokens["button_hover"] = self.adjust_brightness(base_btn, 0.15)
+        tokens["button_pressed"] = self.adjust_brightness(base_btn, -0.15)
+
+        # 5. Tab Active & Inactive
+        tokens["tab_active"] = self.adjust_brightness(self.base_colors.get("accent_1", "#A855F7FF"), 0.20)
+        tokens["tab_inactive"] = self.adjust_brightness(self.base_colors.get("window_bg", "#0C0914FF"), 0.05)
+
+        self.tokens = tokens
+        self.current_tokens = tokens
+        self._save_custom_theme()
+        self._sync_config_ini()
+        self.theme_changed.emit(self.tokens.copy())
+
     def get_color(self, key: str, alpha_override: Optional[float] = None) -> QColor:
-        """Returns a QColor object for specified key."""
-        hex_val = self.tokens.get(key, DEFAULT_TOKENS.get(key, "#FFFFFFFF"))
+        """Returns a QColor object for specified token key."""
+        hex_val = self.get_token(key)
         color = hex8_to_color(hex_val)
         if alpha_override is not None:
             a_int = int(max(0.0, min(1.0, float(alpha_override))) * 255)
@@ -147,35 +230,46 @@ class ThemeManager(QObject):
         return color_to_rgba_str(color, alpha_override=alpha_override)
 
     def get_all_tokens(self) -> Dict[str, str]:
-        """Returns a copy of all current active theme tokens."""
+        """Returns a copy of all current active theme tokens (base & derived)."""
         return self.tokens.copy()
 
     def get_token(self, key: str) -> str:
-
         """Returns normalized 8-character hex string for specified key."""
-        return self.tokens.get(key, DEFAULT_TOKENS.get(key, "#FFFFFFFF"))
+        if key in self.tokens:
+            return self.tokens[key]
+        if key in self.base_colors:
+            return self.base_colors[key]
+        return DEFAULT_BASE_COLORS.get(key, "#FFFFFFFF")
 
     def set_token(self, key: str, hex_color: str) -> None:
-        """Updates a single token and notifies subscribers."""
-        normalized = normalize_hex8(hex_color, default=self.tokens.get(key, "#FFFFFFFF"))
-        self.tokens[key] = normalized
-        self._save_custom_theme()
-        self._sync_config_ini()
-        self.theme_changed.emit(self.tokens.copy())
+        """Updates a single base color token and recalculates theme."""
+        normalized = normalize_hex8(hex_color, default=self.base_colors.get(key, "#FFFFFFFF"))
+        self.base_colors[key] = normalized
+        self.recalculate_theme()
+
+    def set_source(self, source_key: str, source_val: str) -> None:
+        """Updates a theme behavior source selector and recalculates theme."""
+        self.sources[source_key] = source_val
+        self.recalculate_theme()
+
+    def set_brightness(self, slider_key: str, value: int) -> None:
+        """Updates a brightness slider percentage and recalculates theme."""
+        self.brightness[slider_key] = int(value)
+        self.recalculate_theme()
 
     def reset_defaults(self) -> None:
-        """Restores default system theme tokens (#A855F7FF, #00F5A0FF, #0C0914FF)."""
-        self.tokens = DEFAULT_TOKENS.copy()
+        """Restores default system theme tokens, sources, and sliders."""
+        self.base_colors = DEFAULT_BASE_COLORS.copy()
+        self.sources = DEFAULT_SOURCES.copy()
+        self.brightness = DEFAULT_BRIGHTNESS.copy()
         self.active_theme_name = "Default Neon Purple"
-        self._save_custom_theme()
-        self._sync_config_ini()
-        self.theme_changed.emit(self.tokens.copy())
+        self.recalculate_theme()
 
     def get_available_themes(self) -> Dict[str, Dict[str, Any]]:
         """
         Discovers all available system presets and user themes.
         Returns dict mapping theme display name to metadata:
-        {"is_preset": bool, "path": str, "tokens": dict}
+        {"is_preset": bool, "path": str, "base_colors": dict, "sources": dict, "brightness": dict}
         """
         themes: Dict[str, Dict[str, Any]] = {}
 
@@ -190,7 +284,9 @@ class ThemeManager(QObject):
                         themes[display_name] = {
                             "is_preset": True,
                             "path": fpath,
-                            "tokens": parsed["tokens"]
+                            "base_colors": parsed["base_colors"],
+                            "sources": parsed["sources"],
+                            "brightness": parsed["brightness"]
                         }
 
         # 2. User Themes (themes/user/)
@@ -204,25 +300,46 @@ class ThemeManager(QObject):
                         themes[display_name] = {
                             "is_preset": False,
                             "path": fpath,
-                            "tokens": parsed["tokens"]
+                            "base_colors": parsed["base_colors"],
+                            "sources": parsed["sources"],
+                            "brightness": parsed["brightness"]
                         }
 
         return themes
 
     def _read_theme_file(self, fpath: str) -> Optional[Dict[str, Any]]:
-        """Reads a theme file and extracts valid tokens."""
+        """Reads a theme file and extracts valid base colors, sources, and sliders."""
         try:
             with open(fpath, "r", encoding="utf-8") as f:
                 data = json.load(f)
             if isinstance(data, dict):
-                tokens = {}
-                for k in DEFAULT_TOKENS.keys():
-                    if k in data:
-                        tokens[k] = normalize_hex8(str(data[k]))
-                    else:
-                        tokens[k] = DEFAULT_TOKENS[k]
+                base_colors = DEFAULT_BASE_COLORS.copy()
+                sources = DEFAULT_SOURCES.copy()
+                brightness = DEFAULT_BRIGHTNESS.copy()
+
+                if "base_colors" in data and isinstance(data["base_colors"], dict):
+                    for k in DEFAULT_BASE_COLORS.keys():
+                        if k in data["base_colors"]:
+                            base_colors[k] = normalize_hex8(str(data["base_colors"][k]))
+                else:
+                    for k in DEFAULT_BASE_COLORS.keys():
+                        if k in data:
+                            base_colors[k] = normalize_hex8(str(data[k]))
+                    if "background" in data and "window_bg" not in data:
+                        base_colors["window_bg"] = normalize_hex8(str(data["background"]))
+
+                if "sources" in data and isinstance(data["sources"], dict):
+                    sources.update(data["sources"])
+                if "brightness" in data and isinstance(data["brightness"], dict):
+                    brightness.update(data["brightness"])
+
                 name = data.get("name", os.path.basename(fpath).replace(".json", ""))
-                return {"name": name, "tokens": tokens}
+                return {
+                    "name": name,
+                    "base_colors": base_colors,
+                    "sources": sources,
+                    "brightness": brightness
+                }
         except Exception as e:
             logger.warning(f"Could not read theme file {fpath}: {e}")
         return None
@@ -232,17 +349,18 @@ class ThemeManager(QObject):
         available = self.get_available_themes()
         if theme_name in available:
             meta = available[theme_name]
-            self.tokens = meta["tokens"].copy()
+            self.base_colors = meta["base_colors"].copy()
+            self.sources = meta["sources"].copy()
+            self.brightness = meta["brightness"].copy()
             self.active_theme_name = theme_name
-            self._save_custom_theme()
+            self.recalculate_theme()
             self._sync_config_ini(custom_path=meta["path"])
-            self.theme_changed.emit(self.tokens.copy())
             logger.info(f"Applied theme '{theme_name}'")
             return True
         return False
 
     def save_user_theme(self, name: str) -> bool:
-        """Saves current active tokens as a user custom theme."""
+        """Saves current active base colors, toggles, and sliders as a user custom theme."""
         if not name or not name.strip():
             return False
 
@@ -250,8 +368,13 @@ class ThemeManager(QObject):
         filename = f"{sanitize_filename(clean_name)}.json"
         fpath = os.path.join(USER_THEMES_DIR, filename)
 
-        payload = {"name": clean_name}
-        payload.update(self.tokens)
+        payload = {
+            "name": clean_name,
+            "base_colors": self.base_colors,
+            "sources": self.sources,
+            "brightness": self.brightness
+        }
+        payload.update(self.base_colors)
 
         try:
             with open(fpath, "w", encoding="utf-8") as f:
@@ -282,8 +405,13 @@ class ThemeManager(QObject):
         new_filename = f"{sanitize_filename(clean_new_name)}.json"
         new_path = os.path.join(USER_THEMES_DIR, new_filename)
 
-        payload = {"name": clean_new_name}
-        payload.update(meta["tokens"])
+        payload = {
+            "name": clean_new_name,
+            "base_colors": meta["base_colors"],
+            "sources": meta["sources"],
+            "brightness": meta["brightness"]
+        }
+        payload.update(meta["base_colors"])
 
         try:
             with open(new_path, "w", encoding="utf-8") as f:
@@ -310,23 +438,29 @@ class ThemeManager(QObject):
         if source_name not in available:
             return False
 
-        source_tokens = available[source_name]["tokens"]
+        meta = available[source_name]
         clean_new_name = new_name.strip()
         new_filename = f"{sanitize_filename(clean_new_name)}.json"
         new_path = os.path.join(USER_THEMES_DIR, new_filename)
 
-        payload = {"name": clean_new_name}
-        payload.update(source_tokens)
+        payload = {
+            "name": clean_new_name,
+            "base_colors": meta["base_colors"],
+            "sources": meta["sources"],
+            "brightness": meta["brightness"]
+        }
+        payload.update(meta["base_colors"])
 
         try:
             with open(new_path, "w", encoding="utf-8") as f:
                 json.dump(payload, f, indent=4)
 
-            self.tokens = source_tokens.copy()
+            self.base_colors = meta["base_colors"].copy()
+            self.sources = meta["sources"].copy()
+            self.brightness = meta["brightness"].copy()
             self.active_theme_name = clean_new_name
-            self._save_custom_theme()
+            self.recalculate_theme()
             self._sync_config_ini(custom_path=new_path)
-            self.theme_changed.emit(self.tokens.copy())
             logger.info(f"Copied theme '{source_name}' to '{clean_new_name}'")
             return True
         except Exception as e:
@@ -350,7 +484,6 @@ class ThemeManager(QObject):
 
             logger.info(f"Deleted user theme '{name}'")
 
-            # If deleted theme was active, revert to Default Neon Purple
             if self.active_theme_name == name:
                 self.apply_theme_by_name("Default Neon Purple")
             else:
@@ -359,6 +492,35 @@ class ThemeManager(QObject):
         except Exception as e:
             logger.error(f"Failed to delete theme '{name}': {e}")
             return False
+
+    def export_theme_json(self, filepath: str) -> bool:
+        """Exports base colors, toggles, and sliders to JSON."""
+        return self.export_theme(filepath)
+
+    def export_theme(self, json_path: str) -> bool:
+        """Exports active theme tokens to a JSON file."""
+        try:
+            dir_name = os.path.dirname(json_path)
+            if dir_name:
+                os.makedirs(dir_name, exist_ok=True)
+            payload = {
+                "name": self.active_theme_name,
+                "base_colors": self.base_colors,
+                "sources": self.sources,
+                "brightness": self.brightness
+            }
+            payload.update(self.base_colors)
+            with open(json_path, "w", encoding="utf-8") as f:
+                json.dump(payload, f, indent=4)
+            logger.info(f"Successfully exported theme to {json_path}")
+            return True
+        except Exception as e:
+            logger.error(f"Failed to export theme to {json_path}: {e}")
+            return False
+
+    def import_theme_json(self, filepath: str) -> bool:
+        """Imports theme JSON and triggers recalculate_theme()."""
+        return self.import_theme(filepath)
 
     def import_theme(self, json_path: str) -> bool:
         """Imports theme tokens from a JSON file."""
@@ -374,55 +536,48 @@ class ThemeManager(QObject):
                 logger.error(f"Invalid theme format in {json_path}")
                 return False
 
-            updated = False
-            for k in DEFAULT_TOKENS.keys():
-                if k in data:
-                    self.tokens[k] = normalize_hex8(str(data[k]), default=self.tokens[k])
-                    updated = True
+            if "base_colors" in data and isinstance(data["base_colors"], dict):
+                for k, v in data["base_colors"].items():
+                    if k in self.base_colors:
+                        self.base_colors[k] = normalize_hex8(str(v), default=self.base_colors[k])
+                if "sources" in data and isinstance(data["sources"], dict):
+                    self.sources.update(data["sources"])
+                if "brightness" in data and isinstance(data["brightness"], dict):
+                    self.brightness.update(data["brightness"])
+            else:
+                for k in DEFAULT_BASE_COLORS.keys():
+                    if k in data:
+                        self.base_colors[k] = normalize_hex8(str(data[k]), default=self.base_colors[k])
+                if "background" in data and "window_bg" not in data:
+                    self.base_colors["window_bg"] = normalize_hex8(str(data["background"]), default=self.base_colors["window_bg"])
 
-            if updated:
-                name = data.get("name", os.path.basename(json_path).replace(".json", ""))
-                self.active_theme_name = name
-                self._save_custom_theme()
-                self._sync_config_ini(custom_path=json_path)
-                self.theme_changed.emit(self.tokens.copy())
-                logger.info(f"Successfully imported theme from {json_path}")
-                return True
-            return False
+            name = data.get("name", os.path.basename(json_path).replace(".json", ""))
+            self.active_theme_name = name
+            self.recalculate_theme()
+            logger.info(f"Successfully imported theme from {json_path}")
+            return True
         except Exception as e:
             logger.error(f"Failed to import theme from {json_path}: {e}")
             return False
 
-    def export_theme(self, json_path: str) -> bool:
-        """Exports active theme tokens to a JSON file."""
-        try:
-            dir_name = os.path.dirname(json_path)
-            if dir_name:
-                os.makedirs(dir_name, exist_ok=True)
-            payload = {"name": self.active_theme_name}
-            payload.update(self.tokens)
-            with open(json_path, "w", encoding="utf-8") as f:
-                json.dump(payload, f, indent=4)
-            logger.info(f"Successfully exported theme to {json_path}")
-            return True
-        except Exception as e:
-            logger.error(f"Failed to export theme to {json_path}: {e}")
-            return False
-
     def generate_qss(self) -> str:
-        """Generates dynamic application-wide QSS stylesheet."""
-        bg_color = self.get_color("background")
+        """Generates dynamic application-wide QSS stylesheet from calculated tokens."""
         window_bg_color = self.get_color("window_bg")
+        widget_bg_color = self.get_color("widget_bg")
         accent_1 = self.get_color("accent_1")
         accent_2 = self.get_color("accent_2")
+        outline_color = self.get_color("outline")
+        btn_color = self.get_color("button_bg")
+        btn_hover_color = self.get_color("button_hover")
+        btn_pressed_color = self.get_color("button_pressed")
+        text_color = self.get_color("text")
 
         window_bg_solid = color_to_rgba_str(window_bg_color, alpha_override=1.0)
-        bg_solid = color_to_rgba_str(bg_color, alpha_override=1.0)
-        bg_glass = color_to_rgba_str(bg_color, alpha_override=0.85)
-        bg_card_inner = color_to_rgba_str(bg_color, alpha_override=0.60)
+        widget_bg_glass = color_to_rgba_str(widget_bg_color, alpha_override=0.85)
+        widget_bg_solid = color_to_rgba_str(widget_bg_color, alpha_override=1.0)
 
-        border_glass = color_to_rgba_str(accent_1, alpha_override=0.35)
-        border_hover = color_to_rgba_str(accent_1, alpha_override=0.70)
+        border_outline = color_to_rgba_str(outline_color, alpha_override=0.45)
+        border_hover = color_to_rgba_str(outline_color, alpha_override=0.75)
 
         accent_1_hex = color_to_hex6(accent_1)
         accent_1_rgba = color_to_rgba_str(accent_1, alpha_override=1.0)
@@ -431,55 +586,61 @@ class ThemeManager(QObject):
         accent_2_hex = color_to_hex6(accent_2)
         accent_2_rgba = color_to_rgba_str(accent_2, alpha_override=1.0)
 
+        btn_bg_rgba = color_to_rgba_str(btn_color, alpha_override=0.80)
+        btn_hover_rgba = color_to_rgba_str(btn_hover_color, alpha_override=0.90)
+        btn_pressed_rgba = color_to_rgba_str(btn_pressed_color, alpha_override=1.0)
+
+        text_hex = color_to_hex6(text_color)
+
         return f"""
 /* Global Base Window & Viewport Background */
 QMainWindow, QDialog, QWidget#main_container, QTabWidget, QTabWidget::pane, QStackedWidget, QScrollArea, QAbstractScrollArea, QAbstractScrollArea::viewport, QScrollArea > QWidget, QScrollArea > QWidget > QWidget {{
     background-color: {window_bg_solid};
-    color: #ffffff;
+    color: {text_hex};
     font-family: "Inter", "Outfit", "Segoe UI", sans-serif;
 }}
 
 /* QTabWidget & Tab Bar Styling */
 QTabWidget::pane {{
-    border: 1px solid {border_glass};
+    border: 1px solid {border_outline};
     background-color: {window_bg_solid};
 }}
 
 QTabBar::tab {{
     background-color: rgba(255, 255, 255, 0.05);
-    border: 1px solid {border_glass};
+    border: 1px solid {border_outline};
     border-bottom: none;
     border-top-left-radius: 6px;
     border-top-right-radius: 6px;
     padding: 8px 16px;
-    color: rgba(255, 255, 255, 0.7);
+    color: {color_to_rgba_str(text_color, alpha_override=0.7)};
     font-weight: bold;
 }}
 
 QTabBar::tab:selected {{
     background-color: {accent_1_subtle};
     border-bottom: 2px solid {accent_1_hex};
-    color: #ffffff;
+    color: {text_hex};
 }}
 
 QTabBar::tab:hover:!selected {{
     background-color: rgba(255, 255, 255, 0.10);
-    color: #ffffff;
+    color: {text_hex};
 }}
 
 /* Glassmorphic Card Containers & GroupBoxes */
 QFrame.glass-card, QFrame#glass_card, QFrame.theme-card {{
-    background-color: {bg_glass};
-    border: 1px solid {border_glass};
+    background-color: {widget_bg_glass};
+    border: 1px solid {border_outline};
     border-radius: 12px;
 }}
 
 QGroupBox {{
-    background-color: {bg_glass};
-    border: 1px solid {border_glass};
+    background-color: {widget_bg_glass};
+    border: 1px solid {border_outline};
     border-radius: 10px;
     margin-top: 12px;
-    color: #ffffff;
+    color: {text_hex};
     font-weight: bold;
     font-size: 11px;
 }}
@@ -488,15 +649,15 @@ QGroupBox::title {{
     subcontrol-origin: margin;
     subcontrol-position: top left;
     padding: 0 6px;
-    color: #ffffff;
+    color: {text_hex};
     font-weight: bold;
 }}
 
 /* Dynamic High-Contrast Text Fields & Inputs */
 QLineEdit, QComboBox, QSpinBox, QDoubleSpinBox {{
-    background-color: {bg_glass};
-    border: 1.5px solid {accent_1_rgba};
-    color: #ffffff;
+    background-color: {widget_bg_glass};
+    border: 1.5px solid {border_outline};
+    color: {text_hex};
     border-radius: 6px;
     padding: 6px 10px;
     selection-background-color: {accent_1_subtle};
@@ -507,40 +668,40 @@ QLineEdit:focus, QComboBox:focus, QSpinBox:focus {{
 }}
 
 QLineEdit::placeholder {{
-    color: rgba(255, 255, 255, 0.55);
+    color: {color_to_rgba_str(text_color, alpha_override=0.55)};
     font-style: italic;
 }}
 
 QComboBox QAbstractItemView {{
-    background-color: {bg_solid};
-    border: 1px solid {border_glass};
-    color: #ffffff;
+    background-color: {widget_bg_solid};
+    border: 1px solid {border_outline};
+    color: {text_hex};
     selection-background-color: {accent_1_subtle};
 }}
 
 /* Interactive Buttons */
 QPushButton.accent-btn, QPushButton#action_btn {{
-    background-color: {accent_1_subtle};
+    background-color: {btn_bg_rgba};
     border: 1px solid {border_hover};
-    color: #ffffff;
+    color: {text_hex};
     border-radius: 6px;
     padding: 8px 14px;
     font-weight: bold;
 }}
 
 QPushButton.accent-btn:hover, QPushButton#action_btn:hover {{
-    background-color: {color_to_rgba_str(accent_1, alpha_override=0.40)};
-    border: 1px solid {accent_1_hex};
+    background-color: {btn_hover_rgba};
+    border: 1px solid {border_outline};
 }}
 
 QPushButton.accent-btn:pressed, QPushButton#action_btn:pressed {{
-    background-color: {color_to_rgba_str(accent_1, alpha_override=0.60)};
+    background-color: {btn_pressed_rgba};
 }}
 
 QPushButton.secondary-btn {{
     background-color: rgba(255, 255, 255, 0.08);
     border: 1px solid rgba(255, 255, 255, 0.20);
-    color: #ffffff;
+    color: {text_hex};
     border-radius: 6px;
     padding: 6px 12px;
 }}
@@ -551,7 +712,7 @@ QPushButton.secondary-btn:hover {{
 
 /* Checkboxes */
 QCheckBox {{
-    color: #ffffff;
+    color: {text_hex};
     spacing: 8px;
 }}
 
@@ -560,7 +721,7 @@ QCheckBox::indicator {{
     height: 18px;
     border-radius: 4px;
     border: 1.5px solid {border_hover};
-    background-color: {bg_card_inner};
+    background-color: {color_to_rgba_str(widget_bg_color, alpha_override=0.6)};
 }}
 
 QCheckBox::indicator:checked {{
@@ -571,8 +732,8 @@ QCheckBox::indicator:checked {{
 /* Horizontal Sliders */
 QSlider::groove:horizontal {{
     height: 6px;
-    background: {bg_card_inner};
-    border: 1px solid {border_glass};
+    background: {color_to_rgba_str(widget_bg_color, alpha_override=0.6)};
+    border: 1px solid {border_outline};
     border-radius: 3px;
 }}
 
@@ -597,11 +758,11 @@ QSlider::handle:horizontal:hover {{
 
 /* Labels & Headers */
 QLabel {{
-    color: #ffffff;
+    color: {text_hex};
 }}
 
 QLabel.muted {{
-    color: rgba(255, 255, 255, 0.65);
+    color: {color_to_rgba_str(text_color, alpha_override=0.65)};
 }}
 
 QLabel.accent-header {{
@@ -622,20 +783,34 @@ QLabel.output-header {{
                 with open(CUSTOM_THEME_RELATIVE_PATH, "r", encoding="utf-8") as f:
                     data = json.load(f)
                 if isinstance(data, dict):
-                    for k in DEFAULT_TOKENS.keys():
-                        if k in data:
-                            self.tokens[k] = normalize_hex8(str(data[k]), default=DEFAULT_TOKENS[k])
+                    if "base_colors" in data and isinstance(data["base_colors"], dict):
+                        for k, v in data["base_colors"].items():
+                            if k in self.base_colors:
+                                self.base_colors[k] = normalize_hex8(str(v), default=DEFAULT_BASE_COLORS[k])
+                    else:
+                        for k in DEFAULT_BASE_COLORS.keys():
+                            if k in data:
+                                self.base_colors[k] = normalize_hex8(str(data[k]), default=DEFAULT_BASE_COLORS[k])
+                    if "sources" in data and isinstance(data["sources"], dict):
+                        self.sources.update(data["sources"])
+                    if "brightness" in data and isinstance(data["brightness"], dict):
+                        self.brightness.update(data["brightness"])
                     if "name" in data:
                         self.active_theme_name = data["name"]
             except Exception as e:
                 logger.warning(f"Could not load custom theme from {CUSTOM_THEME_RELATIVE_PATH}: {e}")
 
     def _save_custom_theme(self) -> None:
-        """Saves current tokens to themes/custom_theme.json."""
+        """Saves current theme configuration to themes/custom_theme.json."""
         try:
             os.makedirs("themes", exist_ok=True)
-            payload = {"name": self.active_theme_name}
-            payload.update(self.tokens)
+            payload = {
+                "name": self.active_theme_name,
+                "base_colors": self.base_colors,
+                "sources": self.sources,
+                "brightness": self.brightness
+            }
+            payload.update(self.base_colors)
             with open(CUSTOM_THEME_RELATIVE_PATH, "w", encoding="utf-8") as f:
                 json.dump(payload, f, indent=4)
         except Exception as e:
@@ -655,9 +830,15 @@ QLabel.output-header {{
 
         config.set("UI", "theme_name", self.active_theme_name)
         config.set("UI", "theme_path", custom_path or CUSTOM_THEME_RELATIVE_PATH)
-        config.set("UI", "accent_1", self.tokens.get("accent_1", "#A855F7FF"))
-        config.set("UI", "accent_2", self.tokens.get("accent_2", "#00F5A0FF"))
-        config.set("UI", "background", self.tokens.get("background", "#0C0914FF"))
+        config.set("UI", "accent_1", self.base_colors.get("accent_1", "#A855F7FF"))
+        config.set("UI", "accent_2", self.base_colors.get("accent_2", "#00F5A0FF"))
+        config.set("UI", "window_bg", self.base_colors.get("window_bg", "#0C0914FF"))
+        config.set("UI", "text", self.base_colors.get("text", "#FFFFFFFF"))
+        config.set("UI", "button_color_source", self.sources.get("button_color_source", "accent_1"))
+        config.set("UI", "widget_bg_source", self.sources.get("widget_bg_source", "window_bg"))
+        config.set("UI", "outline_source", self.sources.get("outline_source", "accent_1"))
+        config.set("UI", "widget_brightness", str(self.brightness.get("widget_brightness", 0)))
+        config.set("UI", "graph_brightness", str(self.brightness.get("graph_brightness", 0)))
 
         try:
             with open(CONFIG_INI_PATH, "w", encoding="utf-8") as f:

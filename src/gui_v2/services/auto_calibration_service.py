@@ -41,15 +41,21 @@ class ProfileDecisionEngine(QObject):
             self.state_changed.emit(state)
             logger.info(f"ProfileDecisionEngine state changed to: {state.name}")
 
-    def process_device(self, device_info: dict, is_xinput: bool = False) -> None:
+    def process_device(self, device_info: dict, is_xinput: bool = False, force_calibrate: bool = False) -> None:
         """
         Executes automated profile decision tree when a controller is detected during CONNECTING state.
         
         Args:
             device_info: Dictionary containing HID device attributes (vendor_id, product_id, product_string, path, etc.)
             is_xinput: True if controller is actively in XInput mode.
+            force_calibrate: If True, skips profile checks and launches calibration wizard directly.
         """
         self.set_state(ConnectionState.CONNECTING)
+
+        if force_calibrate:
+            logger.info(f"Force calibration requested for device {device_info.get('product_string')}. Triggering wizard.")
+            self.launch_wizard.emit(device_info)
+            return
 
         # 1. Is Controller in XInput Mode?
         if is_xinput:

@@ -199,7 +199,11 @@ class TransitionOverlayWidget(QWidget):
         self.anim.setEndValue(1.0)
         
         try:
-            self.anim.finished.disconnect()
+            self.anim.finished.disconnect(self._on_fade_in_finished)
+        except Exception:
+            pass
+        try:
+            self.anim.finished.disconnect(self._on_fade_out_finished)
         except Exception:
             pass
 
@@ -217,7 +221,11 @@ class TransitionOverlayWidget(QWidget):
         self.anim.setEndValue(0.0)
 
         try:
-            self.anim.finished.disconnect()
+            self.anim.finished.disconnect(self._on_fade_in_finished)
+        except Exception:
+            pass
+        try:
+            self.anim.finished.disconnect(self._on_fade_out_finished)
         except Exception:
             pass
 

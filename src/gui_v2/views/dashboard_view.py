@@ -263,15 +263,17 @@ class DashboardView(QWidget):
 
     def _on_device_selected(self, device_info: dict) -> None:
         """Triggered when user selects a device card in State A."""
-        self.overlay.trigger_transition("CONNECTING", f"Resolving profile for {device_info.get('product_string', 'Device')}...")
-        self.decision_engine.process_device(device_info, is_xinput=False)
+        self.overlay.hide()
+        self.decision_engine.process_device(device_info, is_xinput=False, force_calibrate=True)
 
     def _on_profile_resolved(self, profile_path: str) -> None:
         """Profile decision engine resolved a profile."""
+        self.overlay.hide()
         self.transition_to_state(ConnectionState.CONNECTED)
 
     def _on_launch_wizard(self, device_info: dict) -> None:
         """Profile decision engine requested calibration wizard."""
+        self.overlay.hide()
         dlg = NativeCalibrationWizardDialog(device_info, self)
         dlg.calibration_complete.connect(self._on_profile_resolved)
         dlg.exec()
@@ -386,10 +388,10 @@ class DashboardView(QWidget):
         if not status_data:
             return
 
-        status = str(status_data.get("status", "DISCONNECTED"))
+        status = str(status_data.get("status", "DISCONNECTED")).upper()
         device = str(status_data.get("device", "Unknown Device"))
 
-        if status.upper() in ("CONNECTED", "CONNECTED"):
+        if status == "CONNECTED":
             self.status_badge.setText("CONNECTED")
             self.status_badge.setStyleSheet("""
                 background-color: #16a34a;
@@ -399,9 +401,10 @@ class DashboardView(QWidget):
                 padding: 4px 10px;
                 font-size: 11px;
             """)
+            self.device_label.setText(f"🎮 {device}")
             self.transition_to_state(ConnectionState.CONNECTED)
-        elif status.upper() in ("CONNECTING", "WAITING"):
-            self.status_badge.setText(status.upper())
+        elif status == "CONNECTING":
+            self.status_badge.setText("CONNECTING")
             self.status_badge.setStyleSheet("""
                 background-color: #eab308;
                 color: #ffffff;
@@ -410,6 +413,19 @@ class DashboardView(QWidget):
                 padding: 4px 10px;
                 font-size: 11px;
             """)
+            self.device_label.setText(f"🎮 Connecting to {device}...")
+        elif status == "WAITING":
+            self.status_badge.setText("WAITING")
+            self.status_badge.setStyleSheet("""
+                background-color: #eab308;
+                color: #ffffff;
+                font-weight: bold;
+                border-radius: 6px;
+                padding: 4px 10px;
+                font-size: 11px;
+            """)
+            self.device_label.setText("🎮 Waiting for Controller...")
+            self.transition_to_state(ConnectionState.WAITING)
         else:
             self.status_badge.setText("DISCONNECTED")
             self.status_badge.setStyleSheet("""
@@ -420,9 +436,8 @@ class DashboardView(QWidget):
                 padding: 4px 10px;
                 font-size: 11px;
             """)
+            self.device_label.setText("🎮 No Controller Connected")
             self.transition_to_state(ConnectionState.WAITING)
-
-        self.device_label.setText(f"🎮 {device}")
 
         if self.controller_config and hasattr(self, 'button_matrix'):
             try:

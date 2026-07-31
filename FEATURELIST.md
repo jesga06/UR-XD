@@ -7,6 +7,16 @@
 
 ---
 
+## 📜 Standardized Severity Logging System & Event-Driven Personality Quote Engine (`src/logger_setup.py`, `src/gui_v2/services/quote_engine.py`)
+* **Standardized Bracketed Severity Tags:** Standardizes log output using bracketed tags: `[INFO]`, `[SUCCESS]`, `[WARN]`, `[ERROR]`, `[DEBUG]`, and `[QUOTE]`.
+* **Custom Logging Levels & Methods:** Registers `SUCCESS` (Level 22) and `QUOTE` (Level 25) on Python's `logging.Logger` (`logger.success()`, `logger.quote()`).
+* **Terminal Log Filtering:** Excludes `DEBUG` lines from terminal stdout using `NoDebugTerminalFilter`, while routing all levels to `.log` files when debug mode is enabled.
+* **Telemetry Isolation & Rate-Limiting:** High-frequency telemetry logs are strictly isolated to `wrapper_telemetry.log` (`propagate = False`) and rate-limited to at most 1 log per 500ms (2Hz).
+* **Event-Driven Personality Quote Engine:** Loads quotes from `src/.loading_quotes.json`, triggers event quotes (`boot`, `connect`, `profile_change`), rotates quotes on a 7.5-minute idle timer, and connects to `TransitionOverlayWidget`.
+* **Log Export Sanitation Filter:** `diagnostics/package_report.py` and `generate_issue_report.bat` automatically strip all `[QUOTE]` flavor text lines from log files prior to packaging `issue_report.zip` for developers.
+
+---
+
 ## 🎮 Interactive Calibration Wizard (`src/calibration.py`)
 Run calibration using `calibrate.bat` (or via `tools_and_diagnostics.bat`) to configure and profile a new gamepad.
 * **Auto-Device Detection:** Detects and highlights physical gamepads automatically as soon as you press a button or move a stick.

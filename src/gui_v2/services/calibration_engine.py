@@ -9,10 +9,18 @@ import os
 import sys
 import json
 import time
+import logging
 from typing import Dict, Any, Optional, List, Tuple, Set
 
 from PySide6.QtCore import QObject, Signal
 from PySide6.QtWidgets import QApplication
+
+logger = logging.getLogger("CalibrationEngine")
+if not logger.handlers:
+    h = logging.StreamHandler(sys.stdout)
+    h.setFormatter(logging.Formatter("[%(asctime)s][CALIB-ENGINE][%(levelname)s] %(message)s"))
+    logger.addHandler(h)
+    logger.setLevel(logging.DEBUG)
 
 
 def get_layout_labels(layout_type: str) -> Dict[str, str]:
@@ -169,18 +177,22 @@ class CalibrationEngine(QObject):
             return
 
         if time.time() < self.ignore_until_time:
+            rem = self.ignore_until_time - time.time()
+            logger.debug(f"[COOLDOWN] Report {iface_num}_{report_id} suppressed ({rem:.2f}s remaining)")
             return
 
         full_id = f"{iface_num}_{report_id}"
         self.latest_reports[full_id] = list(payload)
 
         if full_id not in self.baselines:
+            logger.info(f"[BASELINE] First report received for {full_id}. Storing rest baseline.")
             self.baselines[full_id] = list(payload)
             return
 
         base = self.baselines[full_id]
         curr = payload
         if len(curr) != len(base):
+            logger.warning(f"[PAYLOAD-MISMATCH] Report {full_id} length {len(curr)} != baseline length {len(base)}")
             return
 
         name, cat, prompt = self.steps[self.current_step_idx]
@@ -197,6 +209,9 @@ class CalibrationEngine(QObject):
             for b_idx in range(len(latest_data)):
                 if latest_data[b_idx] != b_data[b_idx]:
                     diffs.append((fid, b_idx, latest_data[b_idx], b_data[b_idx]))
+
+        if diffs:
+            logger.debug(f"[DIFFS-DETECTED] Step {self.current_step_idx+1}/{len(self.steps)} ('{name}' | {cat}): {diffs}")
 
         if not diffs and cat != "triggers":
             return
@@ -559,6 +574,9 @@ class CalibrationEngine(QObject):
         Prompt user to release button, wait until input returns to baseline,
         pause 0.8s for rest state settling, re-baseline, and advance to next step.
         """
+        curr_step_name = self.steps[self.current_step_idx][0] if self.current_step_idx < len(self.steps) else "END"
+        logger.info(f"[ADVANCE-START] Step {self.current_step_idx+1}/{len(self.steps)} ('{curr_step_name}') | released='{released_name}'")
+
         if released_name and self.current_step_idx < len(self.steps):
             name, cat, prompt = self.steps[self.current_step_idx]
             rel_upper = released_name.upper()
@@ -587,9 +605,11 @@ class CalibrationEngine(QObject):
                                 if latest_data[b_idx] != b_data[b_idx]:
                                     diff_count += 1
                 if diff_count == 0:
+                    logger.info(f"[RELEASE-CONFIRMED] Input '{released_name}' returned to baseline in {time.time()-start_wait:.2f}s")
                     break
 
         # Post-release rest settling delay (0.8s)
+        logger.info(f"[SETTLING-START] Pausing 0.8s for rest state settling...")
         start_rest = time.time()
         while time.time() - start_rest < 0.8:
             time.sleep(0.04)
@@ -597,10 +617,12 @@ class CalibrationEngine(QObject):
                 QApplication.processEvents()
             except Exception:
                 pass
+        logger.info(f"[SETTLING-COMPLETE] Rest state settled.")
 
         # Re-baseline on clean rest state
         for fid, latest_data in list(self.latest_reports.items()):
             self.baselines[fid] = list(latest_data)
+            logger.debug(f"[RE-BASELINE] {fid} rest baseline updated: {latest_data[:12]}")
 
         # Clear per-step history
         self.click_counts.clear()
@@ -610,7 +632,10 @@ class CalibrationEngine(QObject):
         self.trigger_samples.clear()
 
         self.current_step_idx += 1
-        self.ignore_until_time = time.time() + 0.8 if released_name in ("lx", "rx") else time.time() + 0.5
+        cooldown_sec = 0.8 if released_name in ("lx", "rx") else 0.5
+        self.ignore_until_time = time.time() + cooldown_sec
+        next_step_name = self.steps[self.current_step_idx][0] if self.current_step_idx < len(self.steps) else "DONE"
+        logger.info(f"[ADVANCE-COMPLETE] Now on Step {self.current_step_idx+1}/{len(self.steps)} ('{next_step_name}') | Cooldown set to {cooldown_sec:.1f}s")
         self._emit_current_prompt()
         try:
             QApplication.processEvents()
@@ -618,11 +643,13 @@ class CalibrationEngine(QObject):
             pass
 
     def skip_step(self) -> None:
+        logger.info(f"[USER-SKIP] Skiped step index {self.current_step_idx+1}")
         self.ignore_until_time = time.time() + 0.8
         self.status_updated.emit(f"Skipped step {self.current_step_idx + 1}.", "#FFFF55")
         self._advance_step()
 
     def undo_step(self) -> None:
+        logger.info(f"[USER-UNDO] Called on step index {self.current_step_idx+1}")
         if self.current_step_idx > 0:
             self.ignore_until_time = time.time() + 0.8
             self.current_step_idx -= 1
@@ -631,11 +658,13 @@ class CalibrationEngine(QObject):
             # Re-baseline on current rest state to eliminate stale diffs
             for fid, latest_data in list(self.latest_reports.items()):
                 self.baselines[fid] = list(latest_data)
+                logger.debug(f"[UNDO-REBASELINE] {fid} reset to: {latest_data[:12]}")
 
             # Revert from profile
             for rep_data in self.profile.get("reports", {}).values():
                 if "inputs" in rep_data and prev_name in rep_data["inputs"]:
                     del rep_data["inputs"][prev_name]
+                    logger.info(f"[UNDO-REVERT] Deleted mapped input '{prev_name}' from profile")
 
             # Clear all per-step history
             self.click_counts.clear()
@@ -644,6 +673,7 @@ class CalibrationEngine(QObject):
             self.trigger_start_time = 0
             self.trigger_samples.clear()
 
+            logger.info(f"[UNDO-COMPLETE] Now rewound to step index {self.current_step_idx+1} ('{prev_name}')")
             self._emit_current_prompt()
             self.status_updated.emit(f"Undid step. Re-mapping '{prev_name.upper()}'...", "#FFFF55")
             try:

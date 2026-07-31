@@ -164,6 +164,7 @@ class MainWindow(QMainWindow):
 
         elif index == 4 and self.advanced_view is None:
             self.advanced_view = AdvancedView(config_manager=self.config, theme_manager=self.theme_mgr, parent=self)
+            self.advanced_view.config_updated.connect(self._on_advanced_config_updated)
             self.tab_widget.removeTab(4)
             self.tab_widget.insertTab(4, self.advanced_view, "Advanced")
             self.tab_widget.setCurrentIndex(4)
@@ -173,6 +174,16 @@ class MainWindow(QMainWindow):
             self.tab_widget.removeTab(5)
             self.tab_widget.insertTab(5, self.utilities_view, "Utilities")
             self.tab_widget.setCurrentIndex(5)
+
+    def _on_advanced_config_updated(self) -> None:
+        """Refreshes Dashboard button matrix pills and Remapping extra buttons grid when hardware chords or macros change."""
+        if hasattr(self, "dashboard_view") and self.dashboard_view and hasattr(self.dashboard_view, "button_matrix"):
+            cfg = getattr(self, "config", None)
+            if cfg:
+                self.dashboard_view.button_matrix.load_profile_schema(cfg)
+
+        if hasattr(self, "remapping_view") and self.remapping_view and hasattr(self.remapping_view, "reload_extra_buttons_grid"):
+            self.remapping_view.reload_extra_buttons_grid()
 
     def _connect_signals(self):
         """Connects worker telemetry signals to dashboard and view slots."""

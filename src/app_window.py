@@ -139,6 +139,7 @@ class MainWindow(QMainWindow):
                     self.tab_widget.addTab(tab, name)
             elif name == "Advanced":
                 self.advanced_view = AdvancedView(config_manager=self.controller_config, theme_manager=self.theme_mgr)
+                self.advanced_view.config_updated.connect(self._on_advanced_config_updated)
                 self.tab_widget.addTab(self.advanced_view, name)
             elif name == "Utilities":
                 self.utilities_view = UtilitiesView(theme_manager=self.theme_mgr)
@@ -190,6 +191,16 @@ class MainWindow(QMainWindow):
 
         self.udp_worker.start()
         self.file_worker.start()
+
+    def _on_advanced_config_updated(self) -> None:
+        """Refreshes Dashboard button matrix pills and Remapping extra buttons grid when hardware chords or macros change."""
+        if hasattr(self, "dashboard_view") and self.dashboard_view and hasattr(self.dashboard_view, "button_matrix"):
+            cfg = getattr(self, "controller_config", getattr(self, "config", None))
+            if cfg:
+                self.dashboard_view.button_matrix.load_profile_schema(cfg)
+
+        if hasattr(self, "remapping_view") and self.remapping_view and hasattr(self.remapping_view, "reload_extra_buttons_grid"):
+            self.remapping_view.reload_extra_buttons_grid()
 
     def closeEvent(self, event) -> None:
         """

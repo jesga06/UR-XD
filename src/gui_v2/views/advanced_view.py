@@ -15,7 +15,7 @@ from PySide6.QtWidgets import (
     QLineEdit, QComboBox, QRadioButton, QButtonGroup, QScrollArea,
     QMessageBox, QGroupBox, QGridLayout
 )
-from PySide6.QtCore import Qt, Slot
+from PySide6.QtCore import Qt, Slot, Signal
 
 from gui_v2.services.theme_manager import ThemeManager, color_to_rgba_str, color_to_hex6
 from gui_v2.utils.debounced_saver import DebouncedConfigSaver
@@ -30,6 +30,8 @@ class AdvancedView(QWidget):
     Advanced View controlling Firmware Hardware Chords (Input Suppression)
     and Macros Studio sequence management.
     """
+
+    config_updated = Signal()
 
     def __init__(self, config_manager=None, theme_manager: Optional[ThemeManager] = None, parent=None):
         super().__init__(parent)
@@ -526,6 +528,9 @@ class AdvancedView(QWidget):
             logger.debug("[AdvancedView] Saved macros.json successfully.")
         except Exception as e:
             logger.error(f"Failed to save macros.json: {e}")
+
+        # Emit update signal for live GUI & backend sync
+        self.config_updated.emit()
 
     # -------------------------------------------------------------------
     # THEME STYLING

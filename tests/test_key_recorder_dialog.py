@@ -136,5 +136,16 @@ class TestKeyRecorderDialog(unittest.TestCase):
         dlg._stop_listeners()
         dlg.close()
 
+    def test_default_button_name_and_get_recorded_key(self):
+        dlg = KeyRecorderDialog()
+        self.assertEqual(dlg.button_name, "Input")
+        self.assertEqual(dlg.get_recorded_key(), "")
+        
+        dlg._add_recorded_key("a")
+        self.assertEqual(dlg.get_recorded_key(), "keyboard:a")
+        
+        dlg._stop_listeners()
+        dlg.close()
+
 if __name__ == "__main__":
     unittest.main()

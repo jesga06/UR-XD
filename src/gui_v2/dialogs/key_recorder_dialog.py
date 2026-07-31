@@ -145,10 +145,10 @@ class KeyRecorderDialog(QDialog):
 
     input_recorded = Signal(str, str)
 
-    def __init__(self, button_name: str, parent=None):
+    def __init__(self, button_name: str = "Input", parent=None):
         super().__init__(parent)
         self.button_name = button_name
-        self.setWindowTitle(f"Record Mapping — {button_name.upper()}")
+        self.setWindowTitle(f"Record Mapping — {button_name.upper()}" if button_name else "Record Mapping")
         self.setMinimumWidth(420)
         self.setModal(True)
         self.setStyleSheet("QDialog { background-color: #0f0a1e; color: #ffffff; }")
@@ -639,6 +639,12 @@ class KeyRecorderDialog(QDialog):
     # ------------------------------------------------------------------
     # Result helpers
     # ------------------------------------------------------------------
+    def get_recorded_key(self) -> str:
+        """Returns the final recorded mapping string."""
+        if self._is_showing_scroll:
+            return self._build_scroll_result()
+        return self._result
+
     def _set_result(self, value: str) -> None:
         """Update the result string and preview label."""
         logger.debug(f"[RECORDER] _set_result({value!r})")

@@ -55,11 +55,44 @@ def show_console():
 
 
 gui_processes = []
+gui_opened = False
+
+
+def resolve_xinput_device_name(devices: list) -> str:
+    """Query physical HID devices to resolve actual product string for XInput controllers."""
+    for d in devices:
+        prod = d.get('product_string')
+        vid = d.get('vendor_id', 0)
+        pid = d.get('product_id', 0)
+        # Exclude virtual Xbox 360 controller spawned by vgamepad (0x045E:0x028E)
+        if vid == 0x045E and pid == 0x028E:
+            continue
+        if prod and not any(kw in prod.upper() for kw in ("KEYBOARD", "MOUSE", "KB")):
+            clean_name = prod
+            if clean_name.startswith("Controller (") and clean_name.endswith(")"):
+                clean_name = clean_name[12:-1]
+            return clean_name
+    return "XInput Gamepad"
 
 
 def open_config(icon, item):
+    global gui_opened
     if logger:
         logger.debug(f"[ENTER] open_config called with args: icon={icon}, item={item}")
+    
+    # Check if an existing GUI process is running
+    for p in list(gui_processes):
+        if p.poll() is None:
+            gui_opened = True
+            if logger:
+                logger.debug("GUI instance is already running; skipping launch.")
+            return
+
+    if gui_opened:
+        if logger:
+            logger.debug("GUI already opened in this session; skipping launch.")
+        return
+
     try:
         script_dir = os.path.dirname(os.path.abspath(__file__))
         gui_path = os.path.join(script_dir, 'main_gui.py')
@@ -70,6 +103,7 @@ def open_config(icon, item):
             logger.debug(f"  [DEBUG] Launching GUI with cmd: {cmd}")
         p = subprocess.Popen(cmd)
         gui_processes.append(p)
+        gui_opened = True
         if logger:
             logger.debug(f"[EXIT] open_config completed successfully. PID: {p.pid}")
     except Exception as e:
@@ -250,22 +284,7 @@ def main():
         test_xinput = XInputBackend()
         if test_xinput.initialize():
             logger.info(f"XInput controller detected on slot {test_xinput.connected_slot} (no DInput HID map required).")
-            # Query physical HID devices to resolve the real product string instead of generic "XInput Gamepad"
-            detected_name = None
-            for d in devices:
-                prod = d.get('product_string')
-                vid = d.get('vendor_id', 0)
-                pid = d.get('product_id', 0)
-                # Exclude virtual Xbox 360 controller spawned by vgamepad (0x045E:0x028E)
-                if vid == 0x045E and pid == 0x028E:
-                    continue
-                if prod and not any(kw in prod.upper() for kw in ("KEYBOARD", "MOUSE", "KB")):
-                    clean_name = prod
-                    if clean_name.startswith("Controller (") and clean_name.endswith(")"):
-                        clean_name = clean_name[12:-1]
-                    detected_name = clean_name
-                    break
-            device_name = detected_name or "XInput Gamepad"
+            device_name = resolve_xinput_device_name(devices)
             hid_map_path = None
         else:
             logger.warning("No connected devices with a saved HID map or XInput slot found.")
@@ -300,7 +319,7 @@ def main():
                 if not hid_map_path:
                     test_xinput = XInputBackend()
                     if test_xinput.initialize():
-                        device_name = "XInput Gamepad"
+                        device_name = resolve_xinput_device_name(devices)
                         hid_map_path = None
                         break
 

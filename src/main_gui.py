@@ -9,6 +9,7 @@ import argparse
 from PySide6.QtWidgets import QApplication
 
 from logger_setup import setup_gui_loggers
+from single_instance import ensure_single_instance, PORT_GUI
 from theme import GLOBAL_QSS
 from app_window import MainWindow
 from tray_icon import TrayManager
@@ -19,6 +20,8 @@ def main():
     Main execution hook for the GUI process.
     Initializes non-blocking Qt execution loop.
     """
+    ensure_single_instance('gui', PORT_GUI)
+
     # Parse --debug before doing anything else so loggers are ready
     parser = argparse.ArgumentParser()
     parser.add_argument('--debug', '-d', action='store_true',

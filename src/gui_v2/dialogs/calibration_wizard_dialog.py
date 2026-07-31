@@ -24,6 +24,7 @@ from hid_reader import HIDReader, RawHIDReport
 from backend_xinput import XInputBackend, XINPUT_STATE, XINPUT_GAMEPAD_A, XINPUT_GAMEPAD_B
 from gui_v2.services.theme_manager import ThemeManager, color_to_rgba_str, color_to_hex6
 from gui_v2.services.calibration_engine import CalibrationEngine
+from gui_v2.widgets.stick_radar import StickRadarWidget
 
 
 class NativeCalibrationWizardDialog(QDialog):
@@ -33,7 +34,7 @@ class NativeCalibrationWizardDialog(QDialog):
     Step 1: Welcome & Layout Selection + Extra Buttons Entry
     Step 2: Rest State Baseline Capture
     Step 3: Interactive Button & D-Pad Hat Switch Calibration
-    Step 4: Analog Stick Range, Inversion & Trigger Sampling
+    Step 4: Analog Stick Range, Inversion, Radar Verification & Trigger Sampling
     Step 5: Save & Finish
     """
     calibration_complete = Signal(str)  # Emits path to saved profile JSON
@@ -43,18 +44,20 @@ class NativeCalibrationWizardDialog(QDialog):
         super().__init__(parent)
         self.device_info = device_info
         self.setWindowTitle("Controller Calibration Wizard")
-        self.setMinimumSize(720, 560)
+        self.setMinimumSize(720, 600)
 
         self.layout_type: str = "xbox"
         self.reader: Optional[HIDReader] = None
         self.latest_report: Optional[RawHIDReport] = None
         self.report_payloads: Dict[str, List[int]] = {}
+        self.current_verify_stick: str = "left"
 
         # Instantiate CalibrationEngine
         self.engine = CalibrationEngine(device_info=self.device_info, layout_type=self.layout_type)
         self.engine.prompt_changed.connect(self._on_engine_prompt_changed)
         self.engine.status_updated.connect(self._on_engine_status_updated)
         self.engine.calibration_finished.connect(self._on_engine_finished)
+        self.engine.stick_position_updated.connect(self._on_stick_position_updated)
 
         # XInput Detection 15s Timer
         self.xinput_time_remaining: float = 15.0
@@ -294,6 +297,17 @@ class NativeCalibrationWizardDialog(QDialog):
         self.lbl_stick_status = QLabel("Rotate sticks in 360° circles to register range...")
         self.lbl_stick_status.setAlignment(Qt.AlignmentFlag.AlignCenter)
 
+        # Embedded Stick Radar for verification steps
+        self.stick_radar_container = QWidget()
+        radar_box = QHBoxLayout(self.stick_radar_container)
+        radar_box.setContentsMargins(0, 0, 0, 0)
+        self.stick_radar = StickRadarWidget(title="Stick Telemetry Test")
+        self.stick_radar.setFixedSize(180, 180)
+        radar_box.addStretch()
+        radar_box.addWidget(self.stick_radar)
+        radar_box.addStretch()
+        self.stick_radar_container.setVisible(False)
+
         axis_action_box = QHBoxLayout()
         self.btn_undo_axis = QPushButton("↩ Undo Last Step")
         self.btn_undo_axis.clicked.connect(self.engine.undo_step)
@@ -301,14 +315,25 @@ class NativeCalibrationWizardDialog(QDialog):
         self.btn_skip_axis = QPushButton("Skip Step")
         self.btn_skip_axis.clicked.connect(self.engine.skip_step)
 
+        self.btn_redo_stick = QPushButton("↩ Re-do Left Stick")
+        self.btn_redo_stick.setVisible(False)
+        self.btn_redo_stick.clicked.connect(self._on_redo_stick_clicked)
+
+        self.btn_confirm_stick = QPushButton("Confirm & Continue")
+        self.btn_confirm_stick.setVisible(False)
+        self.btn_confirm_stick.clicked.connect(self.engine.confirm_stick)
+
         axis_action_box.addStretch()
         axis_action_box.addWidget(self.btn_undo_axis)
         axis_action_box.addWidget(self.btn_skip_axis)
+        axis_action_box.addWidget(self.btn_redo_stick)
+        axis_action_box.addWidget(self.btn_confirm_stick)
         axis_action_box.addStretch()
 
         layout.addWidget(self.lbl_stick_prompt)
         layout.addWidget(self.lbl_target_axis)
         layout.addWidget(self.lbl_stick_status)
+        layout.addWidget(self.stick_radar_container)
         layout.addLayout(axis_action_box)
         layout.addStretch()
         return page
@@ -351,30 +376,28 @@ class NativeCalibrationWizardDialog(QDialog):
 
             self.setStyleSheet(f"""
                 QDialog {{
-                    background-color: {color_to_rgba_str(bg_color, alpha_override=0.95)};
+                    background-color: {color_to_hex6(bg_color)};
                     color: #ffffff;
                 }}
-                QFrame#wizard_card {{
-                    background-color: {bg_glass};
+                QGroupBox {{
                     border: 1px solid {border_glass};
                     border-radius: 8px;
-                    padding: 12px;
+                    margin-top: 12px;
+                    padding-top: 10px;
+                    font-weight: bold;
+                    color: #ffffff;
                 }}
-                QProgressBar {{
-                    border: none;
-                    background-color: {color_to_rgba_str(accent_1, alpha_override=0.2)};
-                    border-radius: 6px;
-                }}
-                QProgressBar::chunk {{
-                    background-color: {color_to_hex6(accent_1)};
-                    border-radius: 6px;
+                QGroupBox::title {{
+                    subcontrol-origin: margin;
+                    left: 10px;
+                    padding: 0 5px;
                 }}
                 QPushButton {{
                     background-color: {color_to_rgba_str(accent_1, alpha_override=0.2)};
-                    color: {color_to_hex6(accent_1)};
-                    border: 1px solid {color_to_rgba_str(accent_1, alpha_override=0.5)};
+                    color: #ffffff;
+                    border: 1px solid {border_glass};
                     border-radius: 6px;
-                    padding: 6px 16px;
+                    padding: 6px 14px;
                     font-weight: bold;
                 }}
                 QPushButton:hover {{
@@ -407,14 +430,42 @@ class NativeCalibrationWizardDialog(QDialog):
             self.lbl_target_btn.setStyleSheet(f"color: {prompt_color}; font-size: 18px; font-weight: bold;")
             self.stacked_widget.setCurrentIndex(3)
         elif cat in ("axes", "triggers"):
+            self.stick_radar_container.setVisible(False)
+            self.btn_redo_stick.setVisible(False)
+            self.btn_confirm_stick.setVisible(False)
+            self.btn_undo_axis.setVisible(True)
+            self.btn_skip_axis.setVisible(True)
             self.lbl_target_axis.setText(prompt)
             self.lbl_target_axis.setStyleSheet(f"color: {prompt_color}; font-size: 18px; font-weight: bold;")
+            self.stacked_widget.setCurrentIndex(4)
+        elif cat == "verify_stick":
+            self.current_verify_stick = "left" if key == "verify_ls" else "right"
+            stick_title = f"Verify {self.current_verify_stick.capitalize()} Stick Telemetry"
+            self.lbl_target_axis.setText(stick_title)
+            self.lbl_target_axis.setStyleSheet("color: #00f0ff; font-size: 18px; font-weight: bold;")
+            self.lbl_stick_status.setText("Rotate the stick to verify 360° range and centering on radar below.")
+            self.lbl_stick_status.setStyleSheet("color: #55FF55; font-weight: bold;")
+            self.stick_radar.title = f"{self.current_verify_stick.capitalize()} Stick"
+            self.stick_radar_container.setVisible(True)
+            self.btn_redo_stick.setText(f"↩ Re-do {self.current_verify_stick.capitalize()} Stick")
+            self.btn_redo_stick.setVisible(True)
+            self.btn_confirm_stick.setVisible(True)
+            self.btn_undo_axis.setVisible(False)
+            self.btn_skip_axis.setVisible(False)
             self.stacked_widget.setCurrentIndex(4)
         elif cat == "hat":
             display_text = prompt if is_release else "Press D-Pad UP (Hat Switch)"
             self.lbl_target_btn.setText(display_text)
             self.lbl_target_btn.setStyleSheet(f"color: {prompt_color}; font-size: 18px; font-weight: bold;")
             self.stacked_widget.setCurrentIndex(3)
+
+    @Slot(str, float, float)
+    def _on_stick_position_updated(self, stick_name: str, norm_x: float, norm_y: float) -> None:
+        if self.stacked_widget.currentIndex() == 4 and hasattr(self, 'stick_radar'):
+            self.stick_radar.update_telemetry(norm_x, norm_y)
+
+    def _on_redo_stick_clicked(self) -> None:
+        self.engine.redo_stick(self.current_verify_stick)
 
     @Slot(str, str)
     def _on_engine_status_updated(self, msg: str, color_hex: str) -> None:

@@ -42,6 +42,7 @@ class CalibrationEngine(QObject):
     status_updated = Signal(str, str)  # (message, color_hex)
     input_mapped = Signal(str, dict)  # (key, input_config)
     calibration_finished = Signal(dict)  # (profile_data)
+    stick_position_updated = Signal(str, float, float)  # (stick_name, norm_x, norm_y)
 
     def __init__(self, device_info: dict, layout_type: str = "xbox", extra_buttons: Optional[List[str]] = None, parent: Optional[QObject] = None):
         super().__init__(parent)
@@ -75,8 +76,10 @@ class CalibrationEngine(QObject):
             ("home", "buttons", "Press the Home/Guide button"),
             ("lx", "axes", "Move the Left Stick RIGHT"),
             ("ly", "axes", "Move the Left Stick UP"),
+            ("verify_ls", "verify_stick", "Verify Left Stick Telemetry"),
             ("rx", "axes", "Move the Right Stick RIGHT"),
             ("ry", "axes", "Move the Right Stick UP"),
+            ("verify_rs", "verify_stick", "Verify Right Stick Telemetry"),
             ("l3", "stick_clicks", f"Press the Left Stick button ({labels['l3']}) 3 TIMES"),
             ("r3", "stick_clicks", f"Press the Right Stick button ({labels['r3']}) 3 TIMES"),
             ("lt", "triggers", f"Press the Left Trigger ({labels['lt']})"),
@@ -119,8 +122,10 @@ class CalibrationEngine(QObject):
             ("home", "buttons", "Press the Home/Guide button"),
             ("lx", "axes", "Move the Left Stick RIGHT"),
             ("ly", "axes", "Move the Left Stick UP"),
+            ("verify_ls", "verify_stick", "Verify Left Stick Telemetry"),
             ("rx", "axes", "Move the Right Stick RIGHT"),
             ("ry", "axes", "Move the Right Stick UP"),
+            ("verify_rs", "verify_stick", "Verify Right Stick Telemetry"),
             ("l3", "stick_clicks", f"Press the Left Stick button ({labels['l3']}) 3 TIMES"),
             ("r3", "stick_clicks", f"Press the Right Stick button ({labels['r3']}) 3 TIMES"),
             ("lt", "triggers", f"Press the Left Trigger ({labels['lt']})"),
@@ -437,7 +442,7 @@ class CalibrationEngine(QObject):
                 if (fid, b_idx) in known_axis_bytes:
                     continue
                 amp8 = abs(curr_val - base_val)
-                if amp8 > 10:
+                if amp8 > 40:
                     candidates.append({'full_id': fid, 'byte': b_idx, 'norm_amp': amp8 / 255.0, 'amp': amp8, 'curr': curr_val, 'base': base_val})
 
             if candidates:
@@ -478,6 +483,54 @@ class CalibrationEngine(QObject):
                 self.input_mapped.emit(name, cfg)
                 self._advance_step(name)
                 return
+
+        # -------------------------------------------------------------------
+        # CATEGORY 4.5: VERIFY STICK (Live telemetry stream)
+        # -------------------------------------------------------------------
+        elif cat == "verify_stick":
+            stick_prefix = "left" if name == "verify_ls" else "right"
+            x_key = "lx" if stick_prefix == "left" else "rx"
+            y_key = "ly" if stick_prefix == "left" else "ry"
+
+            x_cfg = None
+            y_cfg = None
+            rep_id = None
+            for r_id, r_data in self.profile.get("reports", {}).items():
+                inputs = r_data.get("inputs", {})
+                if x_key in inputs and y_key in inputs:
+                    x_cfg = inputs[x_key]
+                    y_cfg = inputs[y_key]
+                    rep_id = r_id
+                    break
+
+            if x_cfg and y_cfg and rep_id in self.latest_reports:
+                latest = self.latest_reports[rep_id]
+                base = self.baselines.get(rep_id, latest)
+                b_x = x_cfg.get("byte", 0)
+                b_y = y_cfg.get("byte", 0)
+                if b_x < len(latest) and b_y < len(latest):
+                    raw_x = latest[b_x]
+                    raw_y = latest[b_y]
+                    base_x = base[b_x] if b_x < len(base) else 128
+                    base_y = base[b_y] if b_y < len(base) else 128
+
+                    def decode_norm(val, base_val, cfg, is_y=False):
+                        if cfg.get("signed", False):
+                            s_val = val - 256 if val >= 128 else val
+                            s_base = base_val - 256 if base_val >= 128 else base_val
+                            delta = s_val - s_base
+                        else:
+                            delta = val - base_val
+                        norm = delta / 128.0
+                        if cfg.get("invert", False):
+                            norm = -norm
+                        if is_y:
+                            norm = -norm
+                        return max(-1.0, min(1.0, norm))
+
+                    nx = decode_norm(raw_x, base_x, x_cfg)
+                    ny = decode_norm(raw_y, base_y, y_cfg, is_y=True)
+                    self.stick_position_updated.emit(stick_prefix, nx, ny)
 
         # -------------------------------------------------------------------
         # CATEGORY 5: HAT (4-bit nibble D-Pad switch)
@@ -552,7 +605,7 @@ class CalibrationEngine(QObject):
         self.trigger_samples.clear()
 
         self.current_step_idx += 1
-        self.ignore_until_time = time.time() + 0.5
+        self.ignore_until_time = time.time() + 0.8 if released_name in ("lx", "rx") else time.time() + 0.5
         self._emit_current_prompt()
         try:
             QApplication.processEvents()
@@ -592,3 +645,55 @@ class CalibrationEngine(QObject):
                 QApplication.processEvents()
             except Exception:
                 pass
+
+    def redo_stick(self, stick_name: str) -> None:
+        """
+        Rewinds step index to the first step of the target stick ('left' or 'right'),
+        deletes stick entries from profile, re-baselines, and re-engages listening.
+        """
+        target_key = "lx" if stick_name == "left" else "rx"
+        target_idx = -1
+        for idx, (s_key, _, _) in enumerate(self.steps):
+            if s_key == target_key:
+                target_idx = idx
+                break
+
+        if target_idx != -1:
+            self.ignore_until_time = time.time() + 0.8
+            self.current_step_idx = target_idx
+
+            remove_keys = ["lx", "ly"] if stick_name == "left" else ["rx", "ry"]
+            for rep_data in self.profile.get("reports", {}).values():
+                if "inputs" in rep_data:
+                    for r_key in remove_keys:
+                        if r_key in rep_data["inputs"]:
+                            del rep_data["inputs"][r_key]
+
+            for fid, latest_data in list(self.latest_reports.items()):
+                self.baselines[fid] = list(latest_data)
+
+            self.click_counts.clear()
+            self.byte_history.clear()
+            self.button_byte_history.clear()
+            self.trigger_start_time = 0
+            self.trigger_samples.clear()
+
+            self._emit_current_prompt()
+            self.status_updated.emit(f"Rewound to '{target_key.upper()}'. Re-mapping {stick_name.upper()} stick...", "#FFFF55")
+            try:
+                QApplication.processEvents()
+            except Exception:
+                pass
+
+    def confirm_stick(self) -> None:
+        """User confirmed stick radar response on verification step."""
+        if self.current_step_idx < len(self.steps):
+            name, cat, _ = self.steps[self.current_step_idx]
+            if cat == "verify_stick":
+                self.ignore_until_time = time.time() + 0.5
+                self.current_step_idx += 1
+                self._emit_current_prompt()
+                try:
+                    QApplication.processEvents()
+                except Exception:
+                    pass

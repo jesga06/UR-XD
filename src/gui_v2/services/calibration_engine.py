@@ -289,7 +289,13 @@ class CalibrationEngine(QObject):
                     self.button_byte_history[byte_key] = {base_val}
                 self.button_byte_history[byte_key].add(curr_val)
 
-                changed_bits = curr_val ^ base_val
+                if base_val == 0xFF:
+                    changed_bits = (~curr_val) & base_val
+                else:
+                    changed_bits = curr_val & ~base_val
+                    if changed_bits == 0:
+                        changed_bits = curr_val ^ base_val
+
                 if changed_bits != 0:
                     changed_bytes.append((fid, b_idx, changed_bits))
 
@@ -574,6 +580,9 @@ class CalibrationEngine(QObject):
         Prompt user to release button, wait until input returns to baseline,
         pause 0.8s for rest state settling, re-baseline, and advance to next step.
         """
+        if self.current_step_idx >= len(self.steps):
+            return
+
         curr_step_name = self.steps[self.current_step_idx][0] if self.current_step_idx < len(self.steps) else "END"
         logger.info(f"[ADVANCE-START] Step {self.current_step_idx+1}/{len(self.steps)} ('{curr_step_name}') | released='{released_name}'")
 

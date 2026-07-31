@@ -1,5 +1,11 @@
-# Features List
+## 🎮 Native PySide6 Calibration Wizard & Dynamic Connection Engine (`src/gui_v2/dialogs/calibration_wizard_dialog.py`)
+* **Explicit 6-State Connection FSM:** Tracks connection state machine transitions (`DISCONNECTED`, `WAITING`, `CONNECTING`, `CONNECTED`, `DISCONNECTING`, `INIT_FAILED`).
+* **Dual-State Dashboard Architecture:** Dynamically swaps between State A (Waiting View with USB HID Device Picker) and State B (Live Telemetry Dashboard).
+* **Animated Transition Overlay Engine:** Color-interpolated opacity cross-fades (250ms fade-in, 900ms hold, 250ms fade-out) featuring vector loading spinner and contextual loading quotes.
+* **Automated Profile Decision Tree:** Automated resolution logic checking XInput mode -> local profile -> community database -> native wizard launch.
+* **Native GUI Calibration Wizard Dialog:** Multi-step PySide6 dialog replacing legacy CLI calibration scripts, reusing `calibration.py` backend logic with layout selection, rest baseline capture, button mapping, stick range checks, and automatic XInput C-API hardware mode switch verification (`verify_xinput_switch()`).
 
+---
 
 ## 🎮 Interactive Calibration Wizard (`src/calibration.py`)
 Run calibration using `calibrate.bat` (or via `tools_and_diagnostics.bat`) to configure and profile a new gamepad.

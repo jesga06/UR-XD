@@ -89,6 +89,7 @@ class CalibrationEngine(QObject):
 
         self.current_step_idx: int = 0
         self.step_in_progress: bool = False
+        self.ignore_until_time: float = 0.0
 
         # State tracking per step (matching calibration.py reset lines 674-676)
         self.click_counts: Dict[Tuple[str, int, int], int] = {}
@@ -131,6 +132,7 @@ class CalibrationEngine(QObject):
 
     def start(self) -> None:
         self.current_step_idx = 0
+        self.ignore_until_time = 0.0
         self._emit_current_prompt()
 
     def _emit_current_prompt(self) -> None:
@@ -154,6 +156,9 @@ class CalibrationEngine(QObject):
         Process incoming raw HID payload. Verbatim port of calibration.py lines 713-1044.
         """
         if self.current_step_idx >= len(self.steps):
+            return
+
+        if time.time() < self.ignore_until_time:
             return
 
         full_id = f"{iface_num}_{report_id}"
@@ -547,6 +552,7 @@ class CalibrationEngine(QObject):
         self.trigger_samples.clear()
 
         self.current_step_idx += 1
+        self.ignore_until_time = time.time() + 0.5
         self._emit_current_prompt()
         try:
             QApplication.processEvents()
@@ -554,23 +560,35 @@ class CalibrationEngine(QObject):
             pass
 
     def skip_step(self) -> None:
+        self.ignore_until_time = time.time() + 0.8
         self.status_updated.emit(f"Skipped step {self.current_step_idx + 1}.", "#FFFF55")
         self._advance_step()
 
     def undo_step(self) -> None:
         if self.current_step_idx > 0:
+            self.ignore_until_time = time.time() + 0.8
             self.current_step_idx -= 1
             prev_name, _, _ = self.steps[self.current_step_idx]
+
+            # Re-baseline on current rest state to eliminate stale diffs
+            for fid, latest_data in list(self.latest_reports.items()):
+                self.baselines[fid] = list(latest_data)
 
             # Revert from profile
             for rep_data in self.profile.get("reports", {}).values():
                 if "inputs" in rep_data and prev_name in rep_data["inputs"]:
                     del rep_data["inputs"][prev_name]
 
+            # Clear all per-step history
             self.click_counts.clear()
             self.byte_history.clear()
             self.button_byte_history.clear()
             self.trigger_start_time = 0
+            self.trigger_samples.clear()
 
             self._emit_current_prompt()
             self.status_updated.emit(f"Undid step. Re-mapping '{prev_name.upper()}'...", "#FFFF55")
+            try:
+                QApplication.processEvents()
+            except Exception:
+                pass

@@ -528,10 +528,7 @@ class NativeCalibrationWizardDialog(QDialog):
         elif idx == 1:
             raw_extra = self.ent_extra_buttons.text().strip().lower()
             extra_names = [x.strip() for x in raw_extra.split(",") if x.strip()] if raw_extra else []
-            self.engine = CalibrationEngine(device_info=self.device_info, layout_type=self.layout_type, extra_buttons=extra_names)
-            self.engine.prompt_changed.connect(self._on_engine_prompt_changed)
-            self.engine.status_updated.connect(self._on_engine_status_updated)
-            self.engine.calibration_finished.connect(self._on_engine_finished)
+            self.engine.reconfigure(self.layout_type, extra_names)
         elif idx == 2:
             self.engine.start()
 

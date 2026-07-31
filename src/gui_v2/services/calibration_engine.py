@@ -99,6 +99,35 @@ class CalibrationEngine(QObject):
         self.trigger_start_time: float = 0.0
         self.trigger_samples: List[Tuple[str, List[int]]] = []
 
+    def reconfigure(self, layout_type: str, extra_buttons: Optional[List[str]] = None) -> None:
+        self.layout_type = layout_type
+        self.extra_buttons = extra_buttons or []
+        self.profile["layout"] = layout_type
+
+        labels = get_layout_labels(self.layout_type)
+        self.steps = [
+            ("a", "buttons", f"Press the '{labels['a']}' button"),
+            ("b", "buttons", f"Press the '{labels['b']}' button"),
+            ("x", "buttons", f"Press the '{labels['x']}' button"),
+            ("y", "buttons", f"Press the '{labels['y']}' button"),
+            ("lb", "buttons", f"Press the '{labels['lb']}' bumper"),
+            ("rb", "buttons", f"Press the '{labels['rb']}' bumper"),
+            ("select", "buttons", f"Press the '{labels['select']}' button"),
+            ("start", "buttons", f"Press the '{labels['start']}' button"),
+            ("home", "buttons", "Press the Home/Guide button"),
+            ("lx", "axes", "Move the Left Stick RIGHT"),
+            ("ly", "axes", "Move the Left Stick UP"),
+            ("rx", "axes", "Move the Right Stick RIGHT"),
+            ("ry", "axes", "Move the Right Stick UP"),
+            ("l3", "stick_clicks", f"Press the Left Stick button ({labels['l3']}) 3 TIMES"),
+            ("r3", "stick_clicks", f"Press the Right Stick button ({labels['r3']}) 3 TIMES"),
+            ("lt", "triggers", f"Press the Left Trigger ({labels['lt']})"),
+            ("rt", "triggers", f"Press the Right Trigger ({labels['rt']})"),
+            ("dpad", "hat", "Press the D-Pad UP (Assuming standard Hat switch)")
+        ]
+        for extra in self.extra_buttons:
+            self.steps.append((extra, "buttons", f"Press the '{extra.upper()}' extra button"))
+
     def start(self) -> None:
         self.current_step_idx = 0
         self._emit_current_prompt()
@@ -304,19 +333,21 @@ class CalibrationEngine(QObject):
                     if byte_idx < len(unique_counts[fid]):
                         unique_counts[fid][byte_idx].add(val)
 
+            known_axis_bytes = set()
+            for r_id, r_data in self.profile.get("reports", {}).items():
+                for in_name, in_cfg in r_data.get("inputs", {}).items():
+                    if in_cfg.get("type") in ("axis", "trigger", "hat", "button"):
+                        known_axis_bytes.add((r_id, in_cfg.get("byte")))
+                        if in_cfg.get("length", 1) == 2:
+                            known_axis_bytes.add((r_id, in_cfg.get("byte") + 1))
+
             best_full_id = None
             best_byte = -1
             max_uniques = 0
 
             for fid, counts in unique_counts.items():
                 for byte_idx, u_set in enumerate(counts):
-                    is_button = False
-                    if fid in self.profile.get("reports", {}):
-                        for in_name, in_cfg in self.profile["reports"][fid].get("inputs", {}).items():
-                            if in_cfg.get("type") == "button" and in_cfg.get("byte") == byte_idx:
-                                is_button = True
-                                break
-                    if is_button:
+                    if (fid, byte_idx) in known_axis_bytes:
                         continue
 
                     if len(u_set) > max_uniques:
@@ -387,15 +418,17 @@ class CalibrationEngine(QObject):
         # calibration.py lines 980-1031
         # -------------------------------------------------------------------
         elif cat == "axes":
-            button_bytes = set()
+            known_axis_bytes = set()
             for r_id, r_data in self.profile.get("reports", {}).items():
                 for in_name, in_cfg in r_data.get("inputs", {}).items():
-                    if in_cfg.get("type") == "button":
-                        button_bytes.add((r_id, in_cfg.get("byte")))
+                    if in_cfg.get("type") in ("axis", "trigger", "hat", "button"):
+                        known_axis_bytes.add((r_id, in_cfg.get("byte")))
+                        if in_cfg.get("length", 1) == 2:
+                            known_axis_bytes.add((r_id, in_cfg.get("byte") + 1))
 
             candidates = []
             for fid, b_idx, curr_val, base_val in diffs:
-                if (fid, b_idx) in button_bytes:
+                if (fid, b_idx) in known_axis_bytes:
                     continue
                 amp8 = abs(curr_val - base_val)
                 if amp8 > 10:

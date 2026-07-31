@@ -99,7 +99,7 @@ class CalibrationEngine(QObject):
         self.trigger_start_time: float = 0.0
         self.trigger_samples: List[Tuple[str, List[int]]] = []
 
-    def start((self) -> None:
+    def start(self) -> None:
         self.current_step_idx = 0
         self._emit_current_prompt()
 

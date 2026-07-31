@@ -370,7 +370,7 @@ class NativeCalibrationWizardDialog(QDialog):
         layout = QVBoxLayout(page)
         layout.setSpacing(14)
 
-        lbl = QLabel("Calibration Complete!")
+        lbl = QLabel("Calibration Complete! Restart UR-XD to ensure everything applied properly.")
         lbl.setFont(QFont("Segoe UI", 14, QFont.Weight.Bold))
         lbl.setAlignment(Qt.AlignmentFlag.AlignCenter)
 

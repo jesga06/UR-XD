@@ -1,7 +1,7 @@
 {
     "name": "Solar Yellow",
-    "accent_1": "#EAB308FF",
-    "accent_2": "#EC4899FF",
-    "background": "#140F06FF",
+    "accent_1": "#ffff00",
+    "accent_2": "#FF00FF",
+    "background": "#1e1e00",
     "window_bg": "#000000FF"
 }

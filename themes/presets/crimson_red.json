@@ -1,7 +1,7 @@
 {
     "name": "Crimson Red",
-    "accent_1": "#EF4444FF",
-    "accent_2": "#F97316FF",
-    "background": "#120808FF",
+    "accent_1": "#FF0000FF",
+    "accent_2": "#ff8000",
+    "background": "#1e0000",
     "window_bg": "#000000FF"
 }

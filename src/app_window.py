@@ -18,6 +18,8 @@ from gui_v2.views.dashboard_view import DashboardView
 from gui_v2.views.remapping_view import RemappingView
 from gui_v2.views.tuning_view import TuningView
 from gui_v2.views.customization_view import CustomizationView
+from gui_v2.views.advanced_view import AdvancedView
+from gui_v2.views.utilities_view import UtilitiesView
 from gui_v2.services.theme_manager import ThemeManager
 from ipc_threads import UDPTelemetryWorker, FilePollerWorker
 
@@ -50,6 +52,8 @@ class MainWindow(QMainWindow):
         self.dashboard_view: DashboardView | None = None
         self.remapping_view: RemappingView | None = None
         self.tuning_view: TuningView | None = None
+        self.advanced_view: AdvancedView | None = None
+        self.utilities_view: UtilitiesView | None = None
         self.customization_view: CustomizationView | None = None
         self.udp_worker: UDPTelemetryWorker | None = None
         self.file_worker: FilePollerWorker | None = None
@@ -133,6 +137,12 @@ class MainWindow(QMainWindow):
                 else:
                     tab = self._create_scrollable_tab(name)
                     self.tab_widget.addTab(tab, name)
+            elif name == "Advanced":
+                self.advanced_view = AdvancedView(config_manager=self.controller_config, theme_manager=self.theme_mgr)
+                self.tab_widget.addTab(self.advanced_view, name)
+            elif name == "Utilities":
+                self.utilities_view = UtilitiesView(theme_manager=self.theme_mgr)
+                self.tab_widget.addTab(self.utilities_view, name)
             elif name == "Customization":
                 self.customization_view = CustomizationView(theme_manager=self.theme_mgr)
                 self.tab_widget.addTab(self.customization_view, name)
@@ -175,6 +185,8 @@ class MainWindow(QMainWindow):
 
         self.file_worker.status_updated.connect(self.dashboard_view.update_status)
         self.file_worker.diagnostics_updated.connect(self.dashboard_view.update_diagnostics)
+        if self.utilities_view:
+            self.file_worker.diagnostics_updated.connect(self.utilities_view.update_diagnostics_telemetry)
 
         self.udp_worker.start()
         self.file_worker.start()

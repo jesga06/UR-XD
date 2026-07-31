@@ -449,12 +449,14 @@ class CircularityCalibrationModal(QDialog):
         self.calib_state = "DONE"
 
         error_pct = math_utils.calculate_circularity_error(self.bounds_data)
-        if error_pct < 5.0:
-            grade = "Excellent"
-        elif error_pct < 10.0:
-            grade = "Good"
+        if error_pct < 3.0:
+            grade = "Literally Bonkers."
+        elif error_pct < 7.0:
+            grade = "Ideal"
+        elif error_pct < 12:
+            grade = "Acceptable"
         else:
-            grade = "Poor"
+            grade = "Suboptimal"
 
         self._set_status("Status: Calibration Complete! Polar bounds stored for 360 degrees.")
         self.error_label.setText(f"Average Circularity Error: {error_pct:.2f}% ({grade})")

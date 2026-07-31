@@ -1,6 +1,6 @@
 """
 Unit test for ThemePreviewWidget component.
-Verifies instantiation, slot connections, and style updates on theme change.
+Verifies instantiation, slot connections, repaint triggers, and style updates on theme change.
 """
 
 import sys
@@ -29,10 +29,11 @@ class TestThemePreviewWidget(unittest.TestCase):
         widget = ThemePreviewWidget(tm)
         self.assertIsNotNone(widget)
 
-        # Trigger a token change and ensure no exceptions thrown during repaint/style updates
+        # Trigger base color, source, and brightness changes and verify no exceptions
         tm.set_token("accent_1", "#FF0055FF")
         tm.set_token("accent_2", "#00FF55FF")
-        tm.set_token("background", "#110022FF")
+        tm.set_source("button_color_source", "accent_2")
+        tm.set_brightness("widget_brightness", 15)
 
         tm.reset_defaults()
 

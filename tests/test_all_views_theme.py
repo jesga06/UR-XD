@@ -35,8 +35,8 @@ class TestAllViewsTheme(unittest.TestCase):
 
             # 1. Switch Theme to Cyber Orange
             tm.apply_theme_by_name("Cyber Orange")
-            self.assertEqual(tm.get_token("accent_1"), "#F97316FF")
-            self.assertEqual(tm.get_token("background"), "#0F0C0AFF")
+            self.assertEqual(tm.get_token("accent_1"), "#FF8000FF")
+            self.assertEqual(tm.get_token("background"), "#000000FF")
             self.assertEqual(tm.get_token("window_bg"), "#000000FF")
 
             # Verify Dashboard readout updated to brightened accent_2
@@ -46,7 +46,7 @@ class TestAllViewsTheme(unittest.TestCase):
             # 2. Reset Defaults
             tm.reset_defaults()
             self.assertEqual(tm.get_token("background"), "#0C0914FF")
-            self.assertEqual(tm.get_token("window_bg"), "#000000FF")
+            self.assertEqual(tm.get_token("window_bg"), "#0C0914FF")
             self.assertEqual(tm.get_token("accent_1"), "#A855F7FF")
         finally:
             win.close()

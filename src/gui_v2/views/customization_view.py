@@ -1,8 +1,10 @@
 """
 Customization View Module for PySide6 UI (gui_v2).
-Provides live dynamic color token customization, pre-built theme presets dropdown,
-theme CRUD management (Save, Rename, Copy, Delete), alpha-capable color pickers,
-theme import/export JSON functionality, and embedded dynamic theme preview panel.
+Provides live dynamic base color pickers (Window Background, Accent #1, Accent #2, Text),
+theme behavior source toggles (Button Color, Widget Background, Outline Color),
+brightness adjustment sliders (-80% to +80%), pre-built theme presets dropdown,
+theme CRUD management (Save, Rename, Copy, Delete), theme import/export JSON functionality,
+and embedded dynamic theme preview panel.
 """
 
 import sys
@@ -11,8 +13,8 @@ from typing import Optional, Dict
 
 from PySide6.QtWidgets import (
     QWidget, QVBoxLayout, QHBoxLayout, QLabel, QFrame, QPushButton,
-    QLineEdit, QColorDialog, QFileDialog, QScrollArea, QMessageBox,
-    QComboBox, QInputDialog
+    QColorDialog, QFileDialog, QScrollArea, QMessageBox,
+    QComboBox, QSlider, QGroupBox
 )
 from PySide6.QtGui import QColor, QFont
 from PySide6.QtCore import Qt, Slot
@@ -25,9 +27,8 @@ from gui_v2.widgets.theme_preview_widget import ThemePreviewWidget
 
 class CustomizationView(QWidget):
     """
-    Main Customization View tab allowing users to switch pre-built system themes,
-    manage custom themes (Save, Rename, Copy, Delete), pick Accent #1, Accent #2, and Background colors,
-    and preview all changes live via ThemePreviewWidget.
+    Main Customization View tab providing exposed base color pickers, behavior source toggles,
+    brightness sliders, preset theme switching, custom theme CRUD management, and live preview.
     """
     def __init__(self, theme_manager: Optional[ThemeManager] = None, parent=None):
         super().__init__(parent)
@@ -36,11 +37,11 @@ class CustomizationView(QWidget):
 
         self.preview_swatches: Dict[str, QFrame] = {}
         self.hex_labels: Dict[str, QLabel] = {}
-        self._block_dropdown_signals: bool = False
+        self._block_signals: bool = False
 
         self.setup_ui()
         self.populate_theme_dropdown()
-        self.refresh_color_display(self.theme_mgr.tokens)
+        self.refresh_ui_from_theme(self.theme_mgr.tokens)
 
     def setup_ui(self):
         """Constructs the visual layout for the Customization tab."""
@@ -86,7 +87,7 @@ class CustomizationView(QWidget):
 
         # CRUD Toolbar Buttons
         save_btn = QPushButton("💾 Save Theme")
-        save_btn.setToolTip("Save current color tokens as a new custom theme")
+        save_btn.setToolTip("Save current base colors, toggles, and sliders as a new custom theme")
         save_btn.setCursor(Qt.CursorShape.PointingHandCursor)
         save_btn.clicked.connect(self.save_theme_dialog)
         toolbar_layout.addWidget(save_btn)
@@ -111,29 +112,28 @@ class CustomizationView(QWidget):
 
         toolbar_layout.addStretch()
         preset_layout.addLayout(toolbar_layout)
-
         content_layout.addWidget(self.preset_card)
 
-        # 2. THEME COLOR TOKENS & CONTROLS CARD
+        # 2. EXPOSED BASE COLOR PICKERS CARD
         self.controls_card = QFrame()
         self.controls_card.setObjectName("controls_card")
         card_layout = QVBoxLayout(self.controls_card)
         card_layout.setContentsMargins(16, 14, 16, 14)
         card_layout.setSpacing(12)
 
-        header_label = QLabel("COLOR TOKENS & ALPHA PICKERS")
+        header_label = QLabel("EXPOSED BASE COLORS (ALPHA PICKERS)")
         header_label.setStyleSheet("font-weight: bold; font-size: 14px; color: #ffffff;")
         card_layout.addWidget(header_label)
 
-        # Token Rows Definition
-        token_configs = [
-            ("accent_1", "Accent #1 (Input Color):", "(Used for physical input visualizers)"),
-            ("accent_2", "Accent #2 (Output Color):", "(Used for virtual output visualizers)"),
-            ("background", "Widget Background:", "(Used for card fill and container bases)"),
-            ("window_bg", "Window Background:", "(Used for main window canvas base, pure black by default)")
+        # Token Rows Definition for 4 Base Colors
+        base_color_configs = [
+            ("window_bg", "Window Background:", "(Base frame and application window background)"),
+            ("accent_1", "Accent #1 (Input):", "(Primary color used by hardware input visualizers)"),
+            ("accent_2", "Accent #2 (Output):", "(Secondary color used by virtual output visualizers)"),
+            ("text", "Text Color:", "(Global text color for labels, titles, and fields)")
         ]
 
-        for token_key, title, description in token_configs:
+        for token_key, title, description in base_color_configs:
             row_layout = QHBoxLayout()
             row_layout.setSpacing(10)
 
@@ -183,11 +183,116 @@ class CustomizationView(QWidget):
 
             card_layout.addLayout(row_layout)
 
+        content_layout.addWidget(self.controls_card)
+
+        # 3. SOURCE SELECTORS & BRIGHTNESS SLIDERS CARD
+        self.behavior_card = QFrame()
+        self.behavior_card.setObjectName("behavior_card")
+        behavior_layout = QVBoxLayout(self.behavior_card)
+        behavior_layout.setContentsMargins(16, 14, 16, 14)
+        behavior_layout.setSpacing(14)
+
+        behavior_title = QLabel("THEME BEHAVIOR TOGGLES & BRIGHTNESS SLIDERS")
+        behavior_title.setStyleSheet("font-weight: bold; font-size: 14px; color: #ffffff;")
+        behavior_layout.addWidget(behavior_title)
+
+        # Source Selection Row
+        sources_layout = QHBoxLayout()
+        sources_layout.setSpacing(16)
+
+        # Button Color Source
+        btn_src_box = QVBoxLayout()
+        btn_src_lbl = QLabel("Button Color Source:")
+        btn_src_lbl.setStyleSheet("font-weight: bold; font-size: 11px; color: #ffffff;")
+        self.btn_src_combo = QComboBox()
+        self.btn_src_combo.addItem("Accent #1", "accent_1")
+        self.btn_src_combo.addItem("Accent #2", "accent_2")
+        self.btn_src_combo.currentIndexChanged.connect(self.on_sources_changed)
+        btn_src_box.addWidget(btn_src_lbl)
+        btn_src_box.addWidget(self.btn_src_combo)
+        sources_layout.addLayout(btn_src_box)
+
+        # Widget Background Source
+        wbg_src_box = QVBoxLayout()
+        wbg_src_lbl = QLabel("Widget Background Source:")
+        wbg_src_lbl.setStyleSheet("font-weight: bold; font-size: 11px; color: #ffffff;")
+        self.wbg_src_combo = QComboBox()
+        self.wbg_src_combo.addItem("Window Background", "window_bg")
+        self.wbg_src_combo.addItem("Accent #1", "accent_1")
+        self.wbg_src_combo.addItem("Accent #2", "accent_2")
+        self.wbg_src_combo.currentIndexChanged.connect(self.on_sources_changed)
+        wbg_src_box.addWidget(wbg_src_lbl)
+        wbg_src_box.addWidget(self.wbg_src_combo)
+        sources_layout.addLayout(wbg_src_box)
+
+        # Outline Color Source
+        out_src_box = QVBoxLayout()
+        out_src_lbl = QLabel("Outline Color Source:")
+        out_src_lbl.setStyleSheet("font-weight: bold; font-size: 11px; color: #ffffff;")
+        self.out_src_combo = QComboBox()
+        self.out_src_combo.addItem("Accent #1", "accent_1")
+        self.out_src_combo.addItem("Accent #2", "accent_2")
+        self.out_src_combo.currentIndexChanged.connect(self.on_sources_changed)
+        out_src_box.addWidget(out_src_lbl)
+        out_src_box.addWidget(self.out_src_combo)
+        sources_layout.addLayout(out_src_box)
+
+        sources_layout.addStretch()
+        behavior_layout.addLayout(sources_layout)
+
         # Divider
-        divider = QFrame()
-        divider.setFrameShape(QFrame.Shape.HLine)
-        divider.setStyleSheet("background-color: rgba(255, 255, 255, 0.15); max-height: 1px;")
-        card_layout.addWidget(divider)
+        divider1 = QFrame()
+        divider1.setFrameShape(QFrame.Shape.HLine)
+        divider1.setStyleSheet("background-color: rgba(255, 255, 255, 0.15); max-height: 1px;")
+        behavior_layout.addWidget(divider1)
+
+        # Sliders Section
+        sliders_layout = QVBoxLayout()
+        sliders_layout.setSpacing(10)
+
+        # Widget Brightness Slider
+        w_slider_row = QHBoxLayout()
+        w_slider_title = QLabel("Widget Brightness:")
+        w_slider_title.setFixedWidth(160)
+        w_slider_title.setStyleSheet("font-weight: bold; font-size: 11px; color: #ffffff;")
+        self.widget_brightness_slider = QSlider(Qt.Orientation.Horizontal)
+        self.widget_brightness_slider.setRange(-80, 80)
+        self.widget_brightness_slider.setValue(0)
+        self.widget_brightness_slider.valueChanged.connect(self.on_widget_brightness_changed)
+        self.widget_brightness_label = QLabel("0%")
+        self.widget_brightness_label.setFixedWidth(50)
+        self.widget_brightness_label.setStyleSheet("font-weight: bold; font-size: 11px; color: #ffffff;")
+
+        w_slider_row.addWidget(w_slider_title)
+        w_slider_row.addWidget(self.widget_brightness_slider)
+        w_slider_row.addWidget(self.widget_brightness_label)
+        sliders_layout.addLayout(w_slider_row)
+
+        # Graph Brightness Slider
+        g_slider_row = QHBoxLayout()
+        g_slider_title = QLabel("Graph Brightness:")
+        g_slider_title.setFixedWidth(160)
+        g_slider_title.setStyleSheet("font-weight: bold; font-size: 11px; color: #ffffff;")
+        self.graph_brightness_slider = QSlider(Qt.Orientation.Horizontal)
+        self.graph_brightness_slider.setRange(-80, 80)
+        self.graph_brightness_slider.setValue(0)
+        self.graph_brightness_slider.valueChanged.connect(self.on_graph_brightness_changed)
+        self.graph_brightness_label = QLabel("0%")
+        self.graph_brightness_label.setFixedWidth(50)
+        self.graph_brightness_label.setStyleSheet("font-weight: bold; font-size: 11px; color: #ffffff;")
+
+        g_slider_row.addWidget(g_slider_title)
+        g_slider_row.addWidget(self.graph_brightness_slider)
+        g_slider_row.addWidget(self.graph_brightness_label)
+        sliders_layout.addLayout(g_slider_row)
+
+        behavior_layout.addLayout(sliders_layout)
+
+        # Divider
+        divider2 = QFrame()
+        divider2.setFrameShape(QFrame.Shape.HLine)
+        divider2.setStyleSheet("background-color: rgba(255, 255, 255, 0.15); max-height: 1px;")
+        behavior_layout.addWidget(divider2)
 
         # Actions Row
         actions_layout = QHBoxLayout()
@@ -213,11 +318,11 @@ class CustomizationView(QWidget):
         actions_layout.addWidget(reset_btn)
 
         actions_layout.addStretch()
-        card_layout.addLayout(actions_layout)
+        behavior_layout.addLayout(actions_layout)
 
-        content_layout.addWidget(self.controls_card)
+        content_layout.addWidget(self.behavior_card)
 
-        # 3. LIVE INTERACTIVE THEME PREVIEW PANEL
+        # 4. LIVE INTERACTIVE THEME PREVIEW PANEL
         self.preview_panel = ThemePreviewWidget(self.theme_mgr)
         content_layout.addWidget(self.preview_panel)
 
@@ -228,7 +333,7 @@ class CustomizationView(QWidget):
 
     def populate_theme_dropdown(self):
         """Discovers presets and user themes and populates dropdown."""
-        self._block_dropdown_signals = True
+        self._block_signals = True
         self.theme_dropdown.clear()
 
         available = self.theme_mgr.get_available_themes()
@@ -257,11 +362,11 @@ class CustomizationView(QWidget):
         if index >= 0:
             self.theme_dropdown.setCurrentIndex(index)
 
-        self._block_dropdown_signals = False
+        self._block_signals = False
 
     def on_theme_selected(self, item_text: str):
         """Triggered when user selects a theme from the dropdown."""
-        if self._block_dropdown_signals or not item_text:
+        if self._block_signals or not item_text:
             return
 
         current_index = self.theme_dropdown.currentIndex()
@@ -271,46 +376,98 @@ class CustomizationView(QWidget):
 
     @Slot(dict)
     def on_theme_changed(self, tokens: dict):
-        """Callback invoked when theme tokens are modified or reset."""
-        self.refresh_color_display(tokens)
+        """Callback invoked when theme tokens, sources, or brightness are modified."""
+        self.refresh_ui_from_theme(tokens)
         self.update_card_styles()
         self.populate_theme_dropdown()
 
-    def refresh_color_display(self, tokens: dict):
-        """Updates color swatches and hex labels in control rows."""
-        for token_key in ["accent_1", "accent_2", "background", "window_bg"]:
-            if token_key in tokens:
-                hex_str = tokens[token_key]
-                color = self.theme_mgr.get_color(token_key)
+    def refresh_ui_from_theme(self, tokens: dict):
+        """Updates color swatches, hex labels, source combos, and brightness sliders."""
+        self._block_signals = True
 
-                swatch = self.preview_swatches.get(token_key)
-                if swatch:
-                    rgba_str = color_to_rgba_str(color)
-                    swatch.setStyleSheet(f"background-color: {rgba_str}; border: 1.5px solid #ffffff; border-radius: 4px;")
+        # Base Colors Display
+        for token_key in ["window_bg", "accent_1", "accent_2", "text"]:
+            hex_str = self.theme_mgr.base_colors.get(token_key, tokens.get(token_key, "#FFFFFFFF"))
+            color = self.theme_mgr.get_color(token_key)
 
-                lbl = self.hex_labels.get(token_key)
-                if lbl:
-                    lbl.setText(hex_str)
+            swatch = self.preview_swatches.get(token_key)
+            if swatch:
+                rgba_str = color_to_rgba_str(color)
+                swatch.setStyleSheet(f"background-color: {rgba_str}; border: 1.5px solid #ffffff; border-radius: 4px;")
+
+            lbl = self.hex_labels.get(token_key)
+            if lbl:
+                lbl.setText(hex_str)
+
+        # Source Combos
+        btn_src = self.theme_mgr.sources.get("button_color_source", "accent_1")
+        wbg_src = self.theme_mgr.sources.get("widget_bg_source", "window_bg")
+        out_src = self.theme_mgr.sources.get("outline_source", "accent_1")
+
+        self.btn_src_combo.setCurrentIndex(0 if btn_src == "accent_1" else 1)
+        
+        if wbg_src == "window_bg":
+            self.wbg_src_combo.setCurrentIndex(0)
+        elif wbg_src == "accent_1":
+            self.wbg_src_combo.setCurrentIndex(1)
+        else:
+            self.wbg_src_combo.setCurrentIndex(2)
+
+        self.out_src_combo.setCurrentIndex(0 if out_src == "accent_1" else 1)
+
+        # Brightness Sliders
+        w_val = self.theme_mgr.brightness.get("widget_brightness", 0)
+        g_val = self.theme_mgr.brightness.get("graph_brightness", 0)
+
+        self.widget_brightness_slider.setValue(w_val)
+        self.widget_brightness_label.setText(f"{w_val:+d}%")
+
+        self.graph_brightness_slider.setValue(g_val)
+        self.graph_brightness_label.setText(f"{g_val:+d}%")
+
+        self._block_signals = False
+
+    def on_sources_changed(self):
+        """Triggered when any behavior source selector combo box changes."""
+        if self._block_signals:
+            return
+
+        self.theme_mgr.set_source("button_color_source", self.btn_src_combo.currentData())
+        self.theme_mgr.set_source("widget_bg_source", self.wbg_src_combo.currentData())
+        self.theme_mgr.set_source("outline_source", self.out_src_combo.currentData())
+
+    def on_widget_brightness_changed(self, value: int):
+        """Triggered when widget brightness slider moves."""
+        self.widget_brightness_label.setText(f"{value:+d}%")
+        if not self._block_signals:
+            self.theme_mgr.set_brightness("widget_brightness", value)
+
+    def on_graph_brightness_changed(self, value: int):
+        """Triggered when graph brightness slider moves."""
+        self.graph_brightness_label.setText(f"{value:+d}%")
+        if not self._block_signals:
+            self.theme_mgr.set_brightness("graph_brightness", value)
 
     def update_card_styles(self):
         """Applies dynamic QSS tokens to cards."""
-        bg_color = self.theme_mgr.get_color("background")
-        accent_1 = self.theme_mgr.get_color("accent_1")
+        window_bg = self.theme_mgr.get_color("window_bg")
+        widget_bg = self.theme_mgr.get_color("widget_bg")
+        outline = self.theme_mgr.get_color("outline")
+        btn_bg = self.theme_mgr.get_color("button_bg")
 
-        bg_glass = color_to_rgba_str(bg_color, alpha_override=0.85)
-        border_glass = color_to_rgba_str(accent_1, alpha_override=0.35)
-        accent_1_subtle = color_to_rgba_str(accent_1, alpha_override=0.20)
-        accent_1_hex = color_to_hex6(accent_1)
+        bg_glass = color_to_rgba_str(widget_bg, alpha_override=0.85)
+        border_glass = color_to_rgba_str(outline, alpha_override=0.35)
+        btn_bg_str = color_to_rgba_str(btn_bg, alpha_override=0.80)
 
         style = f"""
-        QFrame#controls_card, QFrame#preset_card {{
+        QFrame#controls_card, QFrame#preset_card, QFrame#behavior_card {{
             background-color: {bg_glass};
             border: 1.5px solid {border_glass};
             border-radius: 12px;
         }}
 
         QPushButton {{
-            background-color: {accent_1_subtle};
+            background-color: {btn_bg_str};
             border: 1px solid {border_glass};
             color: #ffffff;
             border-radius: 6px;
@@ -319,16 +476,17 @@ class CustomizationView(QWidget):
         }}
 
         QPushButton:hover {{
-            background-color: rgba({accent_1.red()}, {accent_1.green()}, {accent_1.blue()}, 0.40);
-            border: 1px solid {accent_1_hex};
+            background-color: {color_to_rgba_str(btn_bg, alpha_override=0.95)};
+            border: 1px solid #ffffff;
         }}
 
         QPushButton:pressed {{
-            background-color: rgba({accent_1.red()}, {accent_1.green()}, {accent_1.blue()}, 0.60);
+            background-color: {color_to_rgba_str(btn_bg, alpha_override=0.60)};
         }}
         """
         self.controls_card.setStyleSheet(style)
         self.preset_card.setStyleSheet(style)
+        self.behavior_card.setStyleSheet(style)
 
     def open_color_picker(self, token_key: str):
         """Launches QColorDialog initialized with ShowAlphaChannel option."""
@@ -344,6 +502,7 @@ class CustomizationView(QWidget):
 
     def save_theme_dialog(self):
         """Prompts user for theme name and saves user custom theme."""
+        from PySide6.QtWidgets import QInputDialog
         name, ok = QInputDialog.getText(self, "Save Custom Theme", "Enter a name for this custom theme:")
         if ok and name.strip():
             success = self.theme_mgr.save_user_theme(name.strip())
@@ -354,6 +513,7 @@ class CustomizationView(QWidget):
 
     def rename_theme_dialog(self):
         """Prompts user to rename the currently selected custom theme."""
+        from PySide6.QtWidgets import QInputDialog
         current_index = self.theme_dropdown.currentIndex()
         current_name = self.theme_dropdown.itemData(current_index)
         available = self.theme_mgr.get_available_themes()
@@ -372,6 +532,7 @@ class CustomizationView(QWidget):
 
     def copy_theme_dialog(self):
         """Prompts user to duplicate the currently selected theme."""
+        from PySide6.QtWidgets import QInputDialog
         current_index = self.theme_dropdown.currentIndex()
         current_name = self.theme_dropdown.itemData(current_index) or "Theme"
         default_copy_name = f"{current_name} (Copy)"
@@ -413,29 +574,29 @@ class CustomizationView(QWidget):
             self, "Import Theme JSON", "", "JSON Files (*.json);;All Files (*)"
         )
         if file_path:
-            success = self.theme_mgr.import_theme(file_path)
+            success = self.theme_mgr.import_theme_json(file_path)
             if success:
                 QMessageBox.information(self, "Theme Imported", "Theme configuration was successfully applied.")
             else:
                 QMessageBox.warning(self, "Import Failed", "Could not import the selected theme file.")
 
     def export_theme_dialog(self):
-        """Opens QFileDialog to save current theme tokens to JSON file."""
+        """Opens QFileDialog to save current theme tokens, sources, and sliders to JSON file."""
         file_path, _ = QFileDialog.getSaveFileName(
             self, "Export Theme JSON", "custom_theme.json", "JSON Files (*.json);;All Files (*)"
         )
         if file_path:
-            success = self.theme_mgr.export_theme(file_path)
+            success = self.theme_mgr.export_theme_json(file_path)
             if success:
                 QMessageBox.information(self, "Theme Exported", f"Theme saved to:\n{file_path}")
             else:
                 QMessageBox.warning(self, "Export Failed", "Could not export the theme file.")
 
     def reset_default_theme(self):
-        """Restores factory default theme tokens."""
+        """Restores factory default theme configuration."""
         confirm = QMessageBox.question(
             self, "Reset Theme",
-            "Are you sure you want to restore the default theme colors?",
+            "Are you sure you want to restore the default theme colors and behavior settings?",
             QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No,
             QMessageBox.StandardButton.No
         )

@@ -74,10 +74,14 @@ class TransitionOverlayWidget(QWidget):
     """
     transition_finished = Signal()
 
-    def __init__(self, quote_engine: Optional[QuoteEngine] = None, parent: Optional[QWidget] = None):
+    def __init__(self, parent: Optional[QWidget] = None, quote_engine: Optional[QuoteEngine] = None):
         super().__init__(parent)
         self.setAttribute(Qt.WidgetAttribute.WA_TransparentForMouseEvents, False)
         self.setFocusPolicy(Qt.FocusPolicy.NoFocus)
+
+        if isinstance(parent, QuoteEngine):
+            quote_engine = parent
+            parent = None
 
         self.quote_engine = quote_engine or QuoteEngine(parent=self)
         self.quote_engine.quote_updated.connect(self._on_quote_updated)

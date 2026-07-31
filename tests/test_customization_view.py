@@ -1,6 +1,6 @@
 """
 Unit test for CustomizationView tab module.
-Verifies UI creation, preset theme dropdown, CRUD dialog actions, and color preview swatches.
+Verifies UI creation, preset theme dropdown, source toggles, brightness sliders, and color preview swatches.
 """
 
 import sys
@@ -31,14 +31,32 @@ class TestCustomizationView(unittest.TestCase):
 
         # Check dropdown items count
         self.assertGreater(view.theme_dropdown.count(), 0)
-        
+
         # Test switching theme preset via apply_theme_by_name
         tm.apply_theme_by_name("Cyber Orange")
-        self.assertEqual(tm.get_token("accent_1"), "#F97316FF")
-        self.assertEqual(view.hex_labels["accent_1"].text(), "#F97316FF")
+        self.assertEqual(tm.get_token("accent_1"), "#FF8000FF")
+        self.assertEqual(view.hex_labels["accent_1"].text(), "#FF8000FF")
 
         tm.reset_defaults()
         self.assertEqual(view.hex_labels["accent_1"].text(), "#A855F7FF")
+
+    def test_toggles_and_sliders_interaction(self):
+        tm = ThemeManager.get_instance()
+        tm.reset_defaults()
+
+        view = CustomizationView(tm)
+
+        # Test Button Source Combo
+        view.btn_src_combo.setCurrentIndex(1)  # Accent #2
+        self.assertEqual(tm.sources["button_color_source"], "accent_2")
+        self.assertEqual(tm.get_token("button_bg"), "#00F5A0FF")
+
+        # Test Widget Brightness Slider
+        view.widget_brightness_slider.setValue(20)
+        self.assertEqual(tm.brightness["widget_brightness"], 20)
+        self.assertEqual(view.widget_brightness_label.text(), "+20%")
+
+        tm.reset_defaults()
 
 
 if __name__ == "__main__":

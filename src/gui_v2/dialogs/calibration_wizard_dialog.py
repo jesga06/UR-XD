@@ -557,14 +557,50 @@ class NativeCalibrationWizardDialog(QDialog):
         if self.button_target_idx >= len(targets):
             return
 
+        # 1. Require Button Release from Previous Mapping
+        if getattr(self, "waiting_for_button_release", False):
+            if curr == base:
+                self.waiting_for_button_release = False
+                self.lbl_btn_status.setText("Ready for next button...")
+                self.lbl_btn_status.setStyleSheet("")
+            return
+
+        # 2. Mandatory Prompt Cooldown (Enforce 800ms reading time for prompt)
+        if time.time() - getattr(self, "last_button_prompt_time", 0.0) < 0.8:
+            return
+
         key, _ = targets[self.button_target_idx]
 
         for b_idx in range(len(curr)):
+            # Track value history for noise filtering
+            byte_key = (r_id, b_idx)
+            if not hasattr(self, "byte_history"):
+                self.byte_history = {}
+            if byte_key not in self.byte_history:
+                self.byte_history[byte_key] = set()
+            self.byte_history[byte_key].add(curr[b_idx])
+
+            # Filter out analog noise (if a byte takes > 3 values, it's an analog stick!)
+            if len(self.byte_history[byte_key]) > 3:
+                continue
+
             diff = curr[b_idx] ^ base[b_idx]
             if diff > 0:
                 # Isolate single bit mask
                 if (diff & (diff - 1)) == 0:
                     bitmask = diff
+
+                    # Check if already mapped
+                    is_already_mapped = False
+                    for r_data in self.profile_data.get("reports", {}).values():
+                        for input_cfg in r_data.get("inputs", {}).values():
+                            if input_cfg.get("type") == "button" and input_cfg.get("byte") == b_idx and input_cfg.get("bitmask") == bitmask:
+                                is_already_mapped = True
+                                break
+
+                    if is_already_mapped:
+                        continue
+
                     rep_key = f"report_{r_id}"
                     if rep_key not in self.profile_data["reports"]:
                         self.profile_data["reports"][rep_key] = {"inputs": {}}
@@ -575,12 +611,14 @@ class NativeCalibrationWizardDialog(QDialog):
                         "bitmask": bitmask
                     }
 
-                    self.lbl_btn_status.setText(f"✅ Mapped '{key.upper()}' to Report {r_id}, Byte {b_idx}, Mask 0x{bitmask:02X}!")
+                    self.waiting_for_button_release = True
+                    self.lbl_btn_status.setText(f"✅ Mapped '{key.upper()}'! Please RELEASE button to continue...")
                     self.lbl_btn_status.setStyleSheet("color: #55FF55; font-weight: bold;")
-                    
+
                     self.button_target_idx += 1
                     if self.button_target_idx < len(targets):
-                        QTimer.singleShot(400, self._update_button_target_label)
+                        self.last_button_prompt_time = time.time() + 0.8
+                        QTimer.singleShot(800, self._update_button_target_label)
                     else:
                         self.lbl_target_btn.setText("✅ All buttons mapped!")
                         self.lbl_btn_status.setText("Click 'Next' to calibrate analog sticks.")
@@ -588,6 +626,8 @@ class NativeCalibrationWizardDialog(QDialog):
 
     def _skip_current_button(self) -> None:
         targets = BUTTON_TARGET_MAPS.get(self.layout_type, BUTTON_TARGET_MAPS["xbox"])
+        self.waiting_for_button_release = False
+        self.last_button_prompt_time = time.time()
         self.button_target_idx += 1
         if self.button_target_idx < len(targets):
             self._update_button_target_label()
@@ -617,12 +657,34 @@ class NativeCalibrationWizardDialog(QDialog):
         if self.axis_target_idx >= len(AXIS_TARGETS):
             return
 
+        # 1. Require Axis Return to Center/Rest from Previous Target
+        if getattr(self, "waiting_for_axis_release", False):
+            max_dev = max(abs(curr[i] - base[i]) for i in range(len(curr)))
+            if max_dev < 15:
+                self.waiting_for_axis_release = False
+                self.lbl_stick_status.setText("Ready for next axis movement...")
+                self.lbl_stick_status.setStyleSheet("")
+            return
+
+        # 2. Mandatory Prompt Cooldown (Enforce 1.0s reading time for prompt)
+        if time.time() - getattr(self, "last_axis_prompt_time", 0.0) < 1.0:
+            return
+
         key, label = AXIS_TARGETS[self.axis_target_idx]
 
-        # Track min/max per byte
         for b_idx in range(len(curr)):
             c_val = curr[b_idx]
             b_val = base[b_idx]
+
+            # Exclude bytes already mapped as buttons
+            is_mapped_button = False
+            for r_data in self.profile_data.get("reports", {}).values():
+                for input_cfg in r_data.get("inputs", {}).values():
+                    if input_cfg.get("type") == "button" and input_cfg.get("byte") == b_idx:
+                        is_mapped_button = True
+                        break
+            if is_mapped_button:
+                continue
 
             if b_idx not in self.axis_min_max:
                 self.axis_min_max[b_idx] = {"min": b_val, "max": b_val, "base": b_val}
@@ -630,7 +692,6 @@ class NativeCalibrationWizardDialog(QDialog):
             self.axis_min_max[b_idx]["min"] = min(self.axis_min_max[b_idx]["min"], c_val)
             self.axis_min_max[b_idx]["max"] = max(self.axis_min_max[b_idx]["max"], c_val)
 
-            # Check if byte moved significantly from baseline
             delta = abs(c_val - b_val)
             if delta > 30:
                 rep_key = f"report_{r_id}"
@@ -648,15 +709,15 @@ class NativeCalibrationWizardDialog(QDialog):
                     "max": mx
                 }
 
-                self.lbl_stick_status.setText(f"✅ Mapped '{key.upper()}' to Report {r_id}, Byte {b_idx} (Range: {mn}-{mx})!")
+                self.waiting_for_axis_release = True
+                self.lbl_stick_status.setText(f"✅ Mapped '{key.upper()}' to Report {r_id}, Byte {b_idx}! Return stick to center...")
                 self.lbl_stick_status.setStyleSheet("color: #55FF55; font-weight: bold;")
 
                 self.axis_target_idx += 1
                 if self.axis_target_idx < len(AXIS_TARGETS):
-                    QTimer.singleShot(400, self._update_axis_target_label)
+                    self.last_axis_prompt_time = time.time() + 1.0
+                    QTimer.singleShot(1000, self._update_axis_target_label)
                 else:
-                    self.lbl_target_axis.setText("✅ Axis calibration finished!")
-                    self.lbl_stick_status.setText("Click 'Next' to finalize and save profile.")
                 break
 
     def _skip_current_axis(self) -> None:

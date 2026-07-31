@@ -219,6 +219,8 @@ class RemappingView(QWidget):
 
         left_col = QVBoxLayout()
         right_col = QVBoxLayout()
+        self.right_col = right_col
+        self.extra_card = None
 
         group_names = list(BUTTON_GROUPS.keys())
         for i, name in enumerate(group_names):
@@ -229,11 +231,7 @@ class RemappingView(QWidget):
                 right_col.addWidget(grid_card)
 
         # Dynamic Extra Buttons card
-        extra_btns = self._get_dynamic_extra_buttons()
-        if extra_btns:
-            extra_tuples = [(b.lower(), b.upper()) for b in extra_btns]
-            extra_card = self._build_mapping_grid("Extra Buttons", extra_tuples)
-            right_col.addWidget(extra_card)
+        self.reload_extra_buttons_grid()
 
         left_col.addStretch()
         right_col.addStretch()
@@ -244,6 +242,30 @@ class RemappingView(QWidget):
 
         scroll.setWidget(inner_widget)
         outer.addWidget(scroll)
+
+    def reload_extra_buttons_grid(self) -> None:
+        """Dynamically re-inspects config for extra hardware buttons and rebuilds the Extra Buttons card."""
+        if hasattr(self, "extra_card") and self.extra_card is not None:
+            # Remove old extra button row widgets from tracking dicts
+            for key in list(self._row_widgets.keys()):
+                is_std_button = any(key == b.lower() for g in BUTTON_GROUPS.values() for b, _ in g)
+                if not is_std_button:
+                    self._row_widgets.pop(key, None)
+
+            if hasattr(self, "right_col"):
+                self.right_col.removeWidget(self.extra_card)
+            self.extra_card.deleteLater()
+            self.extra_card = None
+
+        extra_btns = self._get_dynamic_extra_buttons()
+        if extra_btns:
+            extra_tuples = [(b.lower(), b.upper()) for b in extra_btns]
+            self.extra_card = self._build_mapping_grid("Extra Buttons", extra_tuples)
+            if hasattr(self, "right_col"):
+                self.right_col.addWidget(self.extra_card)
+
+        if hasattr(self, "layer_selector"):
+            self._sync_layer_settings()
 
     def _build_shift_layer_panel(self) -> QGroupBox:
         """Builds the shift layer configuration card (compact 2-row layout)."""

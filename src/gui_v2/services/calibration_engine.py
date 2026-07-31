@@ -205,6 +205,8 @@ class CalibrationEngine(QObject):
         """
         if self.current_step_idx >= len(self.steps):
             return
+        if self.step_in_progress:
+            return
 
         if time.time() < self.ignore_until_time:
             rem = self.ignore_until_time - time.time()
@@ -340,7 +342,7 @@ class CalibrationEngine(QObject):
             known_bits = set()
             for r_id, r_data in self.profile.get("reports", {}).items():
                 for in_name, in_cfg in r_data.get("inputs", {}).items():
-                    if in_cfg.get("type") == "button":
+                    if in_name != name and in_cfg.get("type") == "button":
                         known_bits.add((r_id, in_cfg.get("byte"), in_cfg.get("bitmask")))
 
             clean_changed = []
@@ -593,8 +595,16 @@ class CalibrationEngine(QObject):
         # calibration.py lines 1032-1042
         # -------------------------------------------------------------------
         elif cat == "hat":
-            clean_hat_bytes = [d for d in diffs if ((d[2] & 0x0F) <= 7) and ((d[3] & 0x0F) > 7)]
-            if len(clean_hat_bytes) == 1:
+            clean_hat_bytes = []
+            for fid, b_idx, curr_val, base_val in diffs:
+                curr_nib = curr_val & 0x0F
+                base_nib = base_val & 0x0F
+                if base_nib == 0 and curr_nib != 0:
+                    base_nib = 15
+                if curr_nib <= 7 and base_nib > 7:
+                    clean_hat_bytes.append((fid, b_idx, curr_val, base_val))
+
+            if len(clean_hat_bytes) >= 1:
                 fid, b_idx, _, _ = clean_hat_bytes[0]
                 if fid not in self.profile["reports"]:
                     self.profile["reports"][fid] = {"inputs": {}}
@@ -613,85 +623,89 @@ class CalibrationEngine(QObject):
         if self.current_step_idx >= len(self.steps):
             return
 
-        curr_step_name = self.steps[self.current_step_idx][0] if self.current_step_idx < len(self.steps) else "END"
-        logger.info(f"[ADVANCE-START] Step {self.current_step_idx+1}/{len(self.steps)} ('{curr_step_name}') | released='{released_name}'")
+        self.step_in_progress = True
+        try:
+            curr_step_name = self.steps[self.current_step_idx][0] if self.current_step_idx < len(self.steps) else "END"
+            logger.info(f"[ADVANCE-START] Step {self.current_step_idx+1}/{len(self.steps)} ('{curr_step_name}') | released='{released_name}'")
 
-        if released_name and self.current_step_idx < len(self.steps):
-            name, cat, prompt = self.steps[self.current_step_idx]
-            rel_upper = released_name.upper()
-            self.status_updated.emit(f"✅ Registered {rel_upper}! RELEASE the button...", "#FFAA00")
-            self.prompt_changed.emit(name, cat, f"RELEASE {rel_upper}...", self.current_step_idx, len(self.steps))
-            try:
-                QApplication.processEvents()
-            except Exception:
-                pass
-
-            # Wait for button to be physically released (up to 1.5s)
-            start_wait = time.time()
-            while time.time() - start_wait < 1.5:
-                time.sleep(0.04)
+            if released_name and self.current_step_idx < len(self.steps):
+                name, cat, prompt = self.steps[self.current_step_idx]
+                rel_upper = released_name.upper()
+                self.status_updated.emit(f"✅ Registered {rel_upper}! RELEASE the button...", "#FFAA00")
+                self.prompt_changed.emit(name, cat, f"RELEASE {rel_upper}...", self.current_step_idx, len(self.steps))
                 try:
                     QApplication.processEvents()
                 except Exception:
                     pass
 
-                diff_count = 0
-                for fid, latest_data in list(self.latest_reports.items()):
-                    if fid in self.baselines:
-                        b_data = self.baselines[fid]
-                        if len(latest_data) == len(b_data):
-                            for b_idx in range(len(latest_data)):
-                                if latest_data[b_idx] != b_data[b_idx]:
-                                    diff_count += 1
-                if diff_count == 0:
-                    logger.info(f"[RELEASE-CONFIRMED] Input '{released_name}' returned to baseline in {time.time()-start_wait:.2f}s")
-                    break
+                # Wait for button to be physically released (up to 1.5s)
+                start_wait = time.time()
+                while time.time() - start_wait < 1.5:
+                    time.sleep(0.04)
+                    try:
+                        QApplication.processEvents()
+                    except Exception:
+                        pass
 
-        # Post-release rest settling delay (0.8s)
-        logger.info(f"[SETTLING-START] Pausing 0.8s for rest state settling...")
-        start_rest = time.time()
-        while time.time() - start_rest < 0.8:
-            time.sleep(0.04)
+                    diff_count = 0
+                    for fid, latest_data in list(self.latest_reports.items()):
+                        if fid in self.baselines:
+                            b_data = self.baselines[fid]
+                            if len(latest_data) == len(b_data):
+                                for b_idx in range(len(latest_data)):
+                                    if latest_data[b_idx] != b_data[b_idx]:
+                                        diff_count += 1
+                    if diff_count == 0:
+                        logger.info(f"[RELEASE-CONFIRMED] Input '{released_name}' returned to baseline in {time.time()-start_wait:.2f}s")
+                        break
+
+            # Post-release rest settling delay (0.8s)
+            logger.info(f"[SETTLING-START] Pausing 0.8s for rest state settling...")
+            start_rest = time.time()
+            while time.time() - start_rest < 0.8:
+                time.sleep(0.04)
+                try:
+                    QApplication.processEvents()
+                except Exception:
+                    pass
+            logger.info(f"[SETTLING-COMPLETE] Rest state settled.")
+
+            # Re-baseline ONLY if rest state is clean to prevent dirty state contamination
+            final_diff_count = 0
+            for fid, latest_data in list(self.latest_reports.items()):
+                if fid in self.baselines:
+                    b_data = self.baselines[fid]
+                    if len(latest_data) == len(b_data):
+                        for b_idx in range(len(latest_data)):
+                            if latest_data[b_idx] != b_data[b_idx]:
+                                final_diff_count += 1
+
+            if final_diff_count == 0:
+                for fid, latest_data in list(self.latest_reports.items()):
+                    self.baselines[fid] = list(latest_data)
+                    logger.debug(f"[RE-BASELINE] {fid} clean rest baseline updated: {latest_data[:12]}")
+            else:
+                logger.warning(f"[RE-BASELINE-PRESERVED] Rest state dirty ({final_diff_count} diffs). Retaining original clean rest baseline!")
+
+            # Clear per-step history
+            self.click_counts.clear()
+            self.byte_history.clear()
+            self.button_byte_history.clear()
+            self.trigger_start_time = 0
+            self.trigger_samples.clear()
+
+            self.current_step_idx += 1
+            cooldown_sec = 0.8 if released_name in ("lx", "rx") else 0.5
+            self.ignore_until_time = time.time() + cooldown_sec
+            next_step_name = self.steps[self.current_step_idx][0] if self.current_step_idx < len(self.steps) else "DONE"
+            logger.info(f"[ADVANCE-COMPLETE] Now on Step {self.current_step_idx+1}/{len(self.steps)} ('{next_step_name}') | Cooldown set to {cooldown_sec:.1f}s")
+            self._emit_current_prompt()
             try:
                 QApplication.processEvents()
             except Exception:
                 pass
-        logger.info(f"[SETTLING-COMPLETE] Rest state settled.")
-
-        # Re-baseline ONLY if rest state is clean to prevent dirty state contamination
-        final_diff_count = 0
-        for fid, latest_data in list(self.latest_reports.items()):
-            if fid in self.baselines:
-                b_data = self.baselines[fid]
-                if len(latest_data) == len(b_data):
-                    for b_idx in range(len(latest_data)):
-                        if latest_data[b_idx] != b_data[b_idx]:
-                            final_diff_count += 1
-
-        if final_diff_count == 0:
-            for fid, latest_data in list(self.latest_reports.items()):
-                self.baselines[fid] = list(latest_data)
-                logger.debug(f"[RE-BASELINE] {fid} clean rest baseline updated: {latest_data[:12]}")
-        else:
-            logger.warning(f"[RE-BASELINE-PRESERVED] Rest state dirty ({final_diff_count} diffs). Retaining original clean rest baseline!")
-
-        # Clear per-step history
-        self.click_counts.clear()
-        self.byte_history.clear()
-        self.button_byte_history.clear()
-        self.trigger_start_time = 0
-        self.trigger_samples.clear()
-
-        self.current_step_idx += 1
-        cooldown_sec = 0.8 if released_name in ("lx", "rx") else 0.5
-        self.ignore_until_time = time.time() + cooldown_sec
-        next_step_name = self.steps[self.current_step_idx][0] if self.current_step_idx < len(self.steps) else "DONE"
-        logger.info(f"[ADVANCE-COMPLETE] Now on Step {self.current_step_idx+1}/{len(self.steps)} ('{next_step_name}') | Cooldown set to {cooldown_sec:.1f}s")
-        self._emit_current_prompt()
-        try:
-            QApplication.processEvents()
-        except Exception:
-            pass
+        finally:
+            self.step_in_progress = False
 
     def skip_step(self) -> None:
         logger.info(f"[USER-SKIP] Skiped step index {self.current_step_idx+1}")

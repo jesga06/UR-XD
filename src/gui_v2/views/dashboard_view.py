@@ -1,107 +1,94 @@
 """
 Dashboard View Module for PySide6 UI (gui_v2).
-Provides live telemetry monitoring, dual stick radars, trigger actuation meters,
-button matrix status, active hardware chords telemetry, and IPC diagnostic footer.
+Provides dual-state architecture:
+- State A (WAITING): Disconnected / Waiting View displaying HID Device Picker.
+- State B (CONNECTED): Standard Telemetry Dashboard with Dual Stick Radars, Trigger Bars, Button Matrix, and Hardware Chords.
+- Integrated Transition Overlay Engine (opacity cross-fade with vector spinner and quotes).
 """
 
 import sys
 import os
 import math
+import logging
 from typing import Dict, Any, Optional
 
 from PySide6.QtWidgets import (
-    QWidget, QApplication, QVBoxLayout, QHBoxLayout, QLabel, QFrame, QScrollArea
+    QWidget, QApplication, QVBoxLayout, QHBoxLayout, QLabel, QFrame, QScrollArea, QStackedWidget
 )
 from PySide6.QtGui import QFont
 from PySide6.QtCore import Qt, Slot
 
-# Import widget wrappers from gui_v2.widgets
 sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "..")))
 import math_utils
+from backend_base import ConnectionState
 from gui_v2.widgets.stick_radar import StickRadarWidget
 from gui_v2.widgets.trigger_bar import TriggerBarWidget
 from gui_v2.widgets.button_matrix import ButtonMatrixWidget
+from gui_v2.widgets.device_picker_widget import DevicePickerWidget
+from gui_v2.widgets.transition_overlay_widget import TransitionOverlayWidget
+from gui_v2.services.auto_calibration_service import ProfileDecisionEngine
+from gui_v2.dialogs.calibration_wizard_dialog import NativeCalibrationWizardDialog
+
+logger = logging.getLogger("dashboard_view")
 
 
 class DashboardView(QWidget):
     """
     Primary live telemetry dashboard view for PySide6 interface.
-    Receives high-frequency UDP telemetry signals and 1Hz/2Hz status/diagnostics signals.
+    Supports dual-state architecture:
+      State A: WAITING (HID Device Picker View)
+      State B: CONNECTED (Telemetry Dashboard View)
     """
     def __init__(self, controller_config=None, parent=None):
         super().__init__(parent)
         self.controller_config = controller_config
         self.last_active_chord: str = ""
+        self._current_state: ConnectionState = ConnectionState.WAITING
+
+        self.decision_engine = ProfileDecisionEngine(self)
+        self.decision_engine.profile_resolved.connect(self._on_profile_resolved)
+        self.decision_engine.launch_wizard.connect(self._on_launch_wizard)
+
         self.setup_ui()
         self._sync_config()
         self._setup_theme_sync()
 
-    def _setup_theme_sync(self) -> None:
-        try:
-            from gui_v2.services.theme_manager import ThemeManager
-            tm = ThemeManager.get_instance()
-            tm.theme_changed.connect(self.on_theme_changed)
-            self.on_theme_changed(tm.tokens)
-        except Exception:
-            pass
-
-    @Slot(dict)
-    def on_theme_changed(self, tokens: dict):
-        try:
-            from gui_v2.services.theme_manager import ThemeManager, color_to_rgba_str, color_to_hex6
-            tm = ThemeManager.get_instance()
-            bg_color = tm.get_color("background")
-            accent_1 = tm.get_color("accent_1")
-            accent_2 = tm.get_color("accent_2")
-            
-            accent_1_hex6 = color_to_hex6(accent_1)
-            accent_2_hex6 = color_to_hex6(accent_2)
-            
-            bg_glass = color_to_rgba_str(bg_color, alpha_override=0.85)
-            border_glass = color_to_rgba_str(accent_1, alpha_override=0.35)
-
-            card_style = f"""
-                QFrame#glass_card {{
-                    background-color: {bg_glass};
-                    border: 1px solid {border_glass};
-                    border-radius: 12px;
-                }}
-            """
-            for card in [getattr(self, 'header_card', None), getattr(self, 'left_card', None),
-                         getattr(self, 'right_card', None), getattr(self, 'triggers_card', None),
-                         getattr(self, 'chords_card', None)]:
-                if card:
-                    card.setStyleSheet(card_style)
-
-            if hasattr(self, 'left_readout'):
-                self.left_readout.setStyleSheet(f"color: {accent_2_hex6}; font-family: 'JetBrains Mono', 'Consolas', monospace; font-size: 11px; font-weight: bold;")
-            if hasattr(self, 'right_readout'):
-                self.right_readout.setStyleSheet(f"color: {accent_2_hex6}; font-family: 'JetBrains Mono', 'Consolas', monospace; font-size: 11px; font-weight: bold;")
-            if hasattr(self, 'chords_header'):
-                self.chords_header.setStyleSheet(f"color: {accent_1_hex6}; font-weight: bold; font-size: 10px;")
-        except RuntimeError:
-            pass
-
-    def set_config(self, controller_config) -> None:
-        self.controller_config = controller_config
-        self._sync_config()
-
-    def _sync_config(self) -> None:
-        if self.controller_config:
-            if hasattr(self, 'button_matrix'):
-                self.button_matrix.load_profile_schema(self.controller_config)
-            ls_dz = float(self.controller_config.get("analog_left", "deadzone", fallback="0.08"))
-            rs_dz = float(self.controller_config.get("analog_right", "deadzone", fallback="0.08"))
-            if hasattr(self, 'left_radar') and hasattr(self.left_radar, 'set_deadzone'):
-                self.left_radar.set_deadzone(ls_dz)
-            if hasattr(self, 'right_radar') and hasattr(self.right_radar, 'set_deadzone'):
-                self.right_radar.set_deadzone(rs_dz)
-
     def setup_ui(self) -> None:
-        """
-        Constructs the dashboard layout according to Phase 4 specifications.
-        """
         main_layout = QVBoxLayout(self)
+        main_layout.setContentsMargins(0, 0, 0, 0)
+        main_layout.setSpacing(0)
+
+        # Container Widget with Stacked Layout & Transition Overlay
+        self.container = QWidget(self)
+        container_layout = QVBoxLayout(self.container)
+        container_layout.setContentsMargins(0, 0, 0, 0)
+
+        self.stacked_widget = QStackedWidget(self.container)
+
+        # State A: WAITING View (Device Picker)
+        self.state_a_view = DevicePickerWidget(self)
+        self.state_a_view.device_selected.connect(self._on_device_selected)
+        self.stacked_widget.addWidget(self.state_a_view)
+
+        # State B: CONNECTED View (Telemetry Dashboard)
+        self.state_b_view = self._create_telemetry_view()
+        self.stacked_widget.addWidget(self.state_b_view)
+
+        container_layout.addWidget(self.stacked_widget)
+        main_layout.addWidget(self.container)
+
+        # Transition Overlay Widget
+        self.overlay = TransitionOverlayWidget(self)
+        self.overlay.hide()
+
+    def resizeEvent(self, event) -> None:
+        super().resizeEvent(event)
+        if hasattr(self, 'overlay'):
+            self.overlay.setGeometry(self.rect())
+
+    def _create_telemetry_view(self) -> QWidget:
+        view = QWidget()
+        main_layout = QVBoxLayout(view)
         main_layout.setContentsMargins(12, 12, 12, 12)
         main_layout.setSpacing(12)
 
@@ -111,11 +98,10 @@ class DashboardView(QWidget):
         header_layout = QHBoxLayout(self.header_card)
         header_layout.setContentsMargins(14, 10, 14, 10)
 
-        # Status Pill Badge
-        self.status_badge = QLabel("DISCONNECTED")
+        self.status_badge = QLabel("WAITING")
         self.status_badge.setAlignment(Qt.AlignmentFlag.AlignCenter)
         self.status_badge.setStyleSheet("""
-            background-color: #dc2626;
+            background-color: #eab308;
             color: #ffffff;
             font-weight: bold;
             border-radius: 6px;
@@ -123,8 +109,7 @@ class DashboardView(QWidget):
             font-size: 11px;
         """)
 
-        # Device Name Label
-        self.device_label = QLabel("🎮 No Controller Detected")
+        self.device_label = QLabel("🎮 Waiting for Controller...")
         self.device_label.setStyleSheet("color: #ffffff; font-size: 15px; font-weight: bold;")
 
         header_layout.addWidget(self.status_badge)
@@ -216,22 +201,104 @@ class DashboardView(QWidget):
         self.footer_label.setStyleSheet("color: rgba(255, 255, 255, 0.5); font-family: 'JetBrains Mono', 'Consolas', monospace; font-size: 10px; padding: 4px;")
         main_layout.addWidget(self.footer_label)
 
+        return view
+
+    def _setup_theme_sync(self) -> None:
+        try:
+            from gui_v2.services.theme_manager import ThemeManager
+            tm = ThemeManager.get_instance()
+            tm.theme_changed.connect(self.on_theme_changed)
+            self.on_theme_changed(tm.tokens)
+        except Exception:
+            pass
+
+    @Slot(dict)
+    def on_theme_changed(self, tokens: dict):
+        try:
+            from gui_v2.services.theme_manager import ThemeManager, color_to_rgba_str, color_to_hex6
+            tm = ThemeManager.get_instance()
+            bg_color = tm.get_color("background")
+            accent_1 = tm.get_color("accent_1")
+            accent_2 = tm.get_color("accent_2")
+
+            bg_glass = color_to_rgba_str(bg_color, alpha_override=0.85)
+            border_glass = color_to_rgba_str(accent_1, alpha_override=0.35)
+
+            card_style = f"""
+                QFrame#glass_card {{
+                    background-color: {bg_glass};
+                    border: 1px solid {border_glass};
+                    border-radius: 12px;
+                }}
+            """
+            for card in [getattr(self, 'header_card', None), getattr(self, 'left_card', None),
+                         getattr(self, 'right_card', None), getattr(self, 'triggers_card', None),
+                         getattr(self, 'chords_card', None)]:
+                if card:
+                    card.setStyleSheet(card_style)
+
+            if hasattr(self, 'left_readout'):
+                self.left_readout.setStyleSheet(f"color: {color_to_hex6(accent_2)}; font-family: 'JetBrains Mono', 'Consolas', monospace; font-size: 11px; font-weight: bold;")
+            if hasattr(self, 'right_readout'):
+                self.right_readout.setStyleSheet(f"color: {color_to_hex6(accent_2)}; font-family: 'JetBrains Mono', 'Consolas', monospace; font-size: 11px; font-weight: bold;")
+            if hasattr(self, 'chords_header'):
+                self.chords_header.setStyleSheet(f"color: {color_to_hex6(accent_1)}; font-weight: bold; font-size: 10px;")
+        except RuntimeError:
+            pass
+
+    def set_config(self, controller_config) -> None:
+        self.controller_config = controller_config
+        self._sync_config()
+
+    def _sync_config(self) -> None:
+        if self.controller_config:
+            if hasattr(self, 'button_matrix'):
+                self.button_matrix.load_profile_schema(self.controller_config)
+            ls_dz = float(self.controller_config.get("analog_left", "deadzone", fallback="0.08"))
+            rs_dz = float(self.controller_config.get("analog_right", "deadzone", fallback="0.08"))
+            if hasattr(self, 'left_radar') and hasattr(self.left_radar, 'set_deadzone'):
+                self.left_radar.set_deadzone(ls_dz)
+            if hasattr(self, 'right_radar') and hasattr(self.right_radar, 'set_deadzone'):
+                self.right_radar.set_deadzone(rs_dz)
+
+    def _on_device_selected(self, device_info: dict) -> None:
+        """Triggered when user selects a device card in State A."""
+        self.overlay.trigger_transition("CONNECTING", f"Resolving profile for {device_info.get('product_string', 'Device')}...")
+        self.decision_engine.process_device(device_info, is_xinput=False)
+
+    def _on_profile_resolved(self, profile_path: str) -> None:
+        """Profile decision engine resolved a profile."""
+        self.transition_to_state(ConnectionState.CONNECTED)
+
+    def _on_launch_wizard(self, device_info: dict) -> None:
+        """Profile decision engine requested calibration wizard."""
+        dlg = NativeCalibrationWizardDialog(device_info, self)
+        dlg.calibration_complete.connect(self._on_profile_resolved)
+        dlg.exec()
+
+    def transition_to_state(self, state: ConnectionState) -> None:
+        """Swaps between State A (WAITING) and State B (CONNECTED) view."""
+        if self._current_state != state:
+            self._current_state = state
+            if state == ConnectionState.CONNECTED:
+                self.stacked_widget.setCurrentWidget(self.state_b_view)
+            else:
+                self.stacked_widget.setCurrentWidget(self.state_a_view)
+
     @Slot(dict)
     def update_telemetry(self, state: Dict[str, Any]) -> None:
-        """
-        Receives ControllerState dictionary from UDPTelemetryWorker (~500Hz).
-        Updates Stick Radars with modified tuned output, Trigger Bars, Button Matrix highlights, and Chord status.
-        """
         if not state:
             return
 
-        # 1. Raw Hardware Inputs
+        # Ensure we are displaying State B if receiving active telemetry
+        if self._current_state != ConnectionState.CONNECTED:
+            self.transition_to_state(ConnectionState.CONNECTED)
+
         lx = float(state.get("lx", 0.0))
         ly = float(state.get("ly", 0.0))
         rx = float(state.get("rx", 0.0))
         ry = float(state.get("ry", 0.0))
 
-        # 2. Process Left Stick Output
         if self.controller_config:
             cfg_ls = getattr(self.controller_config, 'data', {}).get("analog_left", {})
             ls_dz = float(cfg_ls.get("deadzone", 0.00))
@@ -260,7 +327,6 @@ class DashboardView(QWidget):
         else:
             out_lx, out_ly = lx, ly
 
-        # 3. Process Right Stick Output
         if self.controller_config:
             cfg_rs = getattr(self.controller_config, 'data', {}).get("analog_right", {})
             rs_dz = float(cfg_rs.get("deadzone", 0.00))
@@ -289,7 +355,6 @@ class DashboardView(QWidget):
         else:
             out_rx, out_ry = rx, ry
 
-        # Send MODIFIED tuned outputs to dashboard stick radars
         self.left_radar.update_telemetry(out_lx, out_ly)
         self.right_radar.update_telemetry(out_rx, out_ry)
 
@@ -301,17 +366,13 @@ class DashboardView(QWidget):
         if self.right_readout.text() != r_str:
             self.right_readout.setText(r_str)
 
-
-        # 2. Update Triggers
         lt = float(state.get("lt", 0.0))
         rt = float(state.get("rt", 0.0))
         self.lt_bar.update_level(lt)
         self.rt_bar.update_level(rt)
 
-        # 3. Update Button Matrix
         self.button_matrix.update_button_states(state)
 
-        # 4. Update Hardware Chords Status Label if present
         active_chord = state.get("active_chord", state.get("hardware_chord", ""))
         if active_chord != self.last_active_chord:
             self.last_active_chord = str(active_chord)
@@ -322,20 +383,27 @@ class DashboardView(QWidget):
 
     @Slot(dict)
     def update_status(self, status_data: Dict[str, Any]) -> None:
-        """
-        Receives status.json payload (1Hz) from FilePollerWorker.
-        Updates connection badge color, device name, and status text.
-        """
         if not status_data:
             return
 
-        status = str(status_data.get("status", "Disconnected"))
+        status = str(status_data.get("status", "DISCONNECTED"))
         device = str(status_data.get("device", "Unknown Device"))
 
-        if status.lower() == "connected":
+        if status.upper() in ("CONNECTED", "CONNECTED"):
             self.status_badge.setText("CONNECTED")
             self.status_badge.setStyleSheet("""
                 background-color: #16a34a;
+                color: #ffffff;
+                font-weight: bold;
+                border-radius: 6px;
+                padding: 4px 10px;
+                font-size: 11px;
+            """)
+            self.transition_to_state(ConnectionState.CONNECTED)
+        elif status.upper() in ("CONNECTING", "WAITING"):
+            self.status_badge.setText(status.upper())
+            self.status_badge.setStyleSheet("""
+                background-color: #eab308;
                 color: #ffffff;
                 font-weight: bold;
                 border-radius: 6px;
@@ -352,6 +420,7 @@ class DashboardView(QWidget):
                 padding: 4px 10px;
                 font-size: 11px;
             """)
+            self.transition_to_state(ConnectionState.WAITING)
 
         self.device_label.setText(f"🎮 {device}")
 
@@ -364,10 +433,6 @@ class DashboardView(QWidget):
 
     @Slot(dict)
     def update_diagnostics(self, diag_data: Dict[str, Any]) -> None:
-        """
-        Receives diagnostics.json payload (2Hz) from FilePollerWorker.
-        Updates bottom footer stats (Polling Rate Hz, Latency ms).
-        """
         if not diag_data:
             return
 
@@ -378,58 +443,3 @@ class DashboardView(QWidget):
         self.footer_label.setText(
             f"TELEMETRY FOOTER: Polling Rate: {hz:.1f} Hz | Latency: {avg_ms:.2f} ms (max: {max_ms:.2f} ms)"
         )
-
-
-if __name__ == "__main__":
-    app = QApplication(sys.argv)
-
-    window = QWidget()
-    window.setWindowTitle("DashboardView Standalone Test")
-    window.resize(900, 700)
-    layout = QVBoxLayout(window)
-
-    scroll = QScrollArea()
-    scroll.setWidgetResizable(True)
-
-    dash = DashboardView()
-    scroll.setWidget(dash)
-    layout.addWidget(scroll)
-
-    window.show()
-
-    # Simulate IPC signal emissions
-    from PySide6.QtCore import QTimer
-
-    # 1. Status update
-    dash.update_status({"status": "Connected", "device": "8BitDo Ultimate 2C (DInput Mode)"})
-
-    # 2. Diagnostics update
-    dash.update_diagnostics({"polling_rate_hz": 250.0, "avg_process_ms": 0.22, "max_process_ms": 0.38})
-
-    # 3. Telemetry loop simulation
-    step = [0]
-
-    def tick_telemetry():
-        step[0] += 1
-        s = step[0]
-        state = {
-            "lx": math.sin(s * 0.05) * 0.7,
-            "ly": math.cos(s * 0.05) * 0.7,
-            "rx": math.cos(s * 0.03) * 0.5,
-            "ry": math.sin(s * 0.03) * 0.5,
-            "lt": (math.sin(s * 0.1) + 1.0) / 2.0,
-            "rt": (math.cos(s * 0.1) + 1.0) / 2.0,
-            "a": 1 if s % 20 < 10 else 0,
-            "b": 1 if s % 30 < 15 else 0,
-            "extra_inputs": {
-                "m1": 1 if s % 40 < 20 else 0,
-                "m2": 1 if s % 50 < 25 else 0
-            }
-        }
-        dash.update_telemetry(state)
-
-    timer = QTimer()
-    timer.timeout.connect(tick_telemetry)
-    timer.start(16)
-
-    sys.exit(app.exec())

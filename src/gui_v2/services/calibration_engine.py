@@ -619,10 +619,22 @@ class CalibrationEngine(QObject):
                 pass
         logger.info(f"[SETTLING-COMPLETE] Rest state settled.")
 
-        # Re-baseline on clean rest state
+        # Re-baseline ONLY if rest state is clean to prevent dirty state contamination
+        final_diff_count = 0
         for fid, latest_data in list(self.latest_reports.items()):
-            self.baselines[fid] = list(latest_data)
-            logger.debug(f"[RE-BASELINE] {fid} rest baseline updated: {latest_data[:12]}")
+            if fid in self.baselines:
+                b_data = self.baselines[fid]
+                if len(latest_data) == len(b_data):
+                    for b_idx in range(len(latest_data)):
+                        if latest_data[b_idx] != b_data[b_idx]:
+                            final_diff_count += 1
+
+        if final_diff_count == 0:
+            for fid, latest_data in list(self.latest_reports.items()):
+                self.baselines[fid] = list(latest_data)
+                logger.debug(f"[RE-BASELINE] {fid} clean rest baseline updated: {latest_data[:12]}")
+        else:
+            logger.warning(f"[RE-BASELINE-PRESERVED] Rest state dirty ({final_diff_count} diffs). Retaining original clean rest baseline!")
 
         # Clear per-step history
         self.click_counts.clear()
@@ -655,10 +667,22 @@ class CalibrationEngine(QObject):
             self.current_step_idx -= 1
             prev_name, _, _ = self.steps[self.current_step_idx]
 
-            # Re-baseline on current rest state to eliminate stale diffs
+            # Re-baseline ONLY if current rest state is clean to eliminate stale diffs
+            final_diff_count = 0
             for fid, latest_data in list(self.latest_reports.items()):
-                self.baselines[fid] = list(latest_data)
-                logger.debug(f"[UNDO-REBASELINE] {fid} reset to: {latest_data[:12]}")
+                if fid in self.baselines:
+                    b_data = self.baselines[fid]
+                    if len(latest_data) == len(b_data):
+                        for b_idx in range(len(latest_data)):
+                            if latest_data[b_idx] != b_data[b_idx]:
+                                final_diff_count += 1
+
+            if final_diff_count == 0:
+                for fid, latest_data in list(self.latest_reports.items()):
+                    self.baselines[fid] = list(latest_data)
+                    logger.debug(f"[UNDO-REBASELINE] {fid} reset to: {latest_data[:12]}")
+            else:
+                logger.warning(f"[UNDO-REBASELINE-PRESERVED] Rest state dirty ({final_diff_count} diffs). Retaining original clean rest baseline!")
 
             # Revert from profile
             for rep_data in self.profile.get("reports", {}).values():

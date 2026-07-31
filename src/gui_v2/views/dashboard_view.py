@@ -287,42 +287,40 @@ class DashboardView(QWidget):
             if hasattr(self, 'right_radar') and hasattr(self.right_radar, 'set_deadzone'):
                 self.right_radar.set_deadzone(rs_dz)
 
-    def get_active_device_info(self) -> dict:
+    def get_active_device_info(self) -> Optional[dict]:
+        """
+        Dynamically resolves active controller device info from active state
+        or live USB HID enumeration without hardcoding any constants.
+        """
         if hasattr(self, "_current_device_info") and self._current_device_info:
             return self._current_device_info
 
         if hasattr(self, "decision_engine") and getattr(self.decision_engine, "active_device_info", None):
             return self.decision_engine.active_device_info
 
-        if os.path.exists("config.ini"):
-            try:
-                import configparser
-                cp = configparser.ConfigParser()
-                cp.read("config.ini", encoding="utf-8")
-                lp = cp.get("controller", "last_profile", fallback="")
-                if lp and os.path.exists(lp):
-                    import json
-                    with open(lp, "r", encoding="utf-8") as f:
-                        pdata = json.load(f)
-                        vid_hex = pdata.get("vid", "2DC8")
-                        pid_hex = pdata.get("pid", "301C")
-                        info = {
-                            "vendor_id": int(vid_hex, 16) if isinstance(vid_hex, str) else vid_hex,
-                            "product_id": int(pid_hex, 16) if isinstance(pid_hex, str) else pid_hex,
-                            "product_string": pdata.get("name", "Connected Gamepad")
-                        }
-                        self._current_device_info = info
-                        return info
-            except Exception:
-                pass
+        # Live USB HID Enumeration
+        try:
+            from hid_reader import HIDReader
+            devices = HIDReader.get_all_devices()
+            # Prioritize Gamepad (0x05) / Joystick (0x04) usage pages
+            for dev in devices:
+                up = dev.get("usage_page", 0)
+                u = dev.get("usage", 0)
+                if up == 1 and u in (4, 5):
+                    self._current_device_info = dev
+                    return dev
+            # Fallback to any enumerated HID device with product string
+            for dev in devices:
+                if dev.get("product_string"):
+                    self._current_device_info = dev
+                    return dev
+            if devices:
+                self._current_device_info = devices[0]
+                return devices[0]
+        except Exception as e:
+            logger.warning(f"Live HID enumeration failed: {e}")
 
-        info = {
-            "vendor_id": 0x2DC8,
-            "product_id": 0x301C,
-            "product_string": "Connected Gamepad"
-        }
-        self._current_device_info = info
-        return info
+        return None
 
     def _on_device_selected(self, device_info: dict) -> None:
         """Triggered when user selects a device card in State A."""
@@ -350,6 +348,11 @@ class DashboardView(QWidget):
     def _on_launch_selective_calibration(self) -> None:
         """Launch Selective Calibration Dialog and start partial wizard."""
         device_info = self.get_active_device_info()
+        if not device_info:
+            from PySide6.QtWidgets import QMessageBox
+            QMessageBox.warning(self, "No Device Detected", "No USB HID controller device was found. Please ensure your controller is connected.")
+            return
+
         vid = device_info.get("vendor_id", 0)
         pid = device_info.get("product_id", 0)
         profile_path = f"profiles/{vid:04X}_{pid:04X}.json".lower()
@@ -382,6 +385,10 @@ class DashboardView(QWidget):
     def _on_recalibrate_full_wizard(self) -> None:
         """Launch Full Calibration Wizard on connected device."""
         device_info = self.get_active_device_info()
+        if not device_info:
+            from PySide6.QtWidgets import QMessageBox
+            QMessageBox.warning(self, "No Device Detected", "No USB HID controller device was found. Please ensure your controller is connected.")
+            return
         self._on_launch_wizard(device_info)
 
     def transition_to_state(self, state: ConnectionState) -> None:

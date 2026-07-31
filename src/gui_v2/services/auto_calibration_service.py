@@ -50,6 +50,7 @@ class ProfileDecisionEngine(QObject):
             is_xinput: True if controller is actively in XInput mode.
             force_calibrate: If True, skips profile checks and launches calibration wizard directly.
         """
+        self.active_device_info = device_info
         self.set_state(ConnectionState.CONNECTING)
 
         if force_calibrate:

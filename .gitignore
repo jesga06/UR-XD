@@ -15,3 +15,6 @@ config.ini
 profiles/
 docs/gui-related-docs/
 themes/custom_theme.json
+.releaseignore
+bundle_release.py
+release_bundle.zip

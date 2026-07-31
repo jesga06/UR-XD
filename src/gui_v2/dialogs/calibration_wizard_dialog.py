@@ -604,13 +604,15 @@ class NativeCalibrationWizardDialog(QDialog):
         if self.button_target_idx >= len(self.active_button_targets):
             return
 
-        # 1. Require Button Release from Previous Mapping
-        if getattr(self, "waiting_for_button_release", False):
-            if curr == base:
-                self.waiting_for_button_release = False
-                self.lbl_btn_status.setText("Ready for next button...")
-                self.lbl_btn_status.setStyleSheet("")
-            return
+        # 1. Build map of already mapped bitmasks for this report ID
+        known_mapped_bitmasks: Dict[int, int] = {}
+        rep_key = f"report_{r_id}"
+        if rep_key in self.profile_data.get("reports", {}):
+            for in_cfg in self.profile_data["reports"][rep_key].get("inputs", {}).values():
+                if in_cfg.get("type") == "button":
+                    b = in_cfg.get("byte")
+                    m = in_cfg.get("bitmask", 0)
+                    known_mapped_bitmasks[b] = known_mapped_bitmasks.get(b, 0) | m
 
         # 2. Mandatory Prompt Cooldown (Enforce 800ms reading time for prompt)
         if time.time() - getattr(self, "last_button_prompt_time", 0.0) < 0.8:
@@ -622,7 +624,6 @@ class NativeCalibrationWizardDialog(QDialog):
         if key == "dpad" or (self.button_target_idx < len(self.active_button_targets) and "dpad" in key):
             for b_idx in range(len(curr)):
                 if ((curr[b_idx] & 0x0F) <= 7) and ((base[b_idx] & 0x0F) > 7):
-                    rep_key = f"report_{r_id}"
                     if rep_key not in self.profile_data["reports"]:
                         self.profile_data["reports"][rep_key] = {"inputs": {}}
                     self.profile_data["reports"][rep_key]["inputs"]["dpad"] = {"type": "hat", "byte": b_idx}
@@ -649,60 +650,52 @@ class NativeCalibrationWizardDialog(QDialog):
             if len(self.byte_history[byte_key]) > 3:
                 continue
 
-            diff = curr[b_idx] ^ base[b_idx]
-            if diff > 0:
-                # Isolate single bit mask
-                if (diff & (diff - 1)) == 0:
-                    bitmask = diff
+            raw_diff = curr[b_idx] ^ base[b_idx]
+            if raw_diff > 0:
+                # Mask out bits corresponding to buttons ALREADY mapped!
+                already_mapped_mask = known_mapped_bitmasks.get(b_idx, 0)
+                unmapped_diff = raw_diff & ~already_mapped_mask
 
-                    # Check if already mapped
-                    is_already_mapped = False
-                    for r_data in self.profile_data.get("reports", {}).values():
-                        for input_cfg in r_data.get("inputs", {}).values():
-                            if input_cfg.get("type") == "button" and input_cfg.get("byte") == b_idx and input_cfg.get("bitmask") == bitmask:
-                                is_already_mapped = True
-                                break
+                if unmapped_diff > 0:
+                    # Isolate single bit mask
+                    if (unmapped_diff & (unmapped_diff - 1)) == 0:
+                        bitmask = unmapped_diff
 
-                    if is_already_mapped:
-                        continue
+                        # Process Stick Clicks (3-Click Confirmation with 0.4s debounce)
+                        if is_stick_click:
+                            if time.time() - self.last_click_time > 0.4:
+                                self.stick_click_counts[key] = self.stick_click_counts.get(key, 0) + 1
+                                self.last_click_time = time.time()
+                                c_count = self.stick_click_counts[key]
+                                
+                                if c_count < 3:
+                                    self.lbl_btn_status.setText(f"  Click {c_count}/3 detected for {key.upper()}!")
+                                    self.lbl_btn_status.setStyleSheet("color: #FFFF55; font-weight: bold;")
+                                    return
+                                else:
+                                    self.lbl_btn_status.setText(f"✅ Confirmed {key.upper()} 3-Click!")
+                                    self.lbl_btn_status.setStyleSheet("color: #55FF55; font-weight: bold;")
 
-                    # Process Stick Clicks (3-Click Confirmation with 0.4s debounce)
-                    if is_stick_click:
-                        if time.time() - self.last_click_time > 0.4:
-                            self.stick_click_counts[key] = self.stick_click_counts.get(key, 0) + 1
-                            self.last_click_time = time.time()
-                            c_count = self.stick_click_counts[key]
-                            
-                            if c_count < 3:
-                                self.lbl_btn_status.setText(f"  Click {c_count}/3 detected for {key.upper()}!")
-                                self.lbl_btn_status.setStyleSheet("color: #FFFF55; font-weight: bold;")
-                                return
-                            else:
-                                self.lbl_btn_status.setText(f"✅ Confirmed {key.upper()} 3-Click!")
-                                self.lbl_btn_status.setStyleSheet("color: #55FF55; font-weight: bold;")
+                        if rep_key not in self.profile_data["reports"]:
+                            self.profile_data["reports"][rep_key] = {"inputs": {}}
 
-                    rep_key = f"report_{r_id}"
-                    if rep_key not in self.profile_data["reports"]:
-                        self.profile_data["reports"][rep_key] = {"inputs": {}}
+                        self.profile_data["reports"][rep_key]["inputs"][key] = {
+                            "type": "button",
+                            "byte": b_idx,
+                            "bitmask": bitmask
+                        }
 
-                    self.profile_data["reports"][rep_key]["inputs"][key] = {
-                        "type": "button",
-                        "byte": b_idx,
-                        "bitmask": bitmask
-                    }
+                        self.lbl_btn_status.setText(f"✅ Mapped '{key.upper()}' to Byte {b_idx}, Mask 0x{bitmask:02X}!")
+                        self.lbl_btn_status.setStyleSheet("color: #55FF55; font-weight: bold;")
 
-                    self.waiting_for_button_release = True
-                    self.lbl_btn_status.setText(f"✅ Mapped '{key.upper()}'! Please RELEASE button to continue...")
-                    self.lbl_btn_status.setStyleSheet("color: #55FF55; font-weight: bold;")
-
-                    self.button_target_idx += 1
-                    if self.button_target_idx < len(self.active_button_targets):
-                        self.last_button_prompt_time = time.time() + 0.8
-                        QTimer.singleShot(800, self._update_button_target_label)
-                    else:
-                        self.lbl_target_btn.setText("✅ All buttons mapped!")
-                        self.lbl_btn_status.setText("Click 'Next' to calibrate analog sticks.")
-                    break
+                        self.button_target_idx += 1
+                        if self.button_target_idx < len(self.active_button_targets):
+                            self.last_button_prompt_time = time.time() + 0.8
+                            QTimer.singleShot(800, self._update_button_target_label)
+                        else:
+                            self.lbl_target_btn.setText("✅ All buttons mapped!")
+                            self.lbl_btn_status.setText("Click 'Next' to calibrate analog sticks.")
+                        break
 
     def _undo_last_button(self) -> None:
         if self.button_target_idx > 0:
@@ -714,13 +707,11 @@ class NativeCalibrationWizardDialog(QDialog):
                 if "inputs" in r_data and key in r_data["inputs"]:
                     del r_data["inputs"][key]
 
-            self.waiting_for_button_release = False
             self.last_button_prompt_time = time.time()
             self._update_button_target_label()
             self.lbl_btn_status.setText(f"Undid mapping for '{key.upper()}'. Re-mapping target...")
 
     def _skip_current_button(self) -> None:
-        self.waiting_for_button_release = False
         self.last_button_prompt_time = time.time()
         self.button_target_idx += 1
         if self.button_target_idx < len(self.active_button_targets):
@@ -817,14 +808,6 @@ class NativeCalibrationWizardDialog(QDialog):
             return
 
         # 2. Handle Analog Stick Axes (lx, ly, rx, ry)
-        if getattr(self, "waiting_for_axis_release", False):
-            max_dev = max(abs(curr[i] - base[i]) for i in range(len(curr)))
-            if max_dev < 15:
-                self.waiting_for_axis_release = False
-                self.lbl_stick_status.setText("Ready for next axis movement...")
-                self.lbl_stick_status.setStyleSheet("")
-            return
-
         if time.time() - getattr(self, "last_axis_prompt_time", 0.0) < 1.0:
             return
 

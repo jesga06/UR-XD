@@ -269,10 +269,40 @@ def main():
             hid_map_path = None
         else:
             logger.warning("No connected devices with a saved HID map or XInput slot found.")
-            logger.info("Please run calibration.py to generate a HID map for your controller.")
-            show_console()
-            time.sleep(5)
-            sys.exit(1)
+            logger.info("Entering WAITING state for background device detection...")
+            write_status(ConnectionState.WAITING, "No Controller Connected")
+
+            # Open GUI if not called with --boot
+            if not args.boot:
+                logger.info("Auto-opening GUI in WAITING state...")
+                open_config(None, None)
+
+            # Continuous low-overhead background polling for devices in WAITING state
+            while not hid_map_path:
+                time.sleep(2.0)
+                devices = HIDReader.get_all_devices()
+                for d in devices:
+                    vid = d.get('vendor_id', 0)
+                    pid = d.get('product_id', 0)
+                    potential_hid_map = f"profiles/{vid:04X}_{pid:04X}.json".lower()
+                    if os.path.exists(potential_hid_map):
+                        selected_vid = vid
+                        selected_pid = pid
+                        hid_map_path = potential_hid_map
+                        try:
+                            with open(hid_map_path, 'r', encoding='utf-8') as f:
+                                map_data = json.load(f)
+                                device_name = map_data.get('name', "Unknown Device")
+                        except Exception:
+                            pass
+                        break
+
+                if not hid_map_path:
+                    test_xinput = XInputBackend()
+                    if test_xinput.initialize():
+                        device_name = "XInput Gamepad"
+                        hid_map_path = None
+                        break
 
     logger.info(f"Connected device: {device_name} (HID map: {hid_map_path or 'None (XInput)'})")
 

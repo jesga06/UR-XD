@@ -286,8 +286,12 @@ class Mapper:
             return
 
         if mapping.startswith('macro:'):
+            macro_name = mapping.split(':', 1)[1]
+            if self.macro_executor:
+                self.macro_executor.on_button_release(macro_name)
             return
         elif self.macro_executor and mapping in self.macro_executor.macros:
+            self.macro_executor.on_button_release(mapping)
             return
 
         if mapping.startswith('gamepad:'):

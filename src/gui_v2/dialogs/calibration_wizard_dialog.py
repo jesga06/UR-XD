@@ -1,9 +1,6 @@
 """
 Native GUI Calibration Wizard Dialog (calibration_wizard_dialog.py)
-PySide6 native multi-step calibration wizard with full algorithmic parity to legacy calibration.py.
-Features 15-second XInput auto-detection, rest state baselining, 3-click L3/R3 confirmation,
-4-bit D-Pad Hat switch detection, 2.0s trigger sampling with digital fallback,
-axis inversion/signed math calculation, single-step Undo buttons, and profile saving.
+PySide6 native multi-step calibration wizard dialog powered by CalibrationEngine.
 """
 
 import os
@@ -13,7 +10,7 @@ import time
 import ctypes
 import configparser
 import threading
-from typing import Dict, Any, Optional, List, Tuple, Set
+from typing import Dict, Any, Optional, List, Tuple
 
 from PySide6.QtWidgets import (
     QDialog, QVBoxLayout, QHBoxLayout, QLabel, QPushButton, QProgressBar,
@@ -26,68 +23,17 @@ sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), "..", ".
 from hid_reader import HIDReader, RawHIDReport
 from backend_xinput import XInputBackend, XINPUT_STATE, XINPUT_GAMEPAD_A, XINPUT_GAMEPAD_B
 from gui_v2.services.theme_manager import ThemeManager, color_to_rgba_str, color_to_hex6
-
-
-BUTTON_TARGET_MAPS = {
-    "xbox": [
-        ("a", "Action Button A (Bottom)"),
-        ("b", "Action Button B (Right)"),
-        ("x", "Action Button X (Left)"),
-        ("y", "Action Button Y (Top)"),
-        ("lb", "Left Bumper (LB)"),
-        ("rb", "Right Bumper (RB)"),
-        ("select", "Select / Back Button"),
-        ("start", "Start Button"),
-        ("home", "Home / Guide Button"),
-        ("l3", "Left Stick Click (LS / L3) - Click 3 Times"),
-        ("r3", "Right Stick Click (RS / R3) - Click 3 Times")
-    ],
-    "playstation": [
-        ("a", "Cross (X) Button (Bottom)"),
-        ("b", "Circle (O) Button (Right)"),
-        ("x", "Square (■) Button (Left)"),
-        ("y", "Triangle (▲) Button (Top)"),
-        ("lb", "L1 Bumper"),
-        ("rb", "R1 Bumper"),
-        ("select", "Share / Select Button"),
-        ("start", "Options / Start Button"),
-        ("home", "PS / Home Button"),
-        ("l3", "L3 Click - Click 3 Times"),
-        ("r3", "R3 Click - Click 3 Times")
-    ],
-    "nintendo": [
-        ("a", "Button B (Bottom)"),
-        ("b", "Button A (Right)"),
-        ("x", "Button Y (Left)"),
-        ("y", "Button X (Top)"),
-        ("lb", "L Bumper"),
-        ("rb", "R Bumper"),
-        ("select", "- (Minus) Button"),
-        ("start", "+ (Plus) Button"),
-        ("home", "Home Button"),
-        ("l3", "LS Click - Click 3 Times"),
-        ("r3", "RS Click - Click 3 Times")
-    ]
-}
-
-AXIS_TARGETS = [
-    ("lx", "Move Left Stick RIGHT"),
-    ("ly", "Move Left Stick UP"),
-    ("rx", "Move Right Stick RIGHT"),
-    ("ry", "Move Right Stick UP"),
-    ("lt", "Press Left Trigger (Hold for 2s)"),
-    ("rt", "Press Right Trigger (Hold for 2s)")
-]
+from gui_v2.services.calibration_engine import CalibrationEngine
 
 
 class NativeCalibrationWizardDialog(QDialog):
     """
-    Multi-step PySide6 GUI Calibration Wizard Dialog.
+    Multi-step PySide6 GUI Calibration Wizard Dialog powered by CalibrationEngine.
     Step 0: XInput Auto-Detect (15s Countdown + Skip Button)
     Step 1: Welcome & Layout Selection + Extra Buttons Entry
     Step 2: Rest State Baseline Capture
-    Step 3: Interactive Button Byte/Bitmask/Hat Mapping
-    Step 4: Analog Stick Range, Inversion & Trigger 2s Sampling
+    Step 3: Interactive Button & D-Pad Hat Switch Calibration
+    Step 4: Analog Stick Range, Inversion & Trigger Sampling
     Step 5: Save & Finish
     """
     calibration_complete = Signal(str)  # Emits path to saved profile JSON
@@ -102,32 +48,13 @@ class NativeCalibrationWizardDialog(QDialog):
         self.layout_type: str = "xbox"
         self.reader: Optional[HIDReader] = None
         self.latest_report: Optional[RawHIDReport] = None
-        self.baselines: Dict[int, List[int]] = {}  # { report_id: byte_list }
-        
-        self.profile_data: Dict[str, Any] = {
-            "name": self.device_info.get("product_string") or "Custom Gamepad",
-            "vid": f"{self.device_info.get('vendor_id', 0):04X}",
-            "pid": f"{self.device_info.get('product_id', 0):04X}",
-            "layout": "xbox",
-            "has_report_id": True,
-            "reports": {}
-        }
+        self.report_payloads: Dict[str, List[int]] = {}
 
-        # Calibration state tracking
-        self.active_button_targets: List[Tuple[str, str]] = list(BUTTON_TARGET_MAPS["xbox"])
-        self.button_target_idx: int = 0
-        self.axis_target_idx: int = 0
-        self.axis_min_max: Dict[int, Dict[str, int]] = {}  # { byte_idx: {min, max, base} }
-        self.byte_history: Dict[Tuple[int, int], Set[int]] = {}
-
-        # L3 / R3 3-click counter tracking
-        self.stick_click_counts: Dict[str, int] = {}
-        self.last_click_time: float = 0.0
-
-        # Trigger 2.0s sampling state
-        self.trigger_sampling_active: bool = False
-        self.trigger_start_time: float = 0.0
-        self.trigger_samples: List[Tuple[int, List[int]]] = []
+        # Instantiate CalibrationEngine
+        self.engine = CalibrationEngine(device_info=self.device_info, layout_type=self.layout_type)
+        self.engine.prompt_changed.connect(self._on_engine_prompt_changed)
+        self.engine.status_updated.connect(self._on_engine_status_updated)
+        self.engine.calibration_finished.connect(self._on_engine_finished)
 
         # XInput Detection 15s Timer
         self.xinput_time_remaining: float = 15.0
@@ -333,11 +260,11 @@ class NativeCalibrationWizardDialog(QDialog):
         self.lbl_btn_status.setAlignment(Qt.AlignmentFlag.AlignCenter)
 
         btn_action_box = QHBoxLayout()
-        self.btn_undo_button = QPushButton("↩ Undo Last Button")
-        self.btn_undo_button.clicked.connect(self._undo_last_button)
+        self.btn_undo_button = QPushButton("↩ Undo Last Step")
+        self.btn_undo_button.clicked.connect(self.engine.undo_step)
         
-        self.btn_skip_button = QPushButton("Skip Button")
-        self.btn_skip_button.clicked.connect(self._skip_current_button)
+        self.btn_skip_button = QPushButton("Skip Step")
+        self.btn_skip_button.clicked.connect(self.engine.skip_step)
 
         btn_action_box.addStretch()
         btn_action_box.addWidget(self.btn_undo_button)
@@ -368,11 +295,11 @@ class NativeCalibrationWizardDialog(QDialog):
         self.lbl_stick_status.setAlignment(Qt.AlignmentFlag.AlignCenter)
 
         axis_action_box = QHBoxLayout()
-        self.btn_undo_axis = QPushButton("↩ Undo Last Axis")
-        self.btn_undo_axis.clicked.connect(self._undo_last_axis)
+        self.btn_undo_axis = QPushButton("↩ Undo Last Step")
+        self.btn_undo_axis.clicked.connect(self.engine.undo_step)
 
-        self.btn_skip_axis = QPushButton("Skip Axis")
-        self.btn_skip_axis.clicked.connect(self._skip_current_axis)
+        self.btn_skip_axis = QPushButton("Skip Step")
+        self.btn_skip_axis.clicked.connect(self.engine.skip_step)
 
         axis_action_box.addStretch()
         axis_action_box.addWidget(self.btn_undo_axis)
@@ -462,6 +389,37 @@ class NativeCalibrationWizardDialog(QDialog):
             pass
 
     # -------------------------------------------------------------------
+    # ENGINE SIGNAL SLOTS
+    # -------------------------------------------------------------------
+    @Slot(str, str, str, int, int)
+    def _on_engine_prompt_changed(self, key: str, cat: str, prompt: str, step_idx: int, total_steps: int) -> None:
+        if cat in ("buttons", "stick_clicks"):
+            self.lbl_target_btn.setText(prompt)
+            self.stacked_widget.setCurrentIndex(3)
+        elif cat in ("axes", "triggers"):
+            self.lbl_target_axis.setText(prompt)
+            self.stacked_widget.setCurrentIndex(4)
+        elif cat == "hat":
+            self.lbl_target_btn.setText("Press D-Pad UP (Hat Switch)")
+            self.stacked_widget.setCurrentIndex(3)
+
+    @Slot(str, str)
+    def _on_engine_status_updated(self, msg: str, color_hex: str) -> None:
+        self.lbl_btn_status.setText(msg)
+        self.lbl_btn_status.setStyleSheet(f"color: {color_hex}; font-weight: bold;")
+        self.lbl_stick_status.setText(msg)
+        self.lbl_stick_status.setStyleSheet(f"color: {color_hex}; font-weight: bold;")
+
+    @Slot(dict)
+    def _on_engine_finished(self, profile_data: dict) -> None:
+        self.stacked_widget.setCurrentIndex(5)
+        self.progress_bar.setValue(5)
+        self.next_btn.setText("Save & Finish")
+        vid = self.device_info.get("vendor_id", 0)
+        pid = self.device_info.get("product_id", 0)
+        self.lbl_summary.setText(f"Profile: profiles/{vid:04X}_{pid:04X}.json\nLayout: {self.layout_type.upper()}")
+
+    # -------------------------------------------------------------------
     # HID LISTENER & SIGNAL HANDLING
     # -------------------------------------------------------------------
     def _start_hid_listener(self) -> None:
@@ -475,15 +433,12 @@ class NativeCalibrationWizardDialog(QDialog):
     @Slot(object)
     def _on_hid_report_signal(self, report: RawHIDReport) -> None:
         self.latest_report = report
+        full_id = f"0_{report.report_id}"
+        self.report_payloads[full_id] = list(report.payload)
+
         page_idx = self.stacked_widget.currentIndex()
-
-        # Step 3: Button Calibration
-        if page_idx == 3:
-            self._process_button_report(report)
-
-        # Step 4: Stick Calibration
-        elif page_idx == 4:
-            self._process_stick_report(report)
+        if page_idx in (3, 4):
+            self.engine.process_report(0, report.report_id, list(report.payload))
 
     # -------------------------------------------------------------------
     # STEP 0: XINPUT AUTO-DETECTION (15s COUNTDOWN + CONSTANT POLLING)
@@ -508,7 +463,6 @@ class NativeCalibrationWizardDialog(QDialog):
 
         self.lbl_xinput_countdown.setText(f"Time Remaining: {self.xinput_time_remaining:.1f}s")
 
-        # Check XInput Backend C-API
         xb = XInputBackend()
         if xb.initialize():
             state = XINPUT_STATE()
@@ -549,352 +503,19 @@ class NativeCalibrationWizardDialog(QDialog):
             print(f"Error setting backend mode: {e}")
 
     # -------------------------------------------------------------------
-    # STEP 1: WELCOME & LAYOUT SELECTION
+    # STEP 1 & 2: WELCOME & REST BASELINE
     # -------------------------------------------------------------------
     def _on_layout_changed(self, idx: int) -> None:
         keys = ["xbox", "playstation", "nintendo"]
         self.layout_type = keys[idx] if idx < len(keys) else "xbox"
-        self.profile_data["layout"] = self.layout_type
-        self._rebuild_active_button_targets()
 
-    def _rebuild_active_button_targets(self) -> None:
-        base_targets = list(BUTTON_TARGET_MAPS.get(self.layout_type, BUTTON_TARGET_MAPS["xbox"]))
-        
-        # Check custom extra buttons entered by user
-        raw_extra = self.ent_extra_buttons.text().strip().lower()
-        if raw_extra:
-            extra_names = [x.strip() for x in raw_extra.split(",") if x.strip()]
-            for name in extra_names:
-                base_targets.append((name, f"Extra Button ({name.upper()})"))
-
-        self.active_button_targets = base_targets
-        self._update_button_target_label()
-
-    def _update_button_target_label(self) -> None:
-        if self.button_target_idx < len(self.active_button_targets):
-            key, label = self.active_button_targets[self.button_target_idx]
-            self.lbl_target_btn.setText(f"Press {label}")
-            self.lbl_btn_status.setText(f"Listening for '{key.upper()}' input...")
-
-    # -------------------------------------------------------------------
-    # STEP 2: REST BASELINE CAPTURE
-    # -------------------------------------------------------------------
     def _capture_baseline(self) -> None:
-        if self.latest_report and hasattr(self.latest_report, "payload"):
-            r_id = self.latest_report.report_id
-            self.baselines[r_id] = list(self.latest_report.payload)
-            self.lbl_base_status.setText(f"✅ Rest baseline captured for Report ID {r_id} ({len(self.latest_report.payload)} bytes)!")
+        if self.report_payloads:
+            self.engine.capture_rest_baseline(self.report_payloads)
+            self.lbl_base_status.setText(f"✅ Rest baseline captured for {len(self.report_payloads)} HID interface(s)!")
             self.lbl_base_status.setStyleSheet("color: #55FF55; font-weight: bold;")
         else:
             self.lbl_base_status.setText("⚠️ Default zero baseline registered. Move to next step.")
-
-    # -------------------------------------------------------------------
-    # STEP 3: DIGITAL BUTTON & 4-BIT HAT SWITCH MAPPING
-    # -------------------------------------------------------------------
-    def _process_button_report(self, report: RawHIDReport) -> None:
-        if not self.baselines:
-            return
-
-        r_id = report.report_id
-        base = self.baselines.get(r_id)
-        curr = report.payload
-        if not base or len(base) != len(curr):
-            return
-
-        if self.button_target_idx >= len(self.active_button_targets):
-            return
-
-        # 1. Build map of already mapped bitmasks for this report ID
-        known_mapped_bitmasks: Dict[int, int] = {}
-        rep_key = f"report_{r_id}"
-        if rep_key in self.profile_data.get("reports", {}):
-            for in_cfg in self.profile_data["reports"][rep_key].get("inputs", {}).values():
-                if in_cfg.get("type") == "button":
-                    b = in_cfg.get("byte")
-                    m = in_cfg.get("bitmask", 0)
-                    known_mapped_bitmasks[b] = known_mapped_bitmasks.get(b, 0) | m
-
-        # 2. Mandatory Prompt Cooldown (Enforce 800ms reading time for prompt)
-        if time.time() - getattr(self, "last_button_prompt_time", 0.0) < 0.8:
-            return
-
-        key, _ = self.active_button_targets[self.button_target_idx]
-
-        # Check D-Pad 4-Bit Nibble Hat Switch Detection
-        if key == "dpad" or (self.button_target_idx < len(self.active_button_targets) and "dpad" in key):
-            for b_idx in range(len(curr)):
-                if ((curr[b_idx] & 0x0F) <= 7) and ((base[b_idx] & 0x0F) > 7):
-                    if rep_key not in self.profile_data["reports"]:
-                        self.profile_data["reports"][rep_key] = {"inputs": {}}
-                    self.profile_data["reports"][rep_key]["inputs"]["dpad"] = {"type": "hat", "byte": b_idx}
-                    self.lbl_btn_status.setText(f"✅ Mapped D-Pad Hat Switch to Report {r_id}, Byte {b_idx}!")
-                    self.lbl_btn_status.setStyleSheet("color: #55FF55; font-weight: bold;")
-                    self.button_target_idx += 1
-                    self.last_button_prompt_time = time.time() + 0.8
-                    QTimer.singleShot(800, self._update_button_target_label)
-                    return
-
-        # 3. Handle 3-Click Confirmation for Stick Clicks (l3 / r3)
-        is_stick_click = key in ("l3", "r3")
-
-        for b_idx in range(len(curr)):
-            # Track value history for noise filtering
-            byte_key = (r_id, b_idx)
-            if not hasattr(self, "byte_history"):
-                self.byte_history = {}
-            if byte_key not in self.byte_history:
-                self.byte_history[byte_key] = set()
-            self.byte_history[byte_key].add(curr[b_idx])
-
-            # Filter out analog noise (if a byte takes > 3 values, it's an analog stick!)
-            if len(self.byte_history[byte_key]) > 3:
-                continue
-
-            raw_diff = curr[b_idx] ^ base[b_idx]
-            if raw_diff > 0:
-                # Mask out bits corresponding to buttons ALREADY mapped!
-                already_mapped_mask = known_mapped_bitmasks.get(b_idx, 0)
-                unmapped_diff = raw_diff & ~already_mapped_mask
-
-                if unmapped_diff > 0:
-                    # Isolate single bit mask
-                    if (unmapped_diff & (unmapped_diff - 1)) == 0:
-                        bitmask = unmapped_diff
-
-                        # Process Stick Clicks (3-Click Confirmation with 0.4s debounce)
-                        if is_stick_click:
-                            if time.time() - self.last_click_time > 0.4:
-                                self.stick_click_counts[key] = self.stick_click_counts.get(key, 0) + 1
-                                self.last_click_time = time.time()
-                                c_count = self.stick_click_counts[key]
-                                
-                                if c_count < 3:
-                                    self.lbl_btn_status.setText(f"  Click {c_count}/3 detected for {key.upper()}!")
-                                    self.lbl_btn_status.setStyleSheet("color: #FFFF55; font-weight: bold;")
-                                    return
-                                else:
-                                    self.lbl_btn_status.setText(f"✅ Confirmed {key.upper()} 3-Click!")
-                                    self.lbl_btn_status.setStyleSheet("color: #55FF55; font-weight: bold;")
-
-                        if rep_key not in self.profile_data["reports"]:
-                            self.profile_data["reports"][rep_key] = {"inputs": {}}
-
-                        self.profile_data["reports"][rep_key]["inputs"][key] = {
-                            "type": "button",
-                            "byte": b_idx,
-                            "bitmask": bitmask
-                        }
-
-                        self.lbl_btn_status.setText(f"✅ Mapped '{key.upper()}' to Byte {b_idx}, Mask 0x{bitmask:02X}!")
-                        self.lbl_btn_status.setStyleSheet("color: #55FF55; font-weight: bold;")
-
-                        self.button_target_idx += 1
-                        if self.button_target_idx < len(self.active_button_targets):
-                            self.last_button_prompt_time = time.time() + 0.8
-                            QTimer.singleShot(800, self._update_button_target_label)
-                        else:
-                            self.lbl_target_btn.setText("✅ All buttons mapped!")
-                            self.lbl_btn_status.setText("Click 'Next' to calibrate analog sticks.")
-                        break
-
-    def _undo_last_button(self) -> None:
-        if self.button_target_idx > 0:
-            self.button_target_idx -= 1
-            key, _ = self.active_button_targets[self.button_target_idx]
-            
-            # Revert from profile data
-            for r_data in self.profile_data.get("reports", {}).values():
-                if "inputs" in r_data and key in r_data["inputs"]:
-                    del r_data["inputs"][key]
-
-            self.last_button_prompt_time = time.time()
-            self._update_button_target_label()
-            self.lbl_btn_status.setText(f"Undid mapping for '{key.upper()}'. Re-mapping target...")
-
-    def _skip_current_button(self) -> None:
-        self.last_button_prompt_time = time.time()
-        self.button_target_idx += 1
-        if self.button_target_idx < len(self.active_button_targets):
-            self._update_button_target_label()
-        else:
-            self.lbl_target_btn.setText("✅ Button mapping finished!")
-            self.lbl_btn_status.setText("Click 'Next' to calibrate analog sticks.")
-
-    # -------------------------------------------------------------------
-    # STEP 4: ANALOG STICK MATH & TRIGGER 2s SAMPLING
-    # -------------------------------------------------------------------
-    def _update_axis_target_label(self) -> None:
-        if self.axis_target_idx < len(AXIS_TARGETS):
-            key, label = AXIS_TARGETS[self.axis_target_idx]
-            self.lbl_target_axis.setText(label)
-            self.lbl_stick_status.setText(f"Listening for '{key.upper()}' movement...")
-
-    def _process_stick_report(self, report: RawHIDReport) -> None:
-        if not self.baselines:
-            return
-
-        r_id = report.report_id
-        base = self.baselines.get(r_id)
-        curr = report.payload
-        if not base or len(base) != len(curr):
-            return
-
-        if self.axis_target_idx >= len(AXIS_TARGETS):
-            return
-
-        key, label = AXIS_TARGETS[self.axis_target_idx]
-
-        # 1. Handle Trigger 2.0s Continuous Sampling Window & Digital Fallback
-        if key in ("lt", "rt"):
-            if not self.trigger_sampling_active:
-                self.trigger_sampling_active = True
-                self.trigger_start_time = time.time()
-                self.trigger_samples = [(r_id, list(curr))]
-                self.lbl_stick_status.setText(f"Collecting 2.0s trigger data for '{key.upper()}'...")
-                return
-
-            self.trigger_samples.append((r_id, list(curr)))
-            elapsed = time.time() - self.trigger_start_time
-
-            if elapsed < 2.0:
-                self.lbl_stick_status.setText(f"Collecting 2.0s data ({elapsed:.1f}s/2.0s)...")
-                return
-
-            # Analyze Trigger Samples
-            self.trigger_sampling_active = False
-            unique_values = set(s[1][b] for s in self.trigger_samples for b in range(len(s[1])))
-            
-            best_byte = -1
-            max_uniques = 0
-            for b_idx in range(len(curr)):
-                vals = set(s[1][b_idx] for s in self.trigger_samples if len(s[1]) > b_idx)
-                if len(vals) > max_uniques:
-                    max_uniques = len(vals)
-                    best_byte = b_idx
-
-            rep_key = f"report_{r_id}"
-            if rep_key not in self.profile_data["reports"]:
-                self.profile_data["reports"][rep_key] = {"inputs": {}}
-
-            # Analog Trigger Mapping
-            if max_uniques > 2 and best_byte >= 0:
-                self.profile_data["reports"][rep_key]["inputs"][key] = {
-                    "type": "trigger",
-                    "byte": best_byte,
-                    "length": 1,
-                    "center": False,
-                    "is_analog": True,
-                    "range_confidence": round(min(1.0, max_uniques / 40.0), 3)
-                }
-                self.lbl_stick_status.setText(f"✅ Mapped Analog Trigger '{key.upper()}' to Report {r_id}, Byte {best_byte}!")
-            else:
-                # Digital Trigger Fallback
-                self.profile_data["reports"][rep_key]["inputs"][key] = {
-                    "type": "button",
-                    "byte": 0,
-                    "bitmask": 1,
-                    "is_analog": False
-                }
-                self.lbl_stick_status.setText(f"✅ Mapped Digital Trigger Fallback for '{key.upper()}'!")
-
-            self.lbl_stick_status.setStyleSheet("color: #55FF55; font-weight: bold;")
-            self.axis_target_idx += 1
-            if self.axis_target_idx < len(AXIS_TARGETS):
-                self.last_axis_prompt_time = time.time() + 1.0
-                QTimer.singleShot(1000, self._update_axis_target_label)
-            else:
-                self.lbl_target_axis.setText("✅ Axis calibration finished!")
-                self.lbl_stick_status.setText("Click 'Next' to finalize and save profile.")
-            return
-
-        # 2. Handle Analog Stick Axes (lx, ly, rx, ry)
-        if time.time() - getattr(self, "last_axis_prompt_time", 0.0) < 1.0:
-            return
-
-        for b_idx in range(len(curr)):
-            c_val = curr[b_idx]
-            b_val = base[b_idx]
-
-            # Exclude bytes mapped as buttons
-            is_mapped_button = False
-            for r_data in self.profile_data.get("reports", {}).values():
-                for input_cfg in r_data.get("inputs", {}).values():
-                    if input_cfg.get("type") == "button" and input_cfg.get("byte") == b_idx:
-                        is_mapped_button = True
-                        break
-            if is_mapped_button:
-                continue
-
-            if b_idx not in self.axis_min_max:
-                self.axis_min_max[b_idx] = {"min": b_val, "max": b_val, "base": b_val}
-
-            self.axis_min_max[b_idx]["min"] = min(self.axis_min_max[b_idx]["min"], c_val)
-            self.axis_min_max[b_idx]["max"] = max(self.axis_min_max[b_idx]["max"], c_val)
-
-            delta = c_val - b_val
-            amp = abs(delta)
-            if amp > 30:
-                rep_key = f"report_{r_id}"
-                if rep_key not in self.profile_data["reports"]:
-                    self.profile_data["reports"][rep_key] = {"inputs": {}}
-
-                # Calculate Signed, Invert, Centeredness, and Range Confidence
-                is_signed = (b_val < 15 or b_val > 240)
-                is_inverted = False
-                if key in ("lx", "rx") and delta < 0:
-                    is_inverted = True
-                elif key in ("ly", "ry") and delta > 0:
-                    is_inverted = True
-
-                centeredness = round(max(0.0, min(1.0, 1.0 - (abs(b_val - 127.5) / 127.5))), 3)
-                range_conf = round(min(1.0, amp / 127.0), 3)
-
-                self.profile_data["reports"][rep_key]["inputs"][key] = {
-                    "type": "axis",
-                    "byte": b_idx,
-                    "length": 1,
-                    "center": True,
-                    "signed": is_signed,
-                    "invert": is_inverted,
-                    "centeredness": centeredness,
-                    "range_confidence": range_conf
-                }
-
-                self.waiting_for_axis_release = True
-                self.lbl_stick_status.setText(f"✅ Mapped '{key.upper()}' to Report {r_id}, Byte {b_idx} (Invert={is_inverted})! Return stick to center...")
-                self.lbl_stick_status.setStyleSheet("color: #55FF55; font-weight: bold;")
-
-                self.axis_target_idx += 1
-                if self.axis_target_idx < len(AXIS_TARGETS):
-                    self.last_axis_prompt_time = time.time() + 1.0
-                    QTimer.singleShot(1000, self._update_axis_target_label)
-                else:
-                    self.lbl_target_axis.setText("✅ Axis calibration finished!")
-                    self.lbl_stick_status.setText("Click 'Next' to finalize and save profile.")
-                break
-
-    def _undo_last_axis(self) -> None:
-        if self.axis_target_idx > 0:
-            self.axis_target_idx -= 1
-            key, _ = AXIS_TARGETS[self.axis_target_idx]
-
-            # Revert from profile data
-            for r_data in self.profile_data.get("reports", {}).values():
-                if "inputs" in r_data and key in r_data["inputs"]:
-                    del r_data["inputs"][key]
-
-            self.waiting_for_axis_release = False
-            self.last_axis_prompt_time = time.time()
-            self._update_axis_target_label()
-            self.lbl_stick_status.setText(f"Undid mapping for '{key.upper()}'. Re-mapping axis target...")
-
-    def _skip_current_axis(self) -> None:
-        self.axis_target_idx += 1
-        if self.axis_target_idx < len(AXIS_TARGETS):
-            self._update_axis_target_label()
-        else:
-            self.lbl_target_axis.setText("✅ Axis calibration finished!")
-            self.lbl_stick_status.setText("Click 'Next' to finalize and save profile.")
 
     # -------------------------------------------------------------------
     # NAVIGATION HANDLERS
@@ -905,23 +526,22 @@ class NativeCalibrationWizardDialog(QDialog):
         if idx == 0:
             self._xinput_timer.stop()
         elif idx == 1:
-            self._rebuild_active_button_targets()
+            raw_extra = self.ent_extra_buttons.text().strip().lower()
+            extra_names = [x.strip() for x in raw_extra.split(",") if x.strip()] if raw_extra else []
+            self.engine = CalibrationEngine(device_info=self.device_info, layout_type=self.layout_type, extra_buttons=extra_names)
+            self.engine.prompt_changed.connect(self._on_engine_prompt_changed)
+            self.engine.status_updated.connect(self._on_engine_status_updated)
+            self.engine.calibration_finished.connect(self._on_engine_finished)
+        elif idx == 2:
+            self.engine.start()
 
         if idx < 5:
             idx += 1
             self.stacked_widget.setCurrentIndex(idx)
             self.progress_bar.setValue(idx)
             self.back_btn.setEnabled(True)
-
-            if idx == 3:
-                self._update_button_target_label()
-            elif idx == 4:
-                self._update_axis_target_label()
-            elif idx == 5:
+            if idx == 5:
                 self.next_btn.setText("Save & Finish")
-                vid = self.device_info.get("vendor_id", 0)
-                pid = self.device_info.get("product_id", 0)
-                self.lbl_summary.setText(f"Profile: profiles/{vid:04X}_{pid:04X}.json\nLayout: {self.layout_type.upper()}")
         else:
             self._save_profile_and_finish()
 
@@ -948,7 +568,7 @@ class NativeCalibrationWizardDialog(QDialog):
 
         try:
             with open(profile_path, "w", encoding="utf-8") as f:
-                json.dump(self.profile_data, f, indent=2)
+                json.dump(self.engine.profile, f, indent=2)
         except Exception as e:
             print(f"Error saving profile: {e}")
 

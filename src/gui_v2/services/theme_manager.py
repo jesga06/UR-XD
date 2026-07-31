@@ -244,7 +244,10 @@ class ThemeManager(QObject):
     def set_token(self, key: str, hex_color: str) -> None:
         """Updates a single base color token and recalculates theme."""
         normalized = normalize_hex8(hex_color, default=self.base_colors.get(key, "#FFFFFFFF"))
-        self.base_colors[key] = normalized
+        if key == "background":
+            self.base_colors["window_bg"] = normalized
+        else:
+            self.base_colors[key] = normalized
         self.recalculate_theme()
 
     def set_source(self, source_key: str, source_val: str) -> None:

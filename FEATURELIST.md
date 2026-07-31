@@ -1,3 +1,13 @@
+## 🎨 Advanced Dynamic Theme Engine & Derived Color Pipeline (`src/gui_v2/services/theme_manager.py`, `src/gui_v2/views/customization_view.py`)
+* **Exposed Base Colors:** 4 alpha-enabled color pickers (`QColorDialog.ShowAlphaChannel`) for `Window Background` (`window_bg`), `Accent #1` (`accent_1` - Hardware Input), `Accent #2` (`accent_2` - Virtual Output), and `Text Color` (`text`).
+* **Mathematical HSV Brightness Pipeline:** Derived color calculation engine (`adjust_brightness()`) generating `widget_bg`, `graph_bg`, `graph_axis`, `outline`, `button_bg`, `button_hover`, `button_pressed`, `tab_active`, and `tab_inactive` tokens automatically.
+* **Theme Behavior Source Selectors:** Configurable color sources for `Button Color Source` (`accent_1` | `accent_2`), `Widget Background Source` (`window_bg` | `accent_1` | `accent_2`), and `Outline Color Source` (`accent_1` | `accent_2`).
+* **Interactive Brightness Sliders:** Live QSliders with percentage readouts (-80% to +80%) for `Widget Brightness` and `Graph Brightness`.
+* **JSON Theme Import & Export:** Full theme state serialization (`base_colors`, `sources`, `brightness`) with backwards compatibility fallback for flat JSON files.
+* **Live Interactive Theme Preview:** Embedded preview panel (`ThemePreviewWidget`) featuring response curve graph, stick radar canvas with non-overlapping input/output vectors, sample remapping widgets, and sample controls updating repaints dynamically on `theme_changed`.
+
+---
+
 ## 🎮 Native PySide6 Calibration Wizard & Dynamic Connection Engine (`src/gui_v2/dialogs/calibration_wizard_dialog.py`)
 * **Explicit 6-State Connection FSM:** Tracks connection state machine transitions (`DISCONNECTED`, `WAITING`, `CONNECTING`, `CONNECTED`, `DISCONNECTING`, `INIT_FAILED`).
 * **Dual-State Dashboard Architecture:** Dynamically swaps between State A (Waiting View with USB HID Device Picker) and State B (Live Telemetry Dashboard).

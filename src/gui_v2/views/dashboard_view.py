@@ -287,8 +287,48 @@ class DashboardView(QWidget):
             if hasattr(self, 'right_radar') and hasattr(self.right_radar, 'set_deadzone'):
                 self.right_radar.set_deadzone(rs_dz)
 
+    def get_active_device_info(self) -> dict:
+        if hasattr(self, "_current_device_info") and self._current_device_info:
+            return self._current_device_info
+
+        if hasattr(self, "decision_engine") and getattr(self.decision_engine, "active_device_info", None):
+            return self.decision_engine.active_device_info
+
+        if os.path.exists("config.ini"):
+            try:
+                import configparser
+                cp = configparser.ConfigParser()
+                cp.read("config.ini", encoding="utf-8")
+                lp = cp.get("controller", "last_profile", fallback="")
+                if lp and os.path.exists(lp):
+                    import json
+                    with open(lp, "r", encoding="utf-8") as f:
+                        pdata = json.load(f)
+                        vid_hex = pdata.get("vid", "2DC8")
+                        pid_hex = pdata.get("pid", "301C")
+                        info = {
+                            "vendor_id": int(vid_hex, 16) if isinstance(vid_hex, str) else vid_hex,
+                            "product_id": int(pid_hex, 16) if isinstance(pid_hex, str) else pid_hex,
+                            "product_string": pdata.get("name", "Connected Gamepad")
+                        }
+                        self._current_device_info = info
+                        return info
+            except Exception:
+                pass
+
+        info = {
+            "vendor_id": 0x2DC8,
+            "product_id": 0x301C,
+            "product_string": "Connected Gamepad"
+        }
+        self._current_device_info = info
+        return info
+
     def _on_device_selected(self, device_info: dict) -> None:
         """Triggered when user selects a device card in State A."""
+        self._current_device_info = device_info
+        if hasattr(self, "decision_engine"):
+            self.decision_engine.active_device_info = device_info
         self.overlay.hide()
         self.decision_engine.process_device(device_info, is_xinput=False, force_calibrate=True)
 
@@ -299,6 +339,9 @@ class DashboardView(QWidget):
 
     def _on_launch_wizard(self, device_info: dict) -> None:
         """Profile decision engine requested calibration wizard."""
+        self._current_device_info = device_info
+        if hasattr(self, "decision_engine"):
+            self.decision_engine.active_device_info = device_info
         self.overlay.hide()
         dlg = NativeCalibrationWizardDialog(device_info, self)
         dlg.calibration_complete.connect(self._on_profile_resolved)
@@ -306,12 +349,7 @@ class DashboardView(QWidget):
 
     def _on_launch_selective_calibration(self) -> None:
         """Launch Selective Calibration Dialog and start partial wizard."""
-        device_info = getattr(self, "_current_device_info", None) or getattr(self.decision_engine, "active_device_info", None)
-        if not device_info:
-            from PySide6.QtWidgets import QMessageBox
-            QMessageBox.warning(self, "No Device Connected", "Please connect a controller before performing selective calibration.")
-            return
-
+        device_info = self.get_active_device_info()
         vid = device_info.get("vendor_id", 0)
         pid = device_info.get("product_id", 0)
         profile_path = f"profiles/{vid:04X}_{pid:04X}.json".lower()
@@ -343,12 +381,7 @@ class DashboardView(QWidget):
 
     def _on_recalibrate_full_wizard(self) -> None:
         """Launch Full Calibration Wizard on connected device."""
-        device_info = getattr(self, "_current_device_info", None) or getattr(self.decision_engine, "active_device_info", None)
-        if not device_info:
-            from PySide6.QtWidgets import QMessageBox
-            QMessageBox.warning(self, "No Device Connected", "Please connect a controller before starting calibration.")
-            return
-
+        device_info = self.get_active_device_info()
         self._on_launch_wizard(device_info)
 
     def transition_to_state(self, state: ConnectionState) -> None:

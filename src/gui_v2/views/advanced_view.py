@@ -180,12 +180,18 @@ class AdvancedView(QWidget):
         main_layout.addWidget(self.scroll_area)
 
     def check_backend_mode(self):
-        """Checks backend mode and shows warning banner if not in XInput mode."""
-        is_xinput = True
-        if self.config and hasattr(self.config, "get"):
-            mode = self.config.get("DEFAULT", "backend_mode", fallback="xinput").lower()
-            if mode != "xinput":
-                is_xinput = False
+        """Checks backend mode and locks hardware chords controls if not in XInput mode."""
+        mode_str = "xinput"
+        if self.config:
+            if hasattr(self.config, "data") and isinstance(self.config.data, dict):
+                mode_str = str(self.config.data.get("backend", {}).get("mode", "xinput")).lower()
+            elif hasattr(self.config, "get"):
+                try:
+                    mode_str = str(self.config.get("backend", "mode", fallback="xinput")).lower()
+                except Exception:
+                    mode_str = "xinput"
+
+        is_xinput = (mode_str == "xinput")
 
         if not is_xinput:
             self.lbl_backend_notice.setText(
@@ -194,8 +200,16 @@ class AdvancedView(QWidget):
             )
             self.lbl_backend_notice.setStyleSheet("color: #FF5555; font-weight: bold; font-size: 12px;")
             self.lbl_backend_notice.show()
+            if hasattr(self, "hw_rows_container"):
+                self.hw_rows_container.setEnabled(False)
+            if hasattr(self, "btn_add_hw"):
+                self.btn_add_hw.setEnabled(False)
         else:
             self.lbl_backend_notice.hide()
+            if hasattr(self, "hw_rows_container"):
+                self.hw_rows_container.setEnabled(True)
+            if hasattr(self, "btn_add_hw"):
+                self.btn_add_hw.setEnabled(True)
 
     def open_chords_guide(self):
         """Launches ChordsGuideDialog for Hardware Chords topic."""

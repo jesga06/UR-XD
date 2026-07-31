@@ -108,6 +108,8 @@ class CalibrationEngine(QObject):
         self.layout_type = layout_type
         self.extra_buttons = extra_buttons or []
         self.profile["layout"] = layout_type
+        if self.extra_buttons:
+            self.profile["extra_buttons"] = {eb.lower(): {} for eb in self.extra_buttons}
 
         labels = get_layout_labels(self.layout_type)
         self.steps = [
@@ -138,9 +140,12 @@ class CalibrationEngine(QObject):
     def start(self) -> None:
         self.current_step_idx = 0
         self.ignore_until_time = 0.0
+        if self.extra_buttons:
+            self.profile["extra_buttons"] = {eb.lower(): {} for eb in self.extra_buttons}
         self._emit_current_prompt()
 
     def _emit_current_prompt(self) -> None:
+        self.button_byte_history.clear()
         if self.current_step_idx < len(self.steps):
             name, cat, prompt = self.steps[self.current_step_idx]
             self.prompt_changed.emit(name, cat, prompt, self.current_step_idx, len(self.steps))

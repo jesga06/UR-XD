@@ -633,6 +633,22 @@ class NativeCalibrationWizardDialog(QDialog):
         except Exception as e:
             print(f"Error saving profile: {e}")
 
+        try:
+            config = configparser.ConfigParser()
+            if os.path.exists("config.ini"):
+                config.read("config.ini")
+            if not config.has_section("controller"):
+                config.add_section("controller")
+            config.set("controller", "last_profile", profile_path)
+            with open("config.ini", "w") as f:
+                config.write(f)
+        except Exception as e:
+            print(f"Error updating config.ini last_profile: {e}")
+
+        p = self.parent()
+        if p and hasattr(p, "remapping_view") and hasattr(p.remapping_view, "reload_extra_buttons_grid"):
+            p.remapping_view.reload_extra_buttons_grid()
+
         self.calibration_complete.emit(profile_path)
         self.accept()
 

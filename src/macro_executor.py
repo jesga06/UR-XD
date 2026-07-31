@@ -47,41 +47,57 @@ class MacroExecutor:
             self.active_macro = None
 
     def on_button_release(self, macro_name: str) -> None:
+        clean_name = macro_name.split(':', 1)[1] if macro_name.startswith('macro:') else macro_name
         with self.lock:
-            if self.active_macro == macro_name:
-                macro_data = self.macros.get(macro_name)
+            if self.active_macro == clean_name:
+                macro_data = self.macros.get(clean_name)
                 mode = "one_shot"
                 if isinstance(macro_data, dict):
                     mode = str(macro_data.get("mode", "one_shot")).lower()
-                if mode == "hold":
+                if mode in ("hold", "loop"):
                     self.stop_event.set()
                     self.active_macro = None
 
     def execute_or_toggle(self, macro_name: str) -> None:
-        if macro_name not in self.macros:
+        clean_name = macro_name.split(':', 1)[1] if macro_name.startswith('macro:') else macro_name
+        if clean_name not in self.macros:
             self.load_macros()
+
         with self.lock:
-            if self.active_macro == macro_name:
-                # Toggle off if pressed again
-                self.stop_event.set()
-                self.active_macro = None
-                return
+            macro_data = self.macros.get(clean_name)
+            mode = "one_shot"
+            if isinstance(macro_data, dict):
+                mode = str(macro_data.get("mode", "one_shot")).lower()
+
+            if self.active_macro == clean_name:
+                if mode == "toggle":
+                    # Toggle off if pressed again in toggle mode
+                    self.stop_event.set()
+                    self.active_macro = None
+                    return
+                elif mode in ("hold", "loop"):
+                    # In hold mode, already active while button is held
+                    return
+                else:
+                    # One-shot: stop current run and restart
+                    self.stop_event.set()
+                    if self.worker_thread:
+                        self.worker_thread.join(timeout=0.1)
             elif self.active_macro is not None:
-                # Stop existing, start new
+                # Stop existing different macro, start new
                 self.stop_event.set()
                 if self.worker_thread:
                     self.worker_thread.join(timeout=0.1)
-            
-            macro_data = self.macros.get(macro_name)
+
             if not macro_data:
-                logger.warning(f"Macro '{macro_name}' not found in macros config.")
+                logger.warning(f"Macro '{clean_name}' not found in macros config.")
                 return
-                
+
             self.stop_event.clear()
-            self.active_macro = macro_name
+            self.active_macro = clean_name
             self.worker_thread = threading.Thread(
                 target=self._run_macro,
-                args=(macro_name, macro_data,),
+                args=(clean_name, macro_data,),
                 daemon=True
             )
             self.worker_thread.start()

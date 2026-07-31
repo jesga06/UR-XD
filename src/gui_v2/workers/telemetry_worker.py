@@ -7,7 +7,7 @@ and provides thread-safe atomic state snapshots and throttled signal updates.
 import socket
 import json
 import time
-from typing import Dict, Any
+from typing import Dict, Any, Optional
 
 from PySide6.QtCore import QThread, Signal, QMutex
 
@@ -23,19 +23,26 @@ class UDPTelemetryWorker(QThread):
 
     def __init__(self, port: int = 9999, target_fps: float = 144.0, parent=None):
         super().__init__(parent)
-        self.port = port
+        self.port: int = port
         self._atomic_state: Dict[str, Any] = {}
-        self._lock = QMutex()
-        self.frame_interval_ms = int(1000 / target_fps)
-        self.sock: socket.socket | None = None
+        self._lock: QMutex = QMutex()
+        self.frame_interval_ms: int = int(1000 / target_fps)
+        self.sock: Optional[socket.socket] = None
         self._is_stale: bool = True
 
     def get_latest_snapshot(self) -> dict:
         """Atomic thread-safe retrieval of latest ControllerState."""
         self._lock.lock()
-        snapshot = dict(self._atomic_state)
-        self._lock.unlock()
+        try:
+            snapshot = dict(self._atomic_state)
+        finally:
+            self._lock.unlock()
         return snapshot
+
+    def set_target_fps(self, target_fps: float) -> None:
+        """Dynamically updates rendering frame rate target."""
+        fps = max(30.0, float(target_fps))
+        self.frame_interval_ms = int(1000 / fps)
 
     def run(self) -> None:
         """
@@ -53,9 +60,9 @@ class UDPTelemetryWorker(QThread):
 
         last_udp_time = 0.0
         last_emit_time = 0.0
-        frame_interval_sec = self.frame_interval_ms / 1000.0
 
         while not self.isInterruptionRequested():
+            frame_interval_sec = self.frame_interval_ms / 1000.0
             try:
                 data, _ = self.sock.recvfrom(2048)
                 current_time = time.perf_counter()
@@ -71,8 +78,10 @@ class UDPTelemetryWorker(QThread):
 
                     # Update atomic state inside mutex lock
                     self._lock.lock()
-                    self._atomic_state = state_dict
-                    self._lock.unlock()
+                    try:
+                        self._atomic_state = state_dict
+                    finally:
+                        self._lock.unlock()
 
                     # Throttle signal emissions to target FPS rate
                     if (current_time - last_emit_time) >= frame_interval_sec:
@@ -92,7 +101,10 @@ class UDPTelemetryWorker(QThread):
                 print(f"[UDPTelemetryWorker] Error in packet processing: {e}")
 
         if self.sock:
-            self.sock.close()
+            try:
+                self.sock.close()
+            except Exception:
+                pass
 
     def stop(self) -> None:
         """
@@ -100,3 +112,4 @@ class UDPTelemetryWorker(QThread):
         """
         self.requestInterruption()
         self.wait()
+

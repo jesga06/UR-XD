@@ -24,6 +24,8 @@ from gui_v2.views.dashboard_view import DashboardView
 from gui_v2.views.tuning_view import TuningView
 from gui_v2.views.remapping_view import RemappingView
 from gui_v2.views.customization_view import CustomizationView
+from gui_v2.views.advanced_view import AdvancedView
+from gui_v2.views.utilities_view import UtilitiesView
 
 
 def restore_console_window():
@@ -119,14 +121,20 @@ class MainWindow(QMainWindow):
         self.tuning_view = None
         self.remapping_view = None
         self.customization_view = None
+        self.advanced_view = None
+        self.utilities_view = None
 
         self._tuning_placeholder = QWidget(self)
         self._remapping_placeholder = QWidget(self)
         self._customization_placeholder = QWidget(self)
+        self._advanced_placeholder = QWidget(self)
+        self._utilities_placeholder = QWidget(self)
 
         self.tab_widget.addTab(self._tuning_placeholder, "Tuning")
         self.tab_widget.addTab(self._remapping_placeholder, "Remapping")
         self.tab_widget.addTab(self._customization_placeholder, "Customization")
+        self.tab_widget.addTab(self._advanced_placeholder, "Advanced")
+        self.tab_widget.addTab(self._utilities_placeholder, "Utilities")
 
         self.tab_widget.currentChanged.connect(self._on_tab_changed)
 
@@ -153,6 +161,18 @@ class MainWindow(QMainWindow):
             self.tab_widget.removeTab(3)
             self.tab_widget.insertTab(3, self.customization_view, "Customization")
             self.tab_widget.setCurrentIndex(3)
+
+        elif index == 4 and self.advanced_view is None:
+            self.advanced_view = AdvancedView(config_manager=self.config, theme_manager=self.theme_mgr, parent=self)
+            self.tab_widget.removeTab(4)
+            self.tab_widget.insertTab(4, self.advanced_view, "Advanced")
+            self.tab_widget.setCurrentIndex(4)
+
+        elif index == 5 and self.utilities_view is None:
+            self.utilities_view = UtilitiesView(theme_manager=self.theme_mgr, parent=self)
+            self.tab_widget.removeTab(5)
+            self.tab_widget.insertTab(5, self.utilities_view, "Utilities")
+            self.tab_widget.setCurrentIndex(5)
 
     def _connect_signals(self):
         """Connects worker telemetry signals to dashboard and view slots."""

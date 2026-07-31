@@ -2,6 +2,7 @@
 Transition Overlay Widget (transition_overlay_widget.py)
 Provides a smooth cross-fade transition overlay (250ms fade-in, 900ms hold, 250ms fade-out)
 rendering a vector loading spinner, status badge, and contextual loading quote.
+Integrated with QuoteEngine for event-driven personality quotes and ThemeManager.
 """
 
 import os
@@ -14,6 +15,7 @@ from PySide6.QtGui import QPainter, QColor, QPen, QFont
 from PySide6.QtCore import Qt, QTimer, Property, Signal, Slot, QPropertyAnimation, QEasingCurve, QRectF
 
 from gui_v2.services.theme_manager import ThemeManager, color_to_rgba_str, color_to_hex6
+from gui_v2.services.quote_engine import QuoteEngine
 
 
 class SpinnerWidget(QWidget):
@@ -72,12 +74,14 @@ class TransitionOverlayWidget(QWidget):
     """
     transition_finished = Signal()
 
-    def __init__(self, parent: Optional[QWidget] = None):
+    def __init__(self, quote_engine: Optional[QuoteEngine] = None, parent: Optional[QWidget] = None):
         super().__init__(parent)
         self.setAttribute(Qt.WidgetAttribute.WA_TransparentForMouseEvents, False)
         self.setFocusPolicy(Qt.FocusPolicy.NoFocus)
 
-        self._quotes: List[str] = self._load_quotes()
+        self.quote_engine = quote_engine or QuoteEngine(parent=self)
+        self.quote_engine.quote_updated.connect(self._on_quote_updated)
+
         self.opacity_effect = QGraphicsOpacityEffect(self)
         self.setGraphicsEffect(self.opacity_effect)
         self.opacity_effect.setOpacity(0.0)
@@ -92,23 +96,6 @@ class TransitionOverlayWidget(QWidget):
         self.setup_ui()
         self._setup_theme_sync()
         self.hide()
-
-    def _load_quotes(self) -> List[str]:
-        quotes_path = os.path.join(os.path.dirname(__file__), "..", "..", ".loading_quotes.json")
-        if os.path.exists(quotes_path):
-            try:
-                with open(quotes_path, 'r', encoding='utf-8') as f:
-                    data = json.load(f)
-                    if isinstance(data, list):
-                        return [q.get("quote", "") for q in data if isinstance(q, dict) and "quote" in q]
-            except Exception:
-                pass
-        return [
-            "Calibrating analog axis tension metrics...",
-            "Synchronizing 1000Hz USB HID polling frame...",
-            "Resolving virtual controller backend slots...",
-            "Initializing DirectInput sub-system pipelines..."
-        ]
 
     def setup_ui(self) -> None:
         layout = QVBoxLayout(self)
@@ -147,6 +134,10 @@ class TransitionOverlayWidget(QWidget):
         except Exception:
             pass
 
+    @Slot(str)
+    def _on_quote_updated(self, quote_text: str) -> None:
+        self.quote_label.setText(quote_text)
+
     @Slot(dict)
     def on_theme_changed(self, tokens: dict) -> None:
         try:
@@ -178,7 +169,7 @@ class TransitionOverlayWidget(QWidget):
         except RuntimeError:
             pass
 
-    def trigger_transition(self, status_text: str = "CONNECTING", custom_quote: Optional[str] = None) -> None:
+    def trigger_transition(self, status_text: str = "CONNECTING", custom_quote: Optional[str] = None, event_type: str = "connect") -> None:
         """
         Triggers full cross-fade animation sequence: 250ms fade-in, 900ms hold, 250ms fade-out.
         """
@@ -186,7 +177,7 @@ class TransitionOverlayWidget(QWidget):
         if custom_quote:
             self.quote_label.setText(custom_quote)
         else:
-            self.quote_label.setText(random.choice(self._quotes))
+            self.quote_engine.trigger_event_quote(event_type)
 
         self.spinner.start()
         self.show()

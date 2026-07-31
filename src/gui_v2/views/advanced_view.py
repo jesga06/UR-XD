@@ -385,7 +385,7 @@ class AdvancedView(QWidget):
 
     def record_macro_steps(self, target_entry: QLineEdit):
         """Launches KeyRecorderDialog to interactively record macro steps."""
-        dlg = KeyRecorderDialog(parent=self)
+        dlg = KeyRecorderDialog("Macro Step", parent=self)
         if dlg.exec() == KeyRecorderDialog.Accepted:
             recorded = dlg.get_recorded_key()
             if recorded:
@@ -462,8 +462,13 @@ class AdvancedView(QWidget):
         self.debounced_saver.mark_dirty()
 
     def save_advanced_config_immediate(self):
-        """Flushes and saves configuration immediately."""
+        """Flushes and saves configuration immediately with visual user feedback."""
         self.debounced_saver.flush()
+        QMessageBox.information(
+            self,
+            "Settings Saved",
+            "Hardware Chords and Macros Studio settings saved successfully!"
+        )
 
     def save_advanced_config(self):
         """Callback executed by DebouncedConfigSaver to batch write config and macros.json."""

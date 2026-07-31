@@ -24,10 +24,10 @@ class DebouncedConfigSaver(QObject):
         self._timer.start()
 
     def flush(self):
-        """Immediately executes pending save if timer is active."""
+        """Immediately executes save callback and stops any pending timer."""
         if self._timer.isActive():
             self._timer.stop()
-            self._do_save()
+        self._do_save()
 
     def _do_save(self):
         try:

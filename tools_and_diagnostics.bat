@@ -21,13 +21,12 @@ echo  [5] Launch Wrapper in Debug Mode (Console Output)
 echo  [6] Launch Calibration Wizard in Debug Mode
 echo.
 echo  DEVELOPER AND UTILITY TOOLS
-echo  [7] Launch Interactive Layout Builder (CustomTkinter GUI)
-echo  [8] Run Individual Diagnostic Script
+echo  [7] Run Individual Diagnostic Script
 echo.
 echo  [0] Exit
 echo.
 echo ======================================================================
-set /p CHOICE="Select an option [0-8]: "
+set /p CHOICE="Select an option [0-7]: "
 
 if "%CHOICE%"=="1" goto ISSUE_REPORT
 if "%CHOICE%"=="2" goto INSTALL_REQS
@@ -35,8 +34,7 @@ if "%CHOICE%"=="3" goto CALIBRATE
 if "%CHOICE%"=="4" goto TEST_CALIBRATION
 if "%CHOICE%"=="5" goto WRAPPER_DEBUG
 if "%CHOICE%"=="6" goto CALIBRATE_DEBUG
-if "%CHOICE%"=="7" goto LAYOUT_BUILDER
-if "%CHOICE%"=="8" goto INDIVIDUAL_DIAG
+if "%CHOICE%"=="7" goto INDIVIDUAL_DIAG
 if "%CHOICE%"=="0" exit /b 0
 
 echo Invalid choice. Please try again.
@@ -109,18 +107,7 @@ if exist "venv\Scripts\python.exe" set PYTHON_CMD=venv\Scripts\python.exe
 pause
 goto MENU
 
-:LAYOUT_BUILDER
-cls
-echo Starting Interactive Layout Builder...
-set PYTHON_CMD=python
-if exist "venv\Scripts\python.exe" set PYTHON_CMD=venv\Scripts\python.exe
-if exist "technical-stuff\interactive_layout_builder.py" (
-    "%PYTHON_CMD%" technical-stuff\interactive_layout_builder.py
-) else (
-    echo [ERROR] technical-stuff\interactive_layout_builder.py not found.
-)
-pause
-goto MENU
+
 
 :INDIVIDUAL_DIAG
 cls

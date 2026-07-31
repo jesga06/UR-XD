@@ -189,7 +189,11 @@ class XInputBackend(BaseInputBackend):
             if res == 0:
                 consecutive_errors = 0
                 gp = state.Gamepad
-                cs = ControllerState()
+                
+                # Zero-allocation reuse of persistent ControllerState
+                if not hasattr(self, '_state_cache') or self._state_cache is None:
+                    self._state_cache = ControllerState()
+                cs = self._state_cache
                 
                 btns = gp.wButtons
                 cs.dpad_up = bool(btns & XINPUT_GAMEPAD_DPAD_UP)

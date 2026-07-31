@@ -50,6 +50,45 @@ class TestShiftLayersConfig(unittest.TestCase):
         layers_after = cfg.get_shift_layers()
         self.assertEqual(len(layers_after), 1)
 
+    def test_duplicate_layer_id_deduplication(self):
+        with tempfile.NamedTemporaryFile('w', delete=False, suffix='.json') as f:
+            duplicate_id_data = {
+                "shift_layers": [
+                    {
+                        "id": "shift_2",
+                        "name": "First Shift 2",
+                        "trigger_button": "home",
+                        "modifier_button": "",
+                        "mode": "hold",
+                        "mappings": {"a": "keyboard:x"}
+                    },
+                    {
+                        "id": "shift_2",
+                        "name": "Second Shift 2",
+                        "trigger_button": "home",
+                        "modifier_button": "rb",
+                        "mode": "hold",
+                        "mappings": {"b": "keyboard:y"}
+                    }
+                ]
+            }
+            json.dump(duplicate_id_data, f)
+            temp_path = f.name
+
+        try:
+            cfg = ControllerConfig(temp_path)
+            layers = cfg.get_shift_layers()
+            self.assertEqual(len(layers), 2)
+            self.assertEqual(layers[0]['id'], 'shift_1')
+            self.assertEqual(layers[1]['id'], 'shift_2')
+
+            # Add layer after deletion scenario
+            new_layer = cfg.add_shift_layer(name="New Layer")
+            self.assertEqual(new_layer['id'], 'shift_3')
+        finally:
+            if os.path.exists(temp_path):
+                os.remove(temp_path)
+
 from src.mapper import Mapper
 from src.decoder import ControllerState
 import time
@@ -130,6 +169,96 @@ class TestMapperShiftLayers(unittest.TestCase):
         st.lb = 1.0
         mapper.process(st)
         self.assertEqual(mapper.active_layer, 'layer_base')
+
+    def test_modifier_none_string_normalization(self):
+        cfg = ControllerConfig()
+        cfg.set_shift_layers([
+            {
+                "id": "shift_1",
+                "name": "Base Shift",
+                "trigger_button": "home",
+                "modifier_button": "none",
+                "mode": "hold",
+                "mappings": {"a": "keyboard:1"},
+                "block_xinput": {}
+            },
+            {
+                "id": "shift_2",
+                "name": "Base2 Shift",
+                "trigger_button": "home",
+                "modifier_button": "rb",
+                "mode": "hold",
+                "mappings": {"a": "keyboard:2"},
+                "block_xinput": {}
+            }
+        ])
+        mapper = Mapper(cfg)
+        st = ControllerState()
+        
+        # Press HOME only -> must match shift_1 (single trigger layer after "none" string normalization)
+        st.home = 1.0
+        mapper.process(st)
+        self.assertEqual(mapper.active_layer, 'shift_1')
+        
+        # Press RB too -> must match shift_2 (chord layer)
+        st.rb = 1.0
+        mapper.process(st)
+        self.assertEqual(mapper.active_layer, 'shift_2')
+
+    def test_dynamic_per_layer_xinput_blocking(self):
+        cfg = ControllerConfig()
+        cfg.set_shift_layers([
+            {
+                "id": "shift_1",
+                "name": "Shift Layer 1",
+                "trigger_button": "home",
+                "modifier_button": "",
+                "mode": "hold",
+                "mappings": {"a": "keyboard:x"},
+                "block_xinput": {"a": "true"}
+            }
+        ])
+        vp = VirtualPad(cfg)
+        mapper = Mapper(cfg)
+        vp.mapper = mapper
+
+        st = ControllerState()
+        active_layer_id = getattr(vp.mapper, 'active_layer', 'layer_base')
+        base_blocks = vp.layer_blocked_buttons.get(active_layer_id, set())
+        self.assertNotIn('a', base_blocks)
+
+        st.home = 1.0
+        mapper.process(st)
+        self.assertEqual(mapper.active_layer, 'shift_1')
+
+        shift_blocks = vp.layer_blocked_buttons.get(mapper.active_layer, set())
+        self.assertIn('a', shift_blocks)
+
+    def test_unmapped_button_fallback_to_base(self):
+        cfg = ControllerConfig()
+        cfg.set_shift_layers([
+            {
+                "id": "shift_1",
+                "name": "Shift Layer 1",
+                "trigger_button": "home",
+                "modifier_button": "",
+                "mode": "hold",
+                "mappings": {},
+                "block_xinput": {}
+            }
+        ])
+        cfg.data["layer_base"] = {"a": "keyboard:space"}
+        mapper = Mapper(cfg)
+
+        st = ControllerState()
+        st.home = 1.0
+        mapper.process(st)
+        self.assertEqual(mapper.active_layer, 'shift_1')
+
+        st.a = 1.0
+        mapper.process(st)
+        self.assertIn('a', mapper.active_holds)
+        self.assertEqual(mapper.active_holds['a'], 'keyboard:space')
 
 if __name__ == '__main__':
     unittest.main()

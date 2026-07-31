@@ -112,6 +112,8 @@ class ControllerConfig:
     def _migrate_shift_layers(self) -> None:
         if "shift_layers" not in self.data or not isinstance(self.data.get("shift_layers"), list):
             trigger_button = self.get("shift_layer", "trigger_button", fallback="") or ""
+            if trigger_button.strip().lower() in ("none", "null", "false", "0"):
+                trigger_button = ""
             mode = self.get("shift_layer", "mode", fallback="hold") or "hold"
             mappings = self.data.get("shift_mappings", {})
             block_xinput = self.data.get("shift_block_xinput", {})
@@ -126,6 +128,36 @@ class ControllerConfig:
                     "block_xinput": dict(block_xinput) if isinstance(block_xinput, dict) else {}
                 }
             ]
+        else:
+            layers = self.data["shift_layers"]
+            seen_ids = set()
+            has_duplicates = False
+            for l in layers:
+                if isinstance(l, dict):
+                    trig = (l.get("trigger_button") or "").strip().lower()
+                    if trig in ("none", "null", "false", "0"):
+                        l["trigger_button"] = ""
+                    mod = (l.get("modifier_button") or "").strip().lower()
+                    if mod in ("none", "null", "false", "0"):
+                        l["modifier_button"] = ""
+                    
+                    lid = l.get("id")
+                    if not lid or not isinstance(lid, str) or lid in seen_ids:
+                        has_duplicates = True
+                    else:
+                        seen_ids.add(lid)
+                else:
+                    has_duplicates = True
+
+            if has_duplicates:
+                logger.warning("Duplicate or invalid shift layer IDs detected in configuration; algorithmically repairing layer IDs.")
+                valid_layers = []
+                for idx, l in enumerate(layers, start=1):
+                    if isinstance(l, dict):
+                        l["id"] = f"shift_{idx}"
+                        valid_layers.append(l)
+                self.data["shift_layers"] = valid_layers
+
         self._sync_legacy_shift_fields()
 
     def _sync_legacy_shift_fields(self) -> None:
@@ -147,12 +179,28 @@ class ControllerConfig:
 
     def set_shift_layers(self, layers: List[Dict[str, Any]]) -> None:
         self.data["shift_layers"] = layers
-        self._sync_legacy_shift_fields()
+        self._migrate_shift_layers()
 
     def add_shift_layer(self, name: str = "", trigger_button: str = "", modifier_button: str = "", mode: str = "hold", haptic_profile: str = "") -> Dict[str, Any]:
         layers = self.get_shift_layers()
-        next_idx = len(layers) + 1
+        existing_indices = []
+        for l in layers:
+            if isinstance(l, dict):
+                lid = l.get("id", "")
+                if isinstance(lid, str) and lid.startswith("shift_"):
+                    try:
+                        existing_indices.append(int(lid.split("_", 1)[1]))
+                    except ValueError:
+                        pass
+
+        next_idx = (max(existing_indices) + 1) if existing_indices else (len(layers) + 1)
         layer_id = f"shift_{next_idx}"
+
+        existing_ids = {l.get("id") for l in layers if isinstance(l, dict)}
+        while layer_id in existing_ids:
+            next_idx += 1
+            layer_id = f"shift_{next_idx}"
+
         layer_name = name if name else f"Shift Layer {next_idx}"
         new_layer = {
             "id": layer_id,

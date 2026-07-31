@@ -3,16 +3,40 @@ Base Input Backend Interface (backend_base.py)
 Defines the standard abstraction for all input backends (DInput, XInput, etc.)
 so the rest of the pipeline can operate on normalized ControllerState.
 """
-from typing import Callable
+from enum import Enum, auto
+from typing import Callable, Optional
 from decoder import ControllerState
+
+
+class ConnectionState(Enum):
+    """
+    Explicit 6-state controller connection state machine.
+    """
+    DISCONNECTED = auto()
+    WAITING = auto()
+    CONNECTING = auto()
+    CONNECTED = auto()
+    DISCONNECTING = auto()
+    INIT_FAILED = auto()
+
 
 class BaseInputBackend:
     """
     Abstract interface for acquiring physical controller state and capabilities.
     """
     def __init__(self):
-        self.callback = None
-    
+        self.callback: Optional[Callable[[ControllerState], None]] = None
+        self._state: ConnectionState = ConnectionState.DISCONNECTED
+
+    @property
+    def state(self) -> ConnectionState:
+        """Return current connection state."""
+        return self._state
+
+    def set_state(self, state: ConnectionState) -> None:
+        """Update connection state."""
+        self._state = state
+
     def set_callback(self, callback: Callable[[ControllerState], None]):
         """
         Set the callback function to receive normalized ControllerState updates.
@@ -54,4 +78,5 @@ class BaseInputBackend:
         """
         Check if the device is currently connected and active.
         """
-        raise NotImplementedError
+        return self._state == ConnectionState.CONNECTED
+

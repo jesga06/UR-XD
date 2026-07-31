@@ -3,10 +3,15 @@ Single Instance Process Guard
 Prevents duplicate instances of application scripts (main.py, gui.py, calibration.py)
 from running concurrently by locking a local socket port.
 """
+
 import socket
 import sys
 
 _instance_sockets = {}
+
+PORT_MAIN = 48124
+PORT_BACKEND = 48125
+PORT_GUI = 48126
 
 
 def ensure_single_instance(app_name: str, port: int) -> socket.socket:

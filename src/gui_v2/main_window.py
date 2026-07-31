@@ -1,0 +1,237 @@
+"""
+Main Application Window Shell for PySide6 UI (gui_v2).
+Provides system tray integration, window state lifecycle management,
+non-blocking IPC telemetry worker integration, and debounced configuration saving.
+"""
+
+import sys
+import ctypes
+import os
+from typing import Optional
+
+from PySide6.QtWidgets import (
+    QMainWindow, QWidget, QVBoxLayout, QTabWidget, QSystemTrayIcon, QMenu,
+    QApplication, QMessageBox
+)
+from PySide6.QtGui import QIcon, QAction
+from PySide6.QtCore import Qt, QEvent, Slot
+
+from single_instance import ensure_single_instance, PORT_GUI
+from gui_v2.workers.telemetry_worker import UDPTelemetryWorker
+from gui_v2.utils.debounced_saver import DebouncedConfigSaver
+
+from gui_v2.views.dashboard_view import DashboardView
+from gui_v2.views.tuning_view import TuningView
+from gui_v2.views.remapping_view import RemappingView
+from gui_v2.views.customization_view import CustomizationView
+from gui_v2.views.advanced_view import AdvancedView
+from gui_v2.views.utilities_view import UtilitiesView
+
+
+def restore_console_window():
+    """Restores and focuses the native Windows console window if available."""
+    if sys.platform == "win32":
+        try:
+            hwnd = ctypes.windll.kernel32.GetConsoleWindow()
+            if hwnd:
+                SW_RESTORE = 9
+                ctypes.windll.user32.ShowWindow(hwnd, SW_RESTORE)
+                ctypes.windll.user32.SetForegroundWindow(hwnd)
+        except Exception as e:
+            print(f"[MainWindow] Console recovery failed: {e}")
+
+
+class MainWindow(QMainWindow):
+    """
+    Main PySide6 application window with system tray lifecycle support,
+    decoupled 1000Hz IPC telemetry handling, and debounced disk saving.
+    """
+
+    def __init__(self, config_manager=None, theme_manager=None, parent=None):
+        super().__init__(parent)
+        # Ensure single instance GUI guard
+        ensure_single_instance("Ultimate-2C-GUI", PORT_GUI)
+
+        self.config = config_manager
+        self.theme_mgr = theme_manager
+
+        self.setWindowTitle("UR-XD v2.3")
+        self.resize(1100, 750)
+        self.setMinimumSize(900, 600)
+
+        # Debounced config saver (300ms single-shot)
+        self.debounced_saver = DebouncedConfigSaver(
+            save_callback=self._do_save_config,
+            delay_ms=300,
+            parent=self
+        )
+
+        # 1000Hz Decoupled Telemetry Worker
+        self.telemetry_worker = UDPTelemetryWorker(port=9999, target_fps=144.0, parent=self)
+
+        self.setup_tray_icon()
+        self.setup_ui()
+        self._connect_signals()
+
+        # Start background telemetry thread
+        self.telemetry_worker.start()
+
+    def setup_tray_icon(self):
+        """Initializes QSystemTrayIcon with restore, console recovery, and exit actions."""
+        self.tray_icon = QSystemTrayIcon(self)
+        from PySide6.QtWidgets import QStyle
+        app_icon = QApplication.style().standardIcon(QStyle.StandardPixmap.SP_ComputerIcon)
+        self.setWindowIcon(app_icon)
+        self.tray_icon.setIcon(app_icon)
+
+
+        tray_menu = QMenu(self)
+
+        show_action = QAction("Open GUI", self)
+        show_action.triggered.connect(self.restore_window)
+        tray_menu.addAction(show_action)
+
+        console_action = QAction("Show Console", self)
+        console_action.triggered.connect(restore_console_window)
+        tray_menu.addAction(console_action)
+
+        tray_menu.addSeparator()
+
+        quit_action = QAction("Quit", self)
+        quit_action.triggered.connect(self.quit_application)
+        tray_menu.addAction(quit_action)
+
+        self.tray_icon.setContextMenu(tray_menu)
+        self.tray_icon.activated.connect(self._on_tray_icon_activated)
+        self.tray_icon.show()
+
+    def setup_ui(self):
+        """Builds tabbed view layout container with lazy tab initialization for instant boot."""
+        central_widget = QWidget(self)
+        layout = QVBoxLayout(central_widget)
+        layout.setContentsMargins(8, 8, 8, 8)
+
+        self.tab_widget = QTabWidget(self)
+
+        # 1. Initialize primary active view immediately for fast boot (~30ms)
+        self.dashboard_view = DashboardView(controller_config=self.config, parent=self)
+        self.tab_widget.addTab(self.dashboard_view, "Dashboard")
+
+        # 2. Placeholders for deferred/lazy tab initialization
+        self.tuning_view = None
+        self.remapping_view = None
+        self.customization_view = None
+        self.advanced_view = None
+        self.utilities_view = None
+
+        self._tuning_placeholder = QWidget(self)
+        self._remapping_placeholder = QWidget(self)
+        self._customization_placeholder = QWidget(self)
+        self._advanced_placeholder = QWidget(self)
+        self._utilities_placeholder = QWidget(self)
+
+        self.tab_widget.addTab(self._tuning_placeholder, "Tuning")
+        self.tab_widget.addTab(self._remapping_placeholder, "Remapping")
+        self.tab_widget.addTab(self._customization_placeholder, "Customization")
+        self.tab_widget.addTab(self._advanced_placeholder, "Advanced")
+        self.tab_widget.addTab(self._utilities_placeholder, "Utilities")
+
+        self.tab_widget.currentChanged.connect(self._on_tab_changed)
+
+        layout.addWidget(self.tab_widget)
+        self.setCentralWidget(central_widget)
+
+    def _on_tab_changed(self, index: int):
+        """Lazy-loads tab view widgets on-demand when clicked for the first time."""
+        if index == 1 and self.tuning_view is None:
+            self.tuning_view = TuningView(config_manager=self.config, parent=self)
+            self.tab_widget.removeTab(1)
+            self.tab_widget.insertTab(1, self.tuning_view, "Tuning")
+            self.tab_widget.setCurrentIndex(1)
+            self.telemetry_worker.telemetry_updated.connect(self.tuning_view.update_telemetry)
+
+        elif index == 2 and self.remapping_view is None:
+            self.remapping_view = RemappingView(config_manager=self.config, parent=self)
+            self.tab_widget.removeTab(2)
+            self.tab_widget.insertTab(2, self.remapping_view, "Remapping")
+            self.tab_widget.setCurrentIndex(2)
+
+        elif index == 3 and self.customization_view is None:
+            self.customization_view = CustomizationView(theme_manager=self.theme_mgr, parent=self)
+            self.tab_widget.removeTab(3)
+            self.tab_widget.insertTab(3, self.customization_view, "Customization")
+            self.tab_widget.setCurrentIndex(3)
+
+        elif index == 4 and self.advanced_view is None:
+            self.advanced_view = AdvancedView(config_manager=self.config, theme_manager=self.theme_mgr, parent=self)
+            self.advanced_view.config_updated.connect(self._on_advanced_config_updated)
+            self.tab_widget.removeTab(4)
+            self.tab_widget.insertTab(4, self.advanced_view, "Advanced")
+            self.tab_widget.setCurrentIndex(4)
+
+        elif index == 5 and self.utilities_view is None:
+            self.utilities_view = UtilitiesView(theme_manager=self.theme_mgr, parent=self)
+            self.tab_widget.removeTab(5)
+            self.tab_widget.insertTab(5, self.utilities_view, "Utilities")
+            self.tab_widget.setCurrentIndex(5)
+
+    def _on_advanced_config_updated(self) -> None:
+        """Refreshes Dashboard button matrix pills and Remapping extra buttons grid when hardware chords or macros change."""
+        if hasattr(self, "dashboard_view") and self.dashboard_view and hasattr(self.dashboard_view, "button_matrix"):
+            cfg = getattr(self, "config", None)
+            if cfg:
+                self.dashboard_view.button_matrix.load_profile_schema(cfg)
+
+        if hasattr(self, "remapping_view") and self.remapping_view and hasattr(self.remapping_view, "reload_extra_buttons_grid"):
+            self.remapping_view.reload_extra_buttons_grid()
+
+    def _connect_signals(self):
+        """Connects worker telemetry signals to dashboard and view slots."""
+        self.telemetry_worker.telemetry_updated.connect(self.dashboard_view.update_telemetry)
+        if hasattr(self.dashboard_view, "on_telemetry_updated"):
+            self.telemetry_worker.telemetry_updated.connect(self.dashboard_view.on_telemetry_updated)
+
+
+    def _do_save_config(self):
+        """Internal callback executed by DebouncedConfigSaver."""
+        if self.config and hasattr(self.config, "save"):
+            try:
+                self.config.save()
+            except Exception as e:
+                print(f"[MainWindow] Error saving config: {e}")
+
+    def request_config_save(self):
+        """Public interface for views to trigger a debounced config save."""
+        self.debounced_saver.mark_dirty()
+
+    def _on_tray_icon_activated(self, reason: QSystemTrayIcon.ActivationReason):
+        """Restores window on tray icon double click or trigger."""
+        if reason in (QSystemTrayIcon.ActivationReason.DoubleClick, QSystemTrayIcon.ActivationReason.Trigger):
+            self.restore_window()
+
+    def restore_window(self):
+        """Restores and focuses the main application window."""
+        self.showNormal()
+        self.activateWindow()
+        self.raise_()
+
+    def changeEvent(self, event):
+        """Intercepts minimize events to minimize to tray without blocking."""
+        if event.type() == QEvent.WindowStateChange and self.isMinimized():
+            self.hide()
+            event.ignore()
+        else:
+            super().changeEvent(event)
+
+    def closeEvent(self, event):
+        """Ensures worker thread is cleanly shut down before exiting."""
+        if self.telemetry_worker and self.telemetry_worker.isRunning():
+            self.telemetry_worker.stop()
+        self.debounced_saver.flush()
+        self.tray_icon.hide()
+        super().closeEvent(event)
+
+    def quit_application(self):
+        """Full application quit action."""
+        self.close()
+        QApplication.quit()

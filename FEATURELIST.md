@@ -1,5 +1,31 @@
-# Features List
+## 🎨 Advanced Dynamic Theme Engine & Derived Color Pipeline (`src/gui_v2/services/theme_manager.py`, `src/gui_v2/views/customization_view.py`)
+* **Exposed Base Colors:** 4 alpha-enabled color pickers (`QColorDialog.ShowAlphaChannel`) for `Window Background` (`window_bg`), `Accent #1` (`accent_1` - Hardware Input), `Accent #2` (`accent_2` - Virtual Output), and `Text Color` (`text`).
+* **Mathematical HSV Brightness Pipeline:** Derived color calculation engine (`adjust_brightness()`) generating `widget_bg`, `graph_bg`, `graph_axis`, `outline`, `button_bg`, `button_hover`, `button_pressed`, `tab_active`, and `tab_inactive` tokens automatically.
+* **Theme Behavior Source Selectors:** Configurable color sources for `Button Color Source` (`accent_1` | `accent_2`), `Widget Background Source` (`window_bg` | `accent_1` | `accent_2`), and `Outline Color Source` (`accent_1` | `accent_2`).
+* **Interactive Brightness Sliders:** Live QSliders with percentage readouts (-80% to +80%) for `Widget Brightness` and `Graph Brightness`.
+* **JSON Theme Import & Export:** Full theme state serialization (`base_colors`, `sources`, `brightness`) with backwards compatibility fallback for flat JSON files.
+* **Live Interactive Theme Preview:** Embedded preview panel (`ThemePreviewWidget`) featuring response curve graph, stick radar canvas with non-overlapping input/output vectors, sample remapping widgets, and sample controls updating repaints dynamically on `theme_changed`.
 
+---
+
+## 🎮 Native PySide6 Calibration Wizard & Dynamic Connection Engine (`src/gui_v2/dialogs/calibration_wizard_dialog.py`)
+* **Explicit 6-State Connection FSM:** Tracks connection state machine transitions (`DISCONNECTED`, `WAITING`, `CONNECTING`, `CONNECTED`, `DISCONNECTING`, `INIT_FAILED`).
+* **Dual-State Dashboard Architecture:** Dynamically swaps between State A (Waiting View with USB HID Device Picker) and State B (Live Telemetry Dashboard).
+* **Animated Transition Overlay Engine:** Color-interpolated opacity cross-fades (250ms fade-in, 900ms hold, 250ms fade-out) featuring vector loading spinner and contextual loading quotes.
+* **Automated Profile Decision Tree:** Automated resolution logic checking XInput mode -> local profile -> community database -> native wizard launch.
+* **Native GUI Calibration Wizard Dialog:** Multi-step PySide6 dialog replacing legacy CLI calibration scripts, reusing `calibration.py` backend logic with layout selection, rest baseline capture, button mapping, stick range checks, and automatic XInput C-API hardware mode switch verification (`verify_xinput_switch()`).
+
+---
+
+## 📜 Standardized Severity Logging System & Event-Driven Personality Quote Engine (`src/logger_setup.py`, `src/gui_v2/services/quote_engine.py`)
+* **Standardized Bracketed Severity Tags:** Standardizes log output using bracketed tags: `[INFO]`, `[SUCCESS]`, `[WARN]`, `[ERROR]`, `[DEBUG]`, and `[QUOTE]`.
+* **Custom Logging Levels & Methods:** Registers `SUCCESS` (Level 22) and `QUOTE` (Level 25) on Python's `logging.Logger` (`logger.success()`, `logger.quote()`).
+* **Terminal Log Filtering:** Excludes `DEBUG` lines from terminal stdout using `NoDebugTerminalFilter`, while routing all levels to `.log` files when debug mode is enabled.
+* **Telemetry Isolation & Rate-Limiting:** High-frequency telemetry logs are strictly isolated to `wrapper_telemetry.log` (`propagate = False`) and rate-limited to at most 1 log per 500ms (2Hz).
+* **Event-Driven Personality Quote Engine:** Loads quotes from `src/.loading_quotes.json`, triggers event quotes (`boot`, `connect`, `profile_change`), rotates quotes on a 7.5-minute idle timer, and connects to `TransitionOverlayWidget`.
+* **Log Export Sanitation Filter:** `diagnostics/package_report.py` and `generate_issue_report.bat` automatically strip all `[QUOTE]` flavor text lines from log files prior to packaging `issue_report.zip` for developers.
+
+---
 
 ## 🎮 Interactive Calibration Wizard (`src/calibration.py`)
 Run calibration using `calibrate.bat` (or via `tools_and_diagnostics.bat`) to configure and profile a new gamepad.
@@ -47,7 +73,7 @@ Run the settings panel using `run_wrapper.bat` (and select "Open Config" in the 
   * **Target Layer Saving:** Explicit **"Save Standard"** and **"Save Shift Map"** buttons to cleanly redirect recorded inputs.
 * **Multiple Shift Remapping Layers:**
   * **Layer Selector & Management:** Create, name, and switch between multiple custom shift layers (`Shift 1`, `Shift 2`, etc.) with tab-based navigation in the Remapping UI.
-  * **Activation Chords & Strict Order Logic:** Activate shift layers using a primary shift key or a primary shift key + modifier button combination (e.g. `LB + RB`). Requires strict press timing (primary shift key pressed before or simultaneously with modifier) and consumes inputs to prevent unintended base layer triggers.
+  * **Activation Chords & Priority Resolution:** Activate shift layers using a primary shift key or a primary shift key + modifier button combination (e.g. `HOME + LB`). 2-key chord combinations take precedence over single-trigger layers when both keys are pressed down, while single-trigger layers activate cleanly when only the primary shift key is held. Consumes inputs to prevent unintended base layer triggers and dynamically manages per-layer XInput blocking.
 * **Shift Layer Vibration Feedback (XInput Mode):**
   * **Asynchronous Haptic Engine:** Plays non-blocking keyword vibration profiles (`RM[30% @ 0ms, dur=1500ms]`) on high-resolution hardware timers during Shift Layer transitions.
   * **Game Rumble Un-Hijacking:** Temporarily overrides controller rumble during shift transitions, then automatically un-hijacks and passes control back to in-game rumble streams.
@@ -61,6 +87,13 @@ Run the settings panel using `run_wrapper.bat` (and select "Open Config" in the 
 * **Opt-Out XInput Blocking:**
   * Remapping a button to a keyboard/mouse action automatically blocks it on the virtual XInput pad to prevent double inputs in games.
   * A **"Block XInput"** checkbox column next to each remapped action lets you toggle this behavior on or off. Unchecking it allows sending both the virtual controller signal and the remapped keyboard/mouse signal simultaneously.
+* **Phase 5 Core Performance & System Hardening:**
+  * **Decoupled 1000Hz Telemetry Worker:** Background `QThread` packet ingestion with `QMutex` thread-safe atomic snapshots, eliminating event loop starvation and main-thread lockup.
+  * **Debounced Configuration Disk Saver:** Single-shot 300ms `QTimer` (`DebouncedConfigSaver`) batching rapid UI setting changes to eliminate disk I/O lag and Windows ANR popups.
+  * **Zero-Allocation Hot-Loop Canvases:** Pre-allocated rendering primitives (`QPen`, `QBrush`, `QPolygonF`, `QFont`), cached `ThemeManager` color tokens, and micro-noise threshold checks in `StickRadar` and `TriggerBar` to eliminate Garbage Collection micro-stutters and reduce CPU usage to idle levels.
+  * **Native System Tray Lifecycle:** Complete `QSystemTrayIcon` integration supporting Open GUI, Win32 Console Recovery (`SW_RESTORE` + `SetForegroundWindow`), Quit actions, and minimize-to-tray window state interception.
+  * **Single Instance Socket Protection:** Localhost socket port locking (port `48126`) preventing duplicate client launches.
+
 * **Tuning Tab (Sticks & Triggers):**
   * **Trigger Sensitivity:** Modify the sensitivity of analog triggers directly using sliders (values from 0.1 to 3.0) to fine-tune actuation limits.
   * **Digital Triggers Mode:** A "Digital Trigger Mode" checkbox forces analog trigger values to act as binary buttons (0 or 255) on the virtual pad immediately upon input. Replaces standard curve display with a clean step-function in real time upon toggling.
@@ -152,8 +185,19 @@ A completely generic, foolproof, and automated diagnostic suite to troubleshoot 
 
 
 ## 🎨 UI & Customization Features
+* **Dynamic Theme Engine & Customization View (`src/gui_v2/views/customization_view.py`):**
+  - **Live Dynamic Color Customization:** Pick and tune custom 8-character Hex + Alpha colors for Accent #1 (Input Color), Accent #2 (Output Color), and Window Background Color.
+  - **Pure Black Window Background Default (`#000000FF`):** All pre-built system presets (`themes/presets/`) default the main window base background to `#000000FF` (pure black).
+  - **Secondary Accent Readouts:** Telemetry readouts (`Raw: / Tuned:`) on the Dashboard render using Accent #2 (Secondary Accent / Output Color).
+  - **Phase 4, Slice 5 (Customization View & 4-Token Dynamic Theme Engine):** Implemented `ThemeManager` (`src/gui_v2/services/theme_manager.py`), `CustomizationView` (`src/gui_v2/views/customization_view.py`), and `ThemePreviewWidget` (`src/gui_v2/widgets/theme_preview_widget.py`). Features 8-character Hex + Alpha color tokens (`accent_1` for physical/hardware inputs, `accent_2` for virtual outputs, `background` for card/widget fill, `window_bg` for main window base canvas), pure black window background default (`#000000FF`) across all presets, exposed 4-row color pickers in Customization tab, +15% brighter secondary accent color (`accent_2` scaled via direct RGB multiplication) for Dashboard telemetry readouts (`Raw: / Tuned:`), native `QColorDialog` with `ShowAlphaChannel` enabled, 7 pre-built system theme presets (`themes/presets/`: Default Neon Purple, Cyber Orange, Emerald Mint, Crimson Red, Ocean Blue, Midnight White, Solar Yellow), user custom theme management (`themes/user/` with Save, Rename, Copy, Delete actions and system preset protection), dynamic QSS stylesheet generation targeting `QMainWindow`, `QTabWidget::pane`, `QScrollArea`, and `QAbstractScrollArea::viewport` to eliminate gray/purple background canvas bleed, pure white (`#ffffff`) card groupbox headers across all views and dialogs, theme-bound interactive sliders (`QSlider`) dynamically filled with the primary theme accent (`accent_1`), JSON theme import/export with backward compatibility fallback for missing keys, live interactive theme preview panel (Mock Response Curve Graph, Mock Radar Canvas with non-overlapping input/output points, Sample Remapping Widgets, Working Slider, Action Button, and Outlined Text Box), 100% elimination of hardcoded color strings across ALL `gui_v2` views (`dashboard_view.py`, `remapping_view.py`, `tuning_view.py`, `customization_view.py`), modals (`key_recorder_dialog.py`, `circularity_modal.py`, `ColorGuideModal`, `LatexExportModal`), curve control point dots (Accent #1), group box headers, button names, mapping text boxes, record buttons (`R`), block checkboxes (`Blk` & `S.Blk`), shift layer dropdowns, Add/Rename layer buttons, sliders, custom math fields, Button Matrix pills (`button_matrix.py`), custom painter visualizers (`stick_radar.py`, `trigger_bar.py`, `StickCurveCanvas`, `DualStickRadarWidget`, `TriggerPullBarWidget`), and persistence sync with `themes/custom_theme.json` and `config.ini`.
+  - **Theme Management Toolbar (CRUD):** Save custom themes (`themes/user/`), rename, copy, and delete user themes directly from the Customization tab, with deletion/rename protection for built-in system presets.
+  - **Alpha-Capable Color Pickers:** Native `QColorDialog` with `ShowAlphaChannel` enabled for fine transparency adjustments.
+  - **JSON Theme Import & Export:** Save and load custom `.json` theme files cleanly with automatic fallback defaults for missing keys.
+  - **Interactive Preview Panel:** Instant real-time previewing of response curves, stick radars (with distinct non-overlapping input and output vector points), remapping sample rows, interactive sliders, buttons, and outlined text fields.
+  - **100% Application-Wide Dynamic Color Propagation:** Real-time Qt Style Sheet (QSS) and token propagation across ALL views (`DashboardView`, `RemappingView`, `TuningView`, `CustomizationView`, placeholder panels, and modal dialogs).
+
 * **Theme Manager:** Dynamically switch the entire application's color palette (White, Orange, Red, Yellow, Green, Blue, Purple) and immediately preview changes.
-* **System Font Override:** Supports overriding the default CustomTkinter font with any built-in system font (e.g. Arial, Consolas).
+
 * **Enforced Global Dark Mode:** Global dark mode enforcement to prevent rendering artifacts and ensure optimal canvas contrast.
 
 ---
@@ -170,6 +214,6 @@ A completely generic, foolproof, and automated diagnostic suite to troubleshoot 
 * **Synthetic Wrapper Benchmark:** Floods the translation pipeline with artificial HID packets to measure the maximum theoretical throughput of the software without hardware bottlenecks.
 * **Dashboard Fidelity:** Solved rendering bugs causing dashboard buttons to flicker and fail to display live UDP button data.
 * **XInput Calibration Safety:** Implemented string matching to safely recommend the correct endpoint interface for XInput controllers during calibration.
-* **Static Gray Box Fix:** Resolved a UI overlapping issue in CustomTkinter where `extra_frame` created a static gray box overlaying the dashboard buttons by packing it outside the main layout canvas.
+
 * **Virtual Controller Latching Fix:** Resolved a critical bug where the wrapper daemon would accidentally latch onto the virtual Xbox 360 controller spawned by `vgamepad` instead of the physical controller, causing inputs to fail silently.
 * **Virtual Controller Tuned Output Pipeline:** Fixed raw input override in `VirtualPad.process()`, ensuring all configured stick circularity corrections, response curves, deadzones, and digital triggers properly pass to the virtual controller.

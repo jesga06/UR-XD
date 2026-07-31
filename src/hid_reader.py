@@ -94,11 +94,15 @@ class HIDReader:
                 data = self.device.read(MAX_HID_PACKET_SIZE)
                 if data:
                     if self.callback:
-                        # We pass the full unsliced payload. If the device uses report IDs,
-                        # data[0] is the report ID. If not, data[0] is the first byte of the actual payload.
                         report_id = data[0]
-                        report = RawHIDReport(report_id=report_id, payload=data, timestamp=time.time(), interface_number=self.interface_number)
-                        self.callback(report)
+                        if not hasattr(self, '_report_cache') or self._report_cache is None:
+                            self._report_cache = RawHIDReport(report_id=report_id, payload=data, timestamp=time.time(), interface_number=self.interface_number)
+                        else:
+                            self._report_cache.report_id = report_id
+                            self._report_cache.payload = data
+                            self._report_cache.timestamp = time.time()
+                            self._report_cache.interface_number = self.interface_number
+                        self.callback(self._report_cache)
                 else:
                     # Sleep briefly to prevent high CPU usage in non-blocking mode
                     time.sleep(0.001)

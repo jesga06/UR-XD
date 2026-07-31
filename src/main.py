@@ -21,14 +21,13 @@ from virtual_pad import VirtualPad
 from config_manager import ControllerConfig, get_sanitized_filename
 from hardware_chords import HardwareChordEngine
 from backend_dinput import DInputBackend
+from backend_base import ConnectionState
 from backend_xinput import XInputBackend
 
-import pystray
-from PIL import Image, ImageDraw
 import ctypes
 import argparse
 import subprocess
-from logger_setup import setup_logger
+from logger_setup import setup_logger, setup_telemetry_logger
 from single_instance import ensure_single_instance
 
 is_debug_mode = False
@@ -56,21 +55,55 @@ def show_console():
 
 
 gui_processes = []
+gui_opened = False
+
+
+def resolve_xinput_device_name(devices: list) -> str:
+    """Query physical HID devices to resolve actual product string for XInput controllers."""
+    for d in devices:
+        prod = d.get('product_string')
+        vid = d.get('vendor_id', 0)
+        pid = d.get('product_id', 0)
+        # Exclude virtual Xbox 360 controller spawned by vgamepad (0x045E:0x028E)
+        if vid == 0x045E and pid == 0x028E:
+            continue
+        if prod and not any(kw in prod.upper() for kw in ("KEYBOARD", "MOUSE", "KB")):
+            clean_name = prod
+            if clean_name.startswith("Controller (") and clean_name.endswith(")"):
+                clean_name = clean_name[12:-1]
+            return clean_name
+    return "XInput Gamepad"
 
 
 def open_config(icon, item):
+    global gui_opened
     if logger:
         logger.debug(f"[ENTER] open_config called with args: icon={icon}, item={item}")
+    
+    # Check if an existing GUI process is running
+    for p in list(gui_processes):
+        if p.poll() is None:
+            gui_opened = True
+            if logger:
+                logger.debug("GUI instance is already running; skipping launch.")
+            return
+
+    if gui_opened:
+        if logger:
+            logger.debug("GUI already opened in this session; skipping launch.")
+        return
+
     try:
         script_dir = os.path.dirname(os.path.abspath(__file__))
-        gui_path = os.path.join(script_dir, 'gui.py')
-        cmd = [sys.executable, gui_path, '--append-log']
+        gui_path = os.path.join(script_dir, 'main_gui.py')
+        cmd = [sys.executable, gui_path]
         if is_debug_mode:
             cmd.append('--debug')
         if logger:
             logger.debug(f"  [DEBUG] Launching GUI with cmd: {cmd}")
         p = subprocess.Popen(cmd)
         gui_processes.append(p)
+        gui_opened = True
         if logger:
             logger.debug(f"[EXIT] open_config completed successfully. PID: {p.pid}")
     except Exception as e:
@@ -84,10 +117,17 @@ def show_console_action(icon, item):
     show_console()
 
 
+import tempfile
+
 def write_status(state, device_name="None"):
     try:
-        with open('status.json', 'w', encoding='utf-8') as f:
-            json.dump({"status": state, "device": device_name}, f)
+        target_path = 'status.json'
+        dir_name = os.path.dirname(os.path.abspath(target_path)) or '.'
+        with tempfile.NamedTemporaryFile('w', dir=dir_name, delete=False, encoding='utf-8') as tf:
+            status_str = state.name if hasattr(state, 'name') else str(state)
+            json.dump({"status": status_str, "device": device_name}, tf)
+            temp_name = tf.name
+        os.replace(temp_name, target_path)
     except Exception as e:
         if logger:
             logger.error(f"Error writing status.json: {e}")
@@ -97,19 +137,11 @@ def write_status(state, device_name="None"):
 
 def quit_app(icon, item):
     icon.stop()
-    write_status("Disconnected")
+    write_status(ConnectionState.DISCONNECTED)
     os._exit(0)
 
 
-def create_image():
-    # Generate a simple icon
-    width = 64
-    height = 64
-    image = Image.new('RGBA', (width, height), (0, 0, 0, 0))
-    dc = ImageDraw.Draw(image)
-    dc.ellipse((8, 8, width - 8, height - 8), fill=(175, 0, 250))
-    dc.rectangle((24, 24, width - 24, height - 24), fill=(255, 255, 255))
-    return image
+
 
 
 def load_config(filename='config.ini'):
@@ -142,9 +174,10 @@ def main():
 
     is_debug_mode = args.debug
     logger = setup_logger('main', 'wrapper.log', is_debug_mode)
+    telemetry_logger = setup_telemetry_logger('wrapper_telemetry.log')
 
     hide_console()
-    write_status("Starting...")
+    write_status(ConnectionState.CONNECTING)
     logger.info("UR-XD Wrapper Starting...")
 
     config_file = 'config.ini'
@@ -251,14 +284,44 @@ def main():
         test_xinput = XInputBackend()
         if test_xinput.initialize():
             logger.info(f"XInput controller detected on slot {test_xinput.connected_slot} (no DInput HID map required).")
-            device_name = "XInput Gamepad"
+            device_name = resolve_xinput_device_name(devices)
             hid_map_path = None
         else:
             logger.warning("No connected devices with a saved HID map or XInput slot found.")
-            logger.info("Please run calibration.py to generate a HID map for your controller.")
-            show_console()
-            time.sleep(5)
-            sys.exit(1)
+            logger.info("Entering WAITING state for background device detection...")
+            write_status(ConnectionState.WAITING, "No Controller Connected")
+
+            # Open GUI if not called with --boot
+            if not args.boot:
+                logger.info("Auto-opening GUI in WAITING state...")
+                open_config(None, None)
+
+            # Continuous low-overhead background polling for devices in WAITING state
+            while not hid_map_path:
+                time.sleep(2.0)
+                devices = HIDReader.get_all_devices()
+                for d in devices:
+                    vid = d.get('vendor_id', 0)
+                    pid = d.get('product_id', 0)
+                    potential_hid_map = f"profiles/{vid:04X}_{pid:04X}.json".lower()
+                    if os.path.exists(potential_hid_map):
+                        selected_vid = vid
+                        selected_pid = pid
+                        hid_map_path = potential_hid_map
+                        try:
+                            with open(hid_map_path, 'r', encoding='utf-8') as f:
+                                map_data = json.load(f)
+                                device_name = map_data.get('name', "Unknown Device")
+                        except Exception:
+                            pass
+                        break
+
+                if not hid_map_path:
+                    test_xinput = XInputBackend()
+                    if test_xinput.initialize():
+                        device_name = resolve_xinput_device_name(devices)
+                        hid_map_path = None
+                        break
 
     logger.info(f"Connected device: {device_name} (HID map: {hid_map_path or 'None (XInput)'})")
 
@@ -301,7 +364,7 @@ def main():
         if not backend.initialize():
             if backend_mode == 'xinput':
                 logger.error("XInput backend selected but no XInput device found.")
-                write_status("Disconnected")
+                write_status(ConnectionState.INIT_FAILED)
                 show_console()
                 time.sleep(5)
                 sys.exit(1)
@@ -315,7 +378,7 @@ def main():
         backend = DInputBackend(hid_map_path, selected_vid, selected_pid, req_ifaces)
         if not backend.initialize():
             logger.error("Failed to initialize DInput backend.")
-            write_status("Disconnected")
+            write_status(ConnectionState.INIT_FAILED)
             show_console()
             time.sleep(5)
             sys.exit(1)
@@ -344,12 +407,13 @@ def main():
     except Exception as e:
         logger.error(f"Failed to initialize mapper or virtual pad: {e}", exc_info=True)
         logger.info("Please ensure ViGEmBus is installed.")
+        write_status(ConnectionState.INIT_FAILED)
         show_console()
         time.sleep(5)
         sys.exit(1)
 
 
-    write_status("Connected", device_name)
+    write_status(ConnectionState.CONNECTED, device_name)
 
     def rumble_callback(left_motor, right_motor):
         backend.set_vibration(left_motor / 255.0, right_motor / 255.0)
@@ -409,8 +473,8 @@ def main():
         nonlocal last_log_time
         current_time = time.time()
 
-        if is_debug_mode and (current_time - last_log_time) >= 0.5:
-            logger.debug(f"[DATA HANDLER] Throttle boundary reached. DECODED STATE: {state}")
+        if is_debug_mode and (current_time - last_log_time) >= 1.0:
+            telemetry_logger.debug(f"[DECODED STATE] {state}")
             last_log_time = current_time
 
         if is_interception_paused:
@@ -432,48 +496,51 @@ def main():
     # Background config poller
     def config_poller():
         last_mtime = 0
+        last_ini_mtime = 0
         if os.path.exists(controller_config_file):
             last_mtime = os.path.getmtime(controller_config_file)
+        if os.path.exists(config_file):
+            last_ini_mtime = os.path.getmtime(config_file)
 
         while True:
-            time.sleep(5)  # Poll every 5 seconds
+            time.sleep(1)  # Poll every 1 second for live tuning responsiveness
             try:
+                changed = False
                 if os.path.exists(controller_config_file):
                     current_mtime = os.path.getmtime(controller_config_file)
                     if current_mtime != last_mtime:
                         last_mtime = current_mtime
-                        controller_config.load()
-                        mapper.reload_config(controller_config)
-                        hardware_chord_engine.reload_config(controller_config)
-                        virtual_pad.reload_config(controller_config)
-                        macro_executor.load_macros()
-                        logger.info("Controller config reloaded live!")
+                        changed = True
+                if os.path.exists(config_file):
+                    current_ini_mtime = os.path.getmtime(config_file)
+                    if current_ini_mtime != last_ini_mtime:
+                        last_ini_mtime = current_ini_mtime
+                        changed = True
+
+                if changed:
+                    controller_config.load()
+                    mapper.reload_config(controller_config)
+                    hardware_chord_engine.reload_config(controller_config)
+                    virtual_pad.reload_config(controller_config)
+                    macro_executor.load_macros()
+                    logger.info("Controller config reloaded live!")
             except Exception as e:
                 logger.error(f"Error reloading config: {e}", exc_info=True)
 
     t_poller = threading.Thread(target=config_poller, daemon=True)
     t_poller.start()
 
-    logger.info("App is running in the system tray.")
+    logger.info("Daemon is running in the background.")
 
     # Automatically open GUI on initialization unless --boot is specified
     if not args.boot:
         logger.info("Auto-opening GUI...")
         open_config(None, None)
 
-    # Setup tray icon
-    image = create_image()
-    menu = pystray.Menu(
-        pystray.MenuItem('Open Config', open_config),
-        pystray.MenuItem('Pause Interception', toggle_pause_interception_action, checked=lambda item: is_interception_paused),
-        pystray.MenuItem('Reload Configuration', reload_configuration_action),
-        pystray.MenuItem('Show Console', show_console_action),
-        pystray.MenuItem('Exit', quit_app)
-    )
-    icon = pystray.Icon("ur-xd", image, "UR-XD Wrapper", menu)
 
     try:
-        icon.run()
+        while True:
+            time.sleep(1)
     except KeyboardInterrupt:
         pass
     finally:

@@ -10,14 +10,17 @@ from decoder import ControllerState
 
 logger = logging.getLogger('hardware_chords')
 
+import collections
+
 class HardwareChordEngine:
     def __init__(self, config=None):
         self.chords = []
         self.pending_inputs = {}
         self.executed_chords = set()
         self.last_report_time = 0
-        self.poll_intervals = []
+        self.poll_intervals = collections.deque(maxlen=50)
         self.avg_poll_interval = 0.004 # Default 4ms (250Hz)
+        self._current_pressed = set()
         
         self.impossible_states = []
         
@@ -29,6 +32,7 @@ class HardwareChordEngine:
         self.impossible_states.clear()
         self.pending_inputs.clear()
         self.executed_chords.clear()
+        self._current_pressed.clear()
         
         if config.has_section('hardware_chords'):
             for key, val in config.items('hardware_chords'):
@@ -85,17 +89,23 @@ class HardwareChordEngine:
             delta = now - self.last_report_time
             if delta < 0.1: # ignore large pauses
                 self.poll_intervals.append(delta)
-                if len(self.poll_intervals) > 50:
-                    self.poll_intervals.pop(0)
-                self.avg_poll_interval = sum(self.poll_intervals) / len(self.poll_intervals)
+                if self.poll_intervals:
+                    self.avg_poll_interval = sum(self.poll_intervals) / len(self.poll_intervals)
         self.last_report_time = now
 
     def process(self, state: ControllerState) -> ControllerState:
         now = time.time()
         
-        # Track currently pressed buttons for this frame
-        current_pressed = set()
-        for btn in ['a', 'b', 'x', 'y', 'lb', 'rb', 'select', 'start', 'home', 'l3', 'r3', 'dpad_up', 'dpad_down', 'dpad_left', 'dpad_right', 'lt', 'rt']:
+        # Reset all managed hardware chord action states to False before evaluating current frame state
+        for chord in self.chords:
+            action = chord.get('action')
+            if action:
+                self._set_button_state(state, action, False)
+
+        # Track currently pressed buttons for this frame using zero-allocation set reuse
+        current_pressed = self._current_pressed
+        current_pressed.clear()
+        for btn in ('a', 'b', 'x', 'y', 'lb', 'rb', 'select', 'start', 'home', 'l3', 'r3', 'dpad_up', 'dpad_down', 'dpad_left', 'dpad_right', 'lt', 'rt'):
             if self._get_button_state(state, btn):
                 current_pressed.add(btn)
         for btn, is_pressed in state.extra_inputs.items():

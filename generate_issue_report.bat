@@ -188,17 +188,16 @@ echo.
 echo [OK] Step 6 completed.
 echo.
 
-rem Compress diagnostics_logs/ into issue_report.zip
+rem Compress diagnostics_logs/ into issue_report.zip with log export sanitation
 echo ======================================================================
-echo STEP 7: PACKAGING LOG FILES
+echo STEP 7: PACKAGING LOG FILES (SANITIZED)
 echo ======================================================================
-echo Packaging all generated log files from 'diagnostics_logs/' folder into
+echo Sanitizing flavor quotes and packaging all generated log files into
 echo 'issue_report.zip' in the repository root.
 echo.
-powershell -Command "Compress-Archive -Path .\diagnostics_logs -DestinationPath .\issue_report.zip -Force"
+"%PYTHON_CMD%" diagnostics\package_report.py %*
 if %ERRORLEVEL% NEQ 0 (
     echo [ERROR] Failed to package the log files into a zip archive.
-    echo Please ensure PowerShell is installed and accessible.
     pause
     exit /b 1
 )

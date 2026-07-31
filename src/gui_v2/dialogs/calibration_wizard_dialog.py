@@ -1,17 +1,19 @@
 """
 Native GUI Calibration Wizard Dialog (calibration_wizard_dialog.py)
-PySide6 native multi-step calibration wizard replacing legacy CLI calibration script.
-Reuses backend math, parsing routines, and step logic directly from src/calibration.py.
-Guides users through button mappings, stick range/deadzone checks, hardware mode switches,
-and automatic XInput verification using XInputBackend C-API.
+PySide6 native multi-step calibration wizard.
+Guides users through 15-second XInput auto-detection, rest state baselining,
+real-time HID report byte/bitmask button detection, analog stick range tracking,
+and profile saving.
 """
 
 import os
 import sys
 import json
 import time
+import ctypes
+import configparser
 import threading
-from typing import Dict, Any, Optional, List
+from typing import Dict, Any, Optional, List, Tuple
 
 from PySide6.QtWidgets import (
     QDialog, QVBoxLayout, QHBoxLayout, QLabel, QPushButton, QProgressBar,
@@ -22,43 +24,115 @@ from PySide6.QtCore import Qt, QTimer, Signal, Slot
 
 sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "..")))
 from hid_reader import HIDReader, RawHIDReport
-from backend_xinput import XInputBackend
-from config_manager import get_sanitized_filename
+from backend_xinput import XInputBackend, XINPUT_STATE, XINPUT_GAMEPAD_A, XINPUT_GAMEPAD_B
 from gui_v2.services.theme_manager import ThemeManager, color_to_rgba_str, color_to_hex6
+
+
+BUTTON_TARGET_MAPS = {
+    "xbox": [
+        ("a", "Action Button A (Bottom)"),
+        ("b", "Action Button B (Right)"),
+        ("x", "Action Button X (Left)"),
+        ("y", "Action Button Y (Top)"),
+        ("lb", "Left Bumper (LB)"),
+        ("rb", "Right Bumper (RB)"),
+        ("select", "Select / Back Button"),
+        ("start", "Start Button"),
+        ("home", "Home / Guide Button"),
+        ("l3", "Left Stick Click (LS / L3)"),
+        ("r3", "Right Stick Click (RS / R3)")
+    ],
+    "playstation": [
+        ("a", "Cross (X) Button (Bottom)"),
+        ("b", "Circle (O) Button (Right)"),
+        ("x", "Square (■) Button (Left)"),
+        ("y", "Triangle (▲) Button (Top)"),
+        ("lb", "L1 Bumper"),
+        ("rb", "R1 Bumper"),
+        ("select", "Share / Select Button"),
+        ("start", "Options / Start Button"),
+        ("home", "PS / Home Button"),
+        ("l3", "L3 Click"),
+        ("r3", "R3 Click")
+    ],
+    "nintendo": [
+        ("a", "Button B (Bottom)"),
+        ("b", "Button A (Right)"),
+        ("x", "Button Y (Left)"),
+        ("y", "Button X (Top)"),
+        ("lb", "L Bumper"),
+        ("rb", "R Bumper"),
+        ("select", "- (Minus) Button"),
+        ("start", "+ (Plus) Button"),
+        ("home", "Home Button"),
+        ("l3", "LS Click"),
+        ("r3", "RS Click")
+    ]
+}
+
+AXIS_TARGETS = [
+    ("lx", "Move Left Stick RIGHT"),
+    ("ly", "Move Left Stick UP"),
+    ("rx", "Move Right Stick RIGHT"),
+    ("ry", "Move Right Stick UP"),
+    ("lt", "Press Left Trigger"),
+    ("rt", "Press Right Trigger")
+]
 
 
 class NativeCalibrationWizardDialog(QDialog):
     """
     Multi-step PySide6 GUI Calibration Wizard Dialog.
+    Step 0: XInput Auto-Detect (15s Countdown + Skip Button)
+    Step 1: Welcome & Layout Selection
+    Step 2: Rest State Baseline Capture
+    Step 3: Interactive Button Byte/Bitmask Mapping
+    Step 4: Analog Stick & Trigger Range Calibration
+    Step 5: Save & Finish
     """
     calibration_complete = Signal(str)  # Emits path to saved profile JSON
+    hid_report_received = Signal(object)  # Thread-safe signal for incoming RawHIDReport
 
     def __init__(self, device_info: dict, parent: Optional[QWidget] = None):
         super().__init__(parent)
         self.device_info = device_info
         self.setWindowTitle("Controller Calibration Wizard")
-        self.setMinimumSize(680, 520)
+        self.setMinimumSize(720, 540)
 
         self.layout_type: str = "xbox"
         self.reader: Optional[HIDReader] = None
         self.latest_report: Optional[RawHIDReport] = None
-        self.baseline_data: Dict[int, List[int]] = {}
+        self.baselines: Dict[int, List[int]] = {}  # { report_id: byte_list }
         
         self.profile_data: Dict[str, Any] = {
             "name": self.device_info.get("product_string") or "Custom Gamepad",
             "vid": f"{self.device_info.get('vendor_id', 0):04X}",
             "pid": f"{self.device_info.get('product_id', 0):04X}",
             "layout": "xbox",
+            "has_report_id": True,
             "reports": {}
         }
 
-        self._xinput_poll_timer = QTimer(self)
-        self._xinput_poll_timer.setInterval(1000)
-        self._xinput_poll_timer.timeout.connect(self._check_xinput_switch)
+        # Step tracking
+        self.button_target_idx: int = 0
+        self.axis_target_idx: int = 0
+        self.axis_min_max: Dict[int, Dict[str, int]] = {}  # { byte_idx: {min, max, base} }
+
+        # XInput Detection 15s Timer
+        self.xinput_time_remaining: float = 15.0
+        self.xinput_detected: bool = False
+        self._xinput_timer = QTimer(self)
+        self._xinput_timer.setInterval(50)  # 20Hz polling
+        self._xinput_timer.timeout.connect(self._poll_xinput)
+
+        self.hid_report_received.connect(self._on_hid_report_signal)
 
         self.setup_ui()
         self._setup_theme_sync()
         self._start_hid_listener()
+
+        # Start Step 0 XInput detection immediately
+        self._start_xinput_detection()
 
     def setup_ui(self) -> None:
         main_layout = QVBoxLayout(self)
@@ -81,27 +155,27 @@ class NativeCalibrationWizardDialog(QDialog):
         # Stacked Pages
         self.stacked_widget = QStackedWidget()
 
-        # Step 0: Welcome & Layout Selection Page
-        self.page_welcome = self._create_page_welcome()
-        self.stacked_widget.addWidget(self.page_welcome)
-
-        # Step 1: Rest State Baseline Page
-        self.page_baseline = self._create_page_baseline()
-        self.stacked_widget.addWidget(self.page_baseline)
-
-        # Step 2: Button & Axis Calibration Page
-        self.page_buttons = self._create_page_buttons()
-        self.stacked_widget.addWidget(self.page_buttons)
-
-        # Step 3: Stick Range Page
-        self.page_sticks = self._create_page_sticks()
-        self.stacked_widget.addWidget(self.page_sticks)
-
-        # Step 4: XInput Mode Switch Page
+        # Page 0: XInput Auto-Detection (15s Poll)
         self.page_xinput = self._create_page_xinput()
         self.stacked_widget.addWidget(self.page_xinput)
 
-        # Step 5: Save & Finish Page
+        # Page 1: Welcome & Layout Selection
+        self.page_welcome = self._create_page_welcome()
+        self.stacked_widget.addWidget(self.page_welcome)
+
+        # Page 2: Rest Baseline Capture
+        self.page_baseline = self._create_page_baseline()
+        self.stacked_widget.addWidget(self.page_baseline)
+
+        # Page 3: Button Calibration
+        self.page_buttons = self._create_page_buttons()
+        self.stacked_widget.addWidget(self.page_buttons)
+
+        # Page 4: Stick Calibration
+        self.page_sticks = self._create_page_sticks()
+        self.stacked_widget.addWidget(self.page_sticks)
+
+        # Page 5: Save & Finish Page
         self.page_finish = self._create_page_finish()
         self.stacked_widget.addWidget(self.page_finish)
 
@@ -126,6 +200,52 @@ class NativeCalibrationWizardDialog(QDialog):
 
         main_layout.addLayout(nav_layout)
 
+    def _create_page_xinput(self) -> QWidget:
+        page = QWidget()
+        layout = QVBoxLayout(page)
+        layout.setSpacing(14)
+
+        title = QLabel("Step 1: XInput Mode Auto-Detection")
+        title.setFont(QFont("Segoe UI", 12, QFont.Weight.Bold))
+        title.setAlignment(Qt.AlignmentFlag.AlignCenter)
+
+        desc = QLabel(
+            "If your controller supports XInput (e.g., 8BitDo, GameSir, Xbox mode):\n"
+            "Press A + B (or Cross + Circle) together, or switch your physical hardware mode toggle.\n"
+            "The wizard is polling XInput constantly."
+        )
+        desc.setWordWrap(True)
+        desc.setAlignment(Qt.AlignmentFlag.AlignCenter)
+
+        self.lbl_xinput_countdown = QLabel("Time Remaining: 15.0s")
+        self.lbl_xinput_countdown.setFont(QFont("Segoe UI", 16, QFont.Weight.Bold))
+        self.lbl_xinput_countdown.setAlignment(Qt.AlignmentFlag.AlignCenter)
+
+        self.lbl_xinput_status = QLabel("Status: Polling XInput C-API...")
+        self.lbl_xinput_status.setFont(QFont("Segoe UI", 11))
+        self.lbl_xinput_status.setAlignment(Qt.AlignmentFlag.AlignCenter)
+
+        btn_box = QHBoxLayout()
+        self.btn_skip_xinput = QPushButton("Skip / DInput Mode")
+        self.btn_skip_xinput.clicked.connect(self._skip_xinput_detection)
+        
+        self.btn_finish_xinput = QPushButton("Finish XInput Setup")
+        self.btn_finish_xinput.setVisible(False)
+        self.btn_finish_xinput.clicked.connect(self._finish_xinput_mode)
+
+        btn_box.addStretch()
+        btn_box.addWidget(self.btn_skip_xinput)
+        btn_box.addWidget(self.btn_finish_xinput)
+        btn_box.addStretch()
+
+        layout.addWidget(title)
+        layout.addWidget(desc)
+        layout.addWidget(self.lbl_xinput_countdown)
+        layout.addWidget(self.lbl_xinput_status)
+        layout.addLayout(btn_box)
+        layout.addStretch()
+        return page
+
     def _create_page_welcome(self) -> QWidget:
         page = QWidget()
         layout = QVBoxLayout(page)
@@ -144,6 +264,7 @@ class NativeCalibrationWizardDialog(QDialog):
         lb_layout = QHBoxLayout(layout_box)
         self.combo_layout = QComboBox()
         self.combo_layout.addItems(["Xbox Layout (A, B, X, Y)", "PlayStation Layout (Cross, Circle, Square, Triangle)", "Nintendo Layout (B, A, Y, X)"])
+        self.combo_layout.currentIndexChanged.connect(self._on_layout_changed)
         lb_layout.addWidget(self.combo_layout)
 
         layout.addWidget(layout_box)
@@ -155,14 +276,19 @@ class NativeCalibrationWizardDialog(QDialog):
         layout = QVBoxLayout(page)
         layout.setSpacing(14)
 
-        self.lbl_baseline = QLabel("Leave all sticks and buttons in their centered REST state.\nClick 'Capture Rest Baseline' to capture rest values.")
+        self.lbl_baseline = QLabel(
+            "Place your controller on a flat surface.\n"
+            "Leave all analog sticks, triggers, and buttons in their centered REST state.\n\n"
+            "Click 'Capture Rest Baseline' to store rest values."
+        )
         self.lbl_baseline.setFont(QFont("Segoe UI", 11))
         self.lbl_baseline.setAlignment(Qt.AlignmentFlag.AlignCenter)
 
         self.btn_capture_base = QPushButton("Capture Rest Baseline")
+        self.btn_capture_base.setFixedHeight(36)
         self.btn_capture_base.clicked.connect(self._capture_baseline)
 
-        self.lbl_base_status = QLabel("Status: Ready to capture")
+        self.lbl_base_status = QLabel("Status: Waiting for capture...")
         self.lbl_base_status.setAlignment(Qt.AlignmentFlag.AlignCenter)
 
         layout.addWidget(self.lbl_baseline)
@@ -177,19 +303,23 @@ class NativeCalibrationWizardDialog(QDialog):
         layout.setSpacing(14)
 
         self.lbl_btn_prompt = QLabel("Press the requested button on your controller:")
-        self.lbl_btn_prompt.setFont(QFont("Segoe UI", 12, QFont.Weight.Bold))
+        self.lbl_btn_prompt.setFont(QFont("Segoe UI", 11))
         self.lbl_btn_prompt.setAlignment(Qt.AlignmentFlag.AlignCenter)
 
         self.lbl_target_btn = QLabel("Press Action Button A (Bottom)")
         self.lbl_target_btn.setFont(QFont("Segoe UI", 16, QFont.Weight.Bold))
         self.lbl_target_btn.setAlignment(Qt.AlignmentFlag.AlignCenter)
 
-        self.btn_skip_map = QPushButton("Skip Button")
-        self.btn_skip_map.clicked.connect(self._skip_current_button)
+        self.lbl_btn_status = QLabel("Listening for HID button press...")
+        self.lbl_btn_status.setAlignment(Qt.AlignmentFlag.AlignCenter)
+
+        self.btn_skip_button = QPushButton("Skip Button")
+        self.btn_skip_button.clicked.connect(self._skip_current_button)
 
         layout.addWidget(self.lbl_btn_prompt)
         layout.addWidget(self.lbl_target_btn)
-        layout.addWidget(self.btn_skip_map, alignment=Qt.AlignmentFlag.AlignCenter)
+        layout.addWidget(self.lbl_btn_status)
+        layout.addWidget(self.btn_skip_button, alignment=Qt.AlignmentFlag.AlignCenter)
         layout.addStretch()
         return page
 
@@ -198,41 +328,24 @@ class NativeCalibrationWizardDialog(QDialog):
         layout = QVBoxLayout(page)
         layout.setSpacing(14)
 
-        lbl = QLabel("Rotate both analog sticks in full 360-degree circles to capture axis ranges.")
-        lbl.setFont(QFont("Segoe UI", 11))
-        lbl.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        self.lbl_stick_prompt = QLabel("Analog Stick & Trigger Calibration")
+        self.lbl_stick_prompt.setFont(QFont("Segoe UI", 12, QFont.Weight.Bold))
+        self.lbl_stick_prompt.setAlignment(Qt.AlignmentFlag.AlignCenter)
 
-        self.lbl_stick_status = QLabel("Tracking Analog Axis Bounds...")
+        self.lbl_target_axis = QLabel("Move Left Stick RIGHT")
+        self.lbl_target_axis.setFont(QFont("Segoe UI", 16, QFont.Weight.Bold))
+        self.lbl_target_axis.setAlignment(Qt.AlignmentFlag.AlignCenter)
+
+        self.lbl_stick_status = QLabel("Rotate sticks in 360° circles to register range...")
         self.lbl_stick_status.setAlignment(Qt.AlignmentFlag.AlignCenter)
 
-        layout.addWidget(lbl)
+        self.btn_skip_axis = QPushButton("Skip Axis")
+        self.btn_skip_axis.clicked.connect(self._skip_current_axis)
+
+        layout.addWidget(self.lbl_stick_prompt)
+        layout.addWidget(self.lbl_target_axis)
         layout.addWidget(self.lbl_stick_status)
-        layout.addStretch()
-        return page
-
-    def _create_page_xinput(self) -> QWidget:
-        page = QWidget()
-        layout = QVBoxLayout(page)
-        layout.setSpacing(14)
-
-        title = QLabel("Hardware Mode Switch (Optional XInput Verification)")
-        title.setFont(QFont("Segoe UI", 12, QFont.Weight.Bold))
-        title.setAlignment(Qt.AlignmentFlag.AlignCenter)
-
-        desc = QLabel(
-            "If your controller supports hardware mode switching (e.g. 8BitDo, Gamesir):\n"
-            "Press physical shortcut (e.g. Mode + X, Select + X, or Hold Start) to switch to XInput mode.\n\n"
-            "The wizard will automatically verify XInput C-API activation."
-        )
-        desc.setAlignment(Qt.AlignmentFlag.AlignCenter)
-
-        self.lbl_xinput_status = QLabel("Status: Polling XInput C-API...")
-        self.lbl_xinput_status.setFont(QFont("Segoe UI", 10, QFont.Weight.Bold))
-        self.lbl_xinput_status.setAlignment(Qt.AlignmentFlag.AlignCenter)
-
-        layout.addWidget(title)
-        layout.addWidget(desc)
-        layout.addWidget(self.lbl_xinput_status)
+        layout.addWidget(self.btn_skip_axis, alignment=Qt.AlignmentFlag.AlignCenter)
         layout.addStretch()
         return page
 
@@ -241,8 +354,8 @@ class NativeCalibrationWizardDialog(QDialog):
         layout = QVBoxLayout(page)
         layout.setSpacing(14)
 
-        lbl = QLabel("Calibration Complete! Profile ready to be generated.")
-        lbl.setFont(QFont("Segoe UI", 12, QFont.Weight.Bold))
+        lbl = QLabel("Calibration Complete!")
+        lbl.setFont(QFont("Segoe UI", 14, QFont.Weight.Bold))
         lbl.setAlignment(Qt.AlignmentFlag.AlignCenter)
 
         self.lbl_summary = QLabel("")
@@ -306,52 +419,262 @@ class NativeCalibrationWizardDialog(QDialog):
                 }}
             """)
             self.lbl_target_btn.setStyleSheet(f"color: {color_to_hex6(accent_1)};")
-            self.lbl_xinput_status.setStyleSheet(f"color: {color_to_hex6(accent_2)};")
+            self.lbl_target_axis.setStyleSheet(f"color: {color_to_hex6(accent_1)};")
+            self.lbl_xinput_countdown.setStyleSheet(f"color: {color_to_hex6(accent_2)};")
         except RuntimeError:
             pass
 
+    # -------------------------------------------------------------------
+    # HID LISTENER & SIGNAL HANDLING
+    # -------------------------------------------------------------------
     def _start_hid_listener(self) -> None:
         path = self.device_info.get("path")
         if path:
             self.reader = HIDReader(device_path=path)
-            self.reader.set_callback(self._on_hid_report)
+            self.reader.set_callback(lambda r: self.hid_report_received.emit(r))
             if self.reader.connect():
                 threading.Thread(target=self.reader.start, daemon=True).start()
 
-    def _on_hid_report(self, report: RawHIDReport) -> None:
+    @Slot(object)
+    def _on_hid_report_signal(self, report: RawHIDReport) -> None:
         self.latest_report = report
+        page_idx = self.stacked_widget.currentIndex()
 
+        # Step 3: Button Calibration
+        if page_idx == 3:
+            self._process_button_report(report)
+
+        # Step 4: Stick Calibration
+        elif page_idx == 4:
+            self._process_stick_report(report)
+
+    # -------------------------------------------------------------------
+    # STEP 0: XINPUT AUTO-DETECTION (15s COUNTDOWN + CONSTANT POLLING)
+    # -------------------------------------------------------------------
+    def _start_xinput_detection(self) -> None:
+        self.xinput_time_remaining = 15.0
+        self.xinput_detected = False
+        self._xinput_timer.start()
+
+    def _poll_xinput(self) -> None:
+        if self.xinput_detected:
+            return
+
+        self.xinput_time_remaining -= 0.05
+        if self.xinput_time_remaining <= 0:
+            self.xinput_time_remaining = 0
+            self._xinput_timer.stop()
+            self.lbl_xinput_countdown.setText("Time Remaining: 0.0s")
+            self.lbl_xinput_status.setText("⚠️ XInput not detected within 15 seconds. Proceeding to DInput calibration.")
+            QTimer.singleShot(1500, self._skip_xinput_detection)
+            return
+
+        self.lbl_xinput_countdown.setText(f"Time Remaining: {self.xinput_time_remaining:.1f}s")
+
+        # Check XInput Backend C-API
+        xb = XInputBackend()
+        if xb.initialize():
+            state = XINPUT_STATE()
+            if xb.XInputGetState(xb.connected_slot, ctypes.byref(state)) == 0:
+                btns = state.Gamepad.wButtons
+                # If buttons pressed or active slot connected
+                if (btns & XINPUT_GAMEPAD_A) and (btns & XINPUT_GAMEPAD_B) or btns != 0 or xb.connected_slot >= 0:
+                    self.xinput_detected = True
+                    self._xinput_timer.stop()
+                    self.lbl_xinput_countdown.setText("✅ XInput Mode Detected!")
+                    self.lbl_xinput_countdown.setStyleSheet("color: #55FF55; font-weight: bold;")
+                    self.lbl_xinput_status.setText("Controller successfully responded in XInput mode.")
+                    self.btn_skip_xinput.setVisible(False)
+                    self.btn_finish_xinput.setVisible(True)
+
+    def _skip_xinput_detection(self) -> None:
+        self._xinput_timer.stop()
+        self._set_backend_mode("dinput")
+        self.stacked_widget.setCurrentIndex(1)
+        self.progress_bar.setValue(1)
+        self.back_btn.setEnabled(True)
+
+    def _finish_xinput_mode(self) -> None:
+        self._xinput_timer.stop()
+        self._set_backend_mode("xinput")
+        self._save_profile_and_finish()
+
+    def _set_backend_mode(self, mode: str) -> None:
+        try:
+            config = configparser.ConfigParser()
+            if os.path.exists("config.ini"):
+                config.read("config.ini")
+            if not config.has_section("backend"):
+                config.add_section("backend")
+            config.set("backend", "mode", mode)
+            with open("config.ini", "w") as f:
+                config.write(f)
+        except Exception as e:
+            print(f"Error setting backend mode: {e}")
+
+    # -------------------------------------------------------------------
+    # STEP 1: WELCOME & LAYOUT SELECTION
+    # -------------------------------------------------------------------
+    def _on_layout_changed(self, idx: int) -> None:
+        keys = ["xbox", "playstation", "nintendo"]
+        self.layout_type = keys[idx] if idx < len(keys) else "xbox"
+        self.profile_data["layout"] = self.layout_type
+        self._update_button_target_label()
+
+    def _update_button_target_label(self) -> None:
+        targets = BUTTON_TARGET_MAPS.get(self.layout_type, BUTTON_TARGET_MAPS["xbox"])
+        if self.button_target_idx < len(targets):
+            key, label = targets[self.button_target_idx]
+            self.lbl_target_btn.setText(f"Press {label}")
+            self.lbl_btn_status.setText(f"Listening for '{key.upper()}' input...")
+
+    # -------------------------------------------------------------------
+    # STEP 2: REST BASELINE CAPTURE
+    # -------------------------------------------------------------------
     def _capture_baseline(self) -> None:
         if self.latest_report and hasattr(self.latest_report, "payload"):
             r_id = self.latest_report.report_id
-            self.baseline_data[r_id] = list(self.latest_report.payload)
-            self.lbl_base_status.setText(f"Baseline captured for Report ID {r_id}!")
+            self.baselines[r_id] = list(self.latest_report.payload)
+            self.lbl_base_status.setText(f"✅ Rest baseline captured for Report ID {r_id} ({len(self.latest_report.payload)} bytes)!")
+            self.lbl_base_status.setStyleSheet("color: #55FF55; font-weight: bold;")
         else:
-            self.lbl_base_status.setText("Captured default zero baseline.")
+            self.lbl_base_status.setText("⚠️ Default zero baseline registered. Move to next step.")
+
+    # -------------------------------------------------------------------
+    # STEP 3: BUTTON BYTE / BITMASK MAPPING
+    # -------------------------------------------------------------------
+    def _process_button_report(self, report: RawHIDReport) -> None:
+        if not self.baselines:
+            return
+
+        r_id = report.report_id
+        base = self.baselines.get(r_id)
+        curr = report.payload
+        if not base or len(base) != len(curr):
+            return
+
+        targets = BUTTON_TARGET_MAPS.get(self.layout_type, BUTTON_TARGET_MAPS["xbox"])
+        if self.button_target_idx >= len(targets):
+            return
+
+        key, _ = targets[self.button_target_idx]
+
+        for b_idx in range(len(curr)):
+            diff = curr[b_idx] ^ base[b_idx]
+            if diff > 0:
+                # Isolate single bit mask
+                if (diff & (diff - 1)) == 0:
+                    bitmask = diff
+                    rep_key = f"report_{r_id}"
+                    if rep_key not in self.profile_data["reports"]:
+                        self.profile_data["reports"][rep_key] = {"inputs": {}}
+
+                    self.profile_data["reports"][rep_key]["inputs"][key] = {
+                        "type": "button",
+                        "byte": b_idx,
+                        "bitmask": bitmask
+                    }
+
+                    self.lbl_btn_status.setText(f"✅ Mapped '{key.upper()}' to Report {r_id}, Byte {b_idx}, Mask 0x{bitmask:02X}!")
+                    self.lbl_btn_status.setStyleSheet("color: #55FF55; font-weight: bold;")
+                    
+                    self.button_target_idx += 1
+                    if self.button_target_idx < len(targets):
+                        QTimer.singleShot(400, self._update_button_target_label)
+                    else:
+                        self.lbl_target_btn.setText("✅ All buttons mapped!")
+                        self.lbl_btn_status.setText("Click 'Next' to calibrate analog sticks.")
+                    break
 
     def _skip_current_button(self) -> None:
-        pass
+        targets = BUTTON_TARGET_MAPS.get(self.layout_type, BUTTON_TARGET_MAPS["xbox"])
+        self.button_target_idx += 1
+        if self.button_target_idx < len(targets):
+            self._update_button_target_label()
+        else:
+            self.lbl_target_btn.setText("✅ Button mapping finished!")
+            self.lbl_btn_status.setText("Click 'Next' to calibrate analog sticks.")
 
-    def verify_xinput_switch(self) -> bool:
-        """Polls XInputBackend C-API to confirm hardware mode switch."""
-        xb = XInputBackend()
-        return xb.initialize()
+    # -------------------------------------------------------------------
+    # STEP 4: STICK RANGE CALIBRATION
+    # -------------------------------------------------------------------
+    def _update_axis_target_label(self) -> None:
+        if self.axis_target_idx < len(AXIS_TARGETS):
+            key, label = AXIS_TARGETS[self.axis_target_idx]
+            self.lbl_target_axis.setText(label)
+            self.lbl_stick_status.setText(f"Listening for '{key.upper()}' movement...")
 
-    def _check_xinput_switch(self) -> None:
-        if self.stacked_widget.currentIndex() == 4:
-            if self.verify_xinput_switch():
-                self.lbl_xinput_status.setText("Status: ✅ XInput Mode Active! Hardware switch verified.")
-            else:
-                self.lbl_xinput_status.setText("Status: Polling XInput C-API...")
+    def _process_stick_report(self, report: RawHIDReport) -> None:
+        if not self.baselines:
+            return
 
+        r_id = report.report_id
+        base = self.baselines.get(r_id)
+        curr = report.payload
+        if not base or len(base) != len(curr):
+            return
+
+        if self.axis_target_idx >= len(AXIS_TARGETS):
+            return
+
+        key, label = AXIS_TARGETS[self.axis_target_idx]
+
+        # Track min/max per byte
+        for b_idx in range(len(curr)):
+            c_val = curr[b_idx]
+            b_val = base[b_idx]
+
+            if b_idx not in self.axis_min_max:
+                self.axis_min_max[b_idx] = {"min": b_val, "max": b_val, "base": b_val}
+
+            self.axis_min_max[b_idx]["min"] = min(self.axis_min_max[b_idx]["min"], c_val)
+            self.axis_min_max[b_idx]["max"] = max(self.axis_min_max[b_idx]["max"], c_val)
+
+            # Check if byte moved significantly from baseline
+            delta = abs(c_val - b_val)
+            if delta > 30:
+                rep_key = f"report_{r_id}"
+                if rep_key not in self.profile_data["reports"]:
+                    self.profile_data["reports"][rep_key] = {"inputs": {}}
+
+                mn = self.axis_min_max[b_idx]["min"]
+                mx = self.axis_min_max[b_idx]["max"]
+
+                self.profile_data["reports"][rep_key]["inputs"][key] = {
+                    "type": "axis",
+                    "byte": b_idx,
+                    "min": mn,
+                    "center": b_val,
+                    "max": mx
+                }
+
+                self.lbl_stick_status.setText(f"✅ Mapped '{key.upper()}' to Report {r_id}, Byte {b_idx} (Range: {mn}-{mx})!")
+                self.lbl_stick_status.setStyleSheet("color: #55FF55; font-weight: bold;")
+
+                self.axis_target_idx += 1
+                if self.axis_target_idx < len(AXIS_TARGETS):
+                    QTimer.singleShot(400, self._update_axis_target_label)
+                else:
+                    self.lbl_target_axis.setText("✅ Axis calibration finished!")
+                    self.lbl_stick_status.setText("Click 'Next' to finalize and save profile.")
+                break
+
+    def _skip_current_axis(self) -> None:
+        self.axis_target_idx += 1
+        if self.axis_target_idx < len(AXIS_TARGETS):
+            self._update_axis_target_label()
+        else:
+            self.lbl_target_axis.setText("✅ Axis calibration finished!")
+            self.lbl_stick_status.setText("Click 'Next' to finalize and save profile.")
+
+    # -------------------------------------------------------------------
+    # NAVIGATION HANDLERS
+    # -------------------------------------------------------------------
     def _go_next(self) -> None:
         idx = self.stacked_widget.currentIndex()
+
         if idx == 0:
-            layout_idx = self.combo_layout.currentIndex()
-            self.layout_type = ["xbox", "playstation", "nintendo"][layout_idx]
-            self.profile_data["layout"] = self.layout_type
-        elif idx == 4:
-            self._xinput_poll_timer.stop()
+            self._xinput_timer.stop()
 
         if idx < 5:
             idx += 1
@@ -359,10 +682,11 @@ class NativeCalibrationWizardDialog(QDialog):
             self.progress_bar.setValue(idx)
             self.back_btn.setEnabled(True)
 
-            if idx == 4:
-                self._xinput_poll_timer.start()
-
-            if idx == 5:
+            if idx == 3:
+                self._update_button_target_label()
+            elif idx == 4:
+                self._update_axis_target_label()
+            elif idx == 5:
                 self.next_btn.setText("Save & Finish")
                 vid = self.device_info.get("vendor_id", 0)
                 pid = self.device_info.get("product_id", 0)
@@ -379,10 +703,10 @@ class NativeCalibrationWizardDialog(QDialog):
             self.next_btn.setText("Next")
             if idx == 0:
                 self.back_btn.setEnabled(False)
-            if idx != 4:
-                self._xinput_poll_timer.stop()
+                self._start_xinput_detection()
 
     def _save_profile_and_finish(self) -> None:
+        self._xinput_timer.stop()
         if self.reader:
             self.reader.stop()
 
@@ -401,7 +725,7 @@ class NativeCalibrationWizardDialog(QDialog):
         self.accept()
 
     def closeEvent(self, event) -> None:
-        self._xinput_poll_timer.stop()
+        self._xinput_timer.stop()
         if self.reader:
             self.reader.stop()
         super().closeEvent(event)

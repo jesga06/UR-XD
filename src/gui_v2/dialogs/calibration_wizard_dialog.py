@@ -253,9 +253,9 @@ class NativeCalibrationWizardDialog(QDialog):
         layout.setSpacing(14)
 
         self.lbl_baseline = QLabel(
-            "Place your controller on a flat surface.\n"
+            "Press any button once, then place your controller on a flat surface.\n"
             "Leave all analog sticks, triggers, and buttons in their centered REST state.\n\n"
-            "Click 'Capture Rest Baseline' to store rest values."
+            "Click 'Capture Rest Baseline'."
         )
         self.lbl_baseline.setFont(QFont("Segoe UI", 11))
         self.lbl_baseline.setAlignment(Qt.AlignmentFlag.AlignCenter)

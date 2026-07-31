@@ -196,8 +196,7 @@ class AdvancedView(QWidget):
 
         if not is_xinput:
             self.lbl_backend_notice.setText(
-                "⚠️ Hardware Chords are locked because the backend is not in XInput mode.\n"
-                "Please use Auto-Detect calibration in Tuning to switch to XInput mode."
+                "⚠️ Hardware Chords are locked because the backend is not in XInput mode."
             )
             self.lbl_backend_notice.setStyleSheet("color: #FF5555; font-weight: bold; font-size: 12px;")
             self.lbl_backend_notice.show()

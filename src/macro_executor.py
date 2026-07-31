@@ -25,15 +25,17 @@ class MacroExecutor:
         
         self.load_macros()
         
-    def load_macros(self, filepath: Optional[str] = None) -> None:
+    def load_macros(self, filepath: Optional[str] = None, clear_existing: bool = True) -> None:
         target = filepath or self.filepath
         try:
             if target and os.path.exists(target):
                 with open(target, 'r', encoding='utf-8') as f:
                     loaded = json.load(f)
                     if isinstance(loaded, dict):
-                        for k, v in loaded.items():
-                            if k not in self.macros:
+                        with self.lock:
+                            if clear_existing:
+                                self.macros.clear()
+                            for k, v in loaded.items():
                                 self.macros[k] = v
         except Exception as e:
             print(f"Error loading {target}: {e}")

@@ -55,7 +55,7 @@ class MainWindow(QMainWindow):
         self.config = config_manager
         self.theme_mgr = theme_manager
 
-        self.setWindowTitle("8BitDo Ultimate 2C Controller Suite v2.3")
+        self.setWindowTitle("UR-XD v2.3")
         self.resize(1100, 750)
         self.setMinimumSize(900, 600)
 

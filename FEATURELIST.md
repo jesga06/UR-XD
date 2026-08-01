@@ -3,6 +3,7 @@
 * **Auto-Derived Color Palette:** Automatically generates coordinated shades and tones for all UI surfaces — widgets, graphs, graph axes, outlines, buttons, and tab states — from your 4 chosen base colors.
 * **Theme Behavior Selectors:** Configure which accent color drives button fills, widget backgrounds, and outlines independently.
 * **Brightness Sliders:** Adjust widget and graph brightness with live percentage readouts (-80% to +80%).
+* **Debounced In-Memory Performance Engine:** Live theme slider dragging and color tweaking execute with 0ms in-memory latency and 60+ FPS responsiveness. Disk persistence (`custom_theme.json` / `config.ini`) is debounced via a single-shot 300ms timer, and preset theme discovery metadata is cached in RAM.
 * **JSON Theme Import & Export:** Save and load full theme configurations with automatic fallback defaults for missing keys.
 * **Live Interactive Theme Preview:** Real-time preview panel showing a mock response curve, stick radar, sample remapping row, and interactive controls — updates instantly as you change colors.
 

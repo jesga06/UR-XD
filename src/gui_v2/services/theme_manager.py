@@ -13,7 +13,7 @@ import configparser
 import logging
 from typing import Dict, Any, Optional
 
-from PySide6.QtCore import QObject, Signal
+from PySide6.QtCore import QObject, Signal, QTimer
 from PySide6.QtGui import QColor
 
 logger = logging.getLogger("theme_manager")
@@ -139,10 +139,20 @@ class ThemeManager(QObject):
         self.tokens: Dict[str, str] = {}
         self.current_tokens: Dict[str, str] = {}
         self.active_theme_name: str = "Neon Purple"
+        self._themes_cache: Optional[Dict[str, Dict[str, Any]]] = None
+
+        self._save_timer = QTimer(self)
+        self._save_timer.setSingleShot(True)
+        self._save_timer.timeout.connect(self._on_save_timer_timeout)
 
         self._ensure_theme_directories()
         self._load_saved_theme()
         self.recalculate_theme()
+
+    def _on_save_timer_timeout(self) -> None:
+        """Executed 300ms after editing stops to persist session state to disk."""
+        self._save_custom_theme()
+        self._sync_config_ini()
 
     def _ensure_theme_directories(self):
         """Creates themes, themes/presets, and themes/user directories if missing."""
@@ -164,21 +174,18 @@ class ThemeManager(QObject):
     def recalculate_theme(self) -> None:
         """
         Calculates all derived tokens based on base_colors, sources, and brightness sliders.
-        Emits theme_changed signal with full calculated token dictionary.
+        Emits theme_changed signal instantly (0ms latency).
+        Schedules debounced disk persistence via _save_timer.
         """
         tokens = dict(self.base_colors)
 
-        # 1. Widget Background
+        # 1. Widget Background (modulates selected source color by widget_brightness)
         wb_src = self.sources.get("widget_bg_source", "window_bg")
-        if wb_src == "window_bg":
-            tokens["widget_bg"] = self.adjust_brightness(
-                self.base_colors["window_bg"],
-                self.brightness.get("widget_brightness", 0) / 100.0
-            )
-        elif wb_src == "accent_1":
-            tokens["widget_bg"] = self.adjust_brightness(self.base_colors["accent_1"], -0.10)
-        else:
-            tokens["widget_bg"] = self.adjust_brightness(self.base_colors["accent_2"], -0.10)
+        base_wbg = self.base_colors.get(wb_src, self.base_colors.get("window_bg", "#0C0914FF"))
+        tokens["widget_bg"] = self.adjust_brightness(
+            base_wbg,
+            self.brightness.get("widget_brightness", 0) / 100.0
+        )
 
         # Backward compatibility alias
         tokens["background"] = tokens["widget_bg"]
@@ -211,9 +218,14 @@ class ThemeManager(QObject):
 
         self.tokens = tokens
         self.current_tokens = tokens
-        self._save_custom_theme()
-        self._sync_config_ini()
         self.theme_changed.emit(self.tokens.copy())
+
+        if hasattr(self, '_save_timer'):
+            self._save_timer.start(300)
+
+    def invalidate_theme_cache(self) -> None:
+        """Invalidates theme discovery cache."""
+        self._themes_cache = None
 
     def get_color(self, key: str, alpha_override: Optional[float] = None) -> QColor:
         """Returns a QColor object for specified token key."""
@@ -252,28 +264,32 @@ class ThemeManager(QObject):
 
     def set_source(self, source_key: str, source_val: str) -> None:
         """Updates a theme behavior source selector and recalculates theme."""
-        self.sources[source_key] = source_val
-        self.recalculate_theme()
+        if self.sources.get(source_key) != source_val:
+            self.sources[source_key] = source_val
+            self.recalculate_theme()
 
     def set_brightness(self, slider_key: str, value: int) -> None:
         """Updates a brightness slider percentage and recalculates theme."""
-        self.brightness[slider_key] = int(value)
-        self.recalculate_theme()
+        if self.brightness.get(slider_key) != int(value):
+            self.brightness[slider_key] = int(value)
+            self.recalculate_theme()
 
     def reset_defaults(self) -> None:
         """Restores default system theme tokens, sources, and sliders."""
         self.base_colors = DEFAULT_BASE_COLORS.copy()
         self.sources = DEFAULT_SOURCES.copy()
         self.brightness = DEFAULT_BRIGHTNESS.copy()
-        self.active_theme_name = "Default Neon Purple"
+        self.active_theme_name = "Neon Purple"
         self.recalculate_theme()
 
-    def get_available_themes(self) -> Dict[str, Dict[str, Any]]:
+    def get_available_themes(self, invalidate_cache: bool = False) -> Dict[str, Dict[str, Any]]:
         """
         Discovers all available system presets and user themes.
-        Returns dict mapping theme display name to metadata:
-        {"is_preset": bool, "path": str, "base_colors": dict, "sources": dict, "brightness": dict}
+        Caches results to eliminate disk scanning overhead on token changes.
         """
+        if not invalidate_cache and self._themes_cache is not None:
+            return self._themes_cache
+
         themes: Dict[str, Dict[str, Any]] = {}
 
         # 1. System Presets (themes/presets/)
@@ -308,6 +324,7 @@ class ThemeManager(QObject):
                             "brightness": parsed["brightness"]
                         }
 
+        self._themes_cache = themes
         return themes
 
     def _read_theme_file(self, fpath: str) -> Optional[Dict[str, Any]]:
@@ -383,6 +400,7 @@ class ThemeManager(QObject):
             with open(fpath, "w", encoding="utf-8") as f:
                 json.dump(payload, f, indent=4)
             self.active_theme_name = clean_name
+            self.invalidate_theme_cache()
             self._save_custom_theme()
             self._sync_config_ini(custom_path=fpath)
             self.theme_changed.emit(self.tokens.copy())
@@ -426,6 +444,7 @@ class ThemeManager(QObject):
             if self.active_theme_name == old_name:
                 self.active_theme_name = clean_new_name
 
+            self.invalidate_theme_cache()
             self._save_custom_theme()
             self._sync_config_ini(custom_path=new_path)
             self.theme_changed.emit(self.tokens.copy())
@@ -462,6 +481,7 @@ class ThemeManager(QObject):
             self.sources = meta["sources"].copy()
             self.brightness = meta["brightness"].copy()
             self.active_theme_name = clean_new_name
+            self.invalidate_theme_cache()
             self.recalculate_theme()
             self._sync_config_ini(custom_path=new_path)
             logger.info(f"Copied theme '{source_name}' to '{clean_new_name}'")
@@ -486,6 +506,7 @@ class ThemeManager(QObject):
                 os.remove(meta["path"])
 
             logger.info(f"Deleted user theme '{name}'")
+            self.invalidate_theme_cache()
 
             if self.active_theme_name == name:
                 self.apply_theme_by_name("Default Neon Purple")

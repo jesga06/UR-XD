@@ -46,5 +46,17 @@ class TestHardwareChords(unittest.TestCase):
         self.assertFalse(state_out.select)
         self.assertTrue(state_out.extra_inputs.get('l4', False))
 
+    def test_dinput_mode_bypasses_engine(self):
+        self.config.set('hardware_chords', 'chord1', 'chord=lb+select; delayed=select; mode=auto; action=l4')
+        engine = HardwareChordEngine(self.config, backend_mode='dinput')
+        self.assertFalse(engine.enabled)
+
+        state = ControllerState()
+        state.extra_inputs['l4'] = True
+        state_out = engine.process(state)
+
+        # In DInput mode, native extra button input is preserved and not overwritten
+        self.assertTrue(state_out.extra_inputs.get('l4', False))
+
 if __name__ == '__main__':
     unittest.main()

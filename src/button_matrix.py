@@ -270,7 +270,7 @@ class ExtraButtonArray(QFrame):
         self.main_layout = QVBoxLayout(self)
         self.main_layout.setContentsMargins(12, 10, 12, 10)
 
-        header = QLabel("DYNAMIC EXTRA BUTTONS & HARDWARE CHORDS")
+        header = QLabel("EXTRA BUTTONS")
         header.setStyleSheet("color: rgba(255, 255, 255, 0.6); font-weight: bold; font-size: 10px;")
         self.main_layout.addWidget(header)
 
@@ -333,7 +333,7 @@ class ExtraButtonArray(QFrame):
             pill.set_active(is_pressed)
 
 
-def get_extra_button_actions(config_data: Dict[str, Any], hid_map_path: Optional[str] = None) -> List[str]:
+def get_extra_button_actions(config_data: Dict[str, Any], hid_map_path: Optional[str] = None, backend_mode: Optional[str] = None) -> List[str]:
     """
     Extracts human-configured extra button actions (e.g. L4, R4, M1, M2)
     from extra_buttons, settings.extra_inputs, hardware_chords, and HID descriptor maps.
@@ -362,26 +362,34 @@ def get_extra_button_actions(config_data: Dict[str, Any], hid_map_path: Optional
             if k_lower and k_lower not in extra_buttons:
                 extra_buttons.append(k_lower)
 
-    hw_chords = config_data.get("hardware_chords", {})
-    chord_items = []
-    if isinstance(hw_chords, dict):
-        chord_items = list(hw_chords.values())
-    elif isinstance(hw_chords, list):
-        chord_items = hw_chords
+    # Determine backend mode
+    resolved_backend_mode = backend_mode
+    if not resolved_backend_mode:
+        resolved_backend_mode = str(config_data.get("backend", {}).get("mode", "auto")).lower()
+    else:
+        resolved_backend_mode = str(resolved_backend_mode).lower()
 
-    for item in chord_items:
-        action_name = None
-        if isinstance(item, dict):
-            action_name = item.get("action")
-        elif isinstance(item, str):
-            m = re.search(r"action\s*=\s*([^;]+)", item, re.IGNORECASE)
-            if m:
-                action_name = m.group(1).strip()
+    if resolved_backend_mode != "dinput":
+        hw_chords = config_data.get("hardware_chords", {})
+        chord_items = []
+        if isinstance(hw_chords, dict):
+            chord_items = list(hw_chords.values())
+        elif isinstance(hw_chords, list):
+            chord_items = hw_chords
 
-        if action_name:
-            act_lower = str(action_name).strip().lower()
-            if act_lower and act_lower not in extra_buttons:
-                extra_buttons.append(act_lower)
+        for item in chord_items:
+            action_name = None
+            if isinstance(item, dict):
+                action_name = item.get("action")
+            elif isinstance(item, str):
+                m = re.search(r"action\s*=\s*([^;]+)", item, re.IGNORECASE)
+                if m:
+                    action_name = m.group(1).strip()
+
+            if action_name:
+                act_lower = str(action_name).strip().lower()
+                if act_lower and act_lower not in extra_buttons:
+                    extra_buttons.append(act_lower)
 
     # Inspect active controller HID map to discover hardware DInput extra buttons (e.g. l4, r4)
     hid_map_paths_to_check = []
@@ -452,5 +460,5 @@ class ButtonMatrix(QWidget):
         elif isinstance(config_obj, dict):
             config_data = config_obj
 
-        extra_buttons = get_extra_button_actions(config_data)
+        extra_buttons = get_extra_button_actions(config_data, backend_mode=backend_mode)
         self.extra_array.rebuild_extra_buttons(extra_buttons)

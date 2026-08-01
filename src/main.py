@@ -119,13 +119,16 @@ def show_console_action(icon, item):
 
 import tempfile
 
-def write_status(state, device_name="None"):
+def write_status(state, device_name="None", backend_mode=None):
     try:
         target_path = 'status.json'
         dir_name = os.path.dirname(os.path.abspath(target_path)) or '.'
         with tempfile.NamedTemporaryFile('w', dir=dir_name, delete=False, encoding='utf-8') as tf:
             status_str = state.name if hasattr(state, 'name') else str(state)
-            json.dump({"status": status_str, "device": device_name}, tf)
+            data = {"status": status_str, "device": device_name}
+            if backend_mode:
+                data["backend_mode"] = str(backend_mode).lower()
+            json.dump(data, tf)
             temp_name = tf.name
         os.replace(temp_name, target_path)
     except Exception as e:
@@ -414,7 +417,7 @@ def main():
         sys.exit(1)
 
 
-    write_status(ConnectionState.CONNECTED, device_name)
+    write_status(ConnectionState.CONNECTED, device_name, backend_mode=active_backend_mode)
 
     def rumble_callback(left_motor, right_motor):
         backend.set_vibration(left_motor / 255.0, right_motor / 255.0)

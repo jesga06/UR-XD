@@ -192,6 +192,18 @@ class AdvancedView(QWidget):
                 except Exception:
                     mode_str = "xinput"
 
+        # If mode in config is 'auto' or 'xinput', inspect active runtime status.json
+        if mode_str in ("auto", "xinput"):
+            if os.path.exists("status.json"):
+                try:
+                    with open("status.json", "r", encoding="utf-8") as f:
+                        status_data = json.load(f)
+                        runtime_mode = status_data.get("backend_mode")
+                        if runtime_mode:
+                            mode_str = str(runtime_mode).lower()
+                except Exception:
+                    pass
+
         is_xinput = (mode_str != "dinput")
 
         if not is_xinput:

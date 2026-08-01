@@ -364,10 +364,21 @@ def get_extra_button_actions(config_data: Dict[str, Any], hid_map_path: Optional
 
     # Determine backend mode
     resolved_backend_mode = backend_mode
-    if not resolved_backend_mode:
+    if not resolved_backend_mode or resolved_backend_mode == "auto":
         resolved_backend_mode = str(config_data.get("backend", {}).get("mode", "auto")).lower()
     else:
         resolved_backend_mode = str(resolved_backend_mode).lower()
+
+    if resolved_backend_mode in ("auto", "xinput"):
+        if os.path.exists("status.json"):
+            try:
+                with open("status.json", "r", encoding="utf-8") as f:
+                    status_data = json.load(f)
+                    rt_mode = status_data.get("backend_mode")
+                    if rt_mode:
+                        resolved_backend_mode = str(rt_mode).lower()
+            except Exception:
+                pass
 
     if resolved_backend_mode != "dinput":
         hw_chords = config_data.get("hardware_chords", {})

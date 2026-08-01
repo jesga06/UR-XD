@@ -528,9 +528,10 @@ class CustomizationView(QWidget):
             background-color: {color_to_rgba_str(btn_bg, alpha_override=0.60)};
         }}
         """
-        self.controls_card.setStyleSheet(style)
-        self.preset_card.setStyleSheet(style)
-        self.behavior_card.setStyleSheet(style)
+        if self.controls_card.styleSheet() != style:
+            self.controls_card.setStyleSheet(style)
+            self.preset_card.setStyleSheet(style)
+            self.behavior_card.setStyleSheet(style)
 
     def open_color_picker(self, token_key: str):
         """Launches QColorDialog initialized with ShowAlphaChannel option."""

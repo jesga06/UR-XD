@@ -229,9 +229,6 @@ class ThemeManager(QObject):
         self.current_tokens = tokens
         self.staging_changed.emit(self.tokens.copy())
 
-        if hasattr(self, '_save_timer'):
-            self._save_timer.start(300)
-
     def commit_staging_theme(self, theme_name: Optional[str] = None) -> None:
         """
         Commits current staging tokens to app-wide committed state and emits theme_changed signal.

@@ -244,6 +244,7 @@ class ThemePreviewWidget(QWidget):
     def __init__(self, theme_manager: Optional[ThemeManager] = None, parent=None):
         super().__init__(parent)
         self.theme_mgr = theme_manager or ThemeManager.get_instance()
+        self.theme_mgr.staging_changed.connect(self.on_theme_changed)
         self.theme_mgr.theme_changed.connect(self.on_theme_changed)
 
         self.setup_ui()

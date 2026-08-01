@@ -116,9 +116,11 @@ def sanitize_filename(name: str) -> str:
 class ThemeManager(QObject):
     """
     Central singleton service for dynamic UI color tokens and QSS generation.
-    Emits theme_changed(dict) whenever theme base colors, sources, or sliders change.
+    Emits staging_changed(dict) for local sandbox editing, and theme_changed(dict)
+    when themes are saved/committed for app-wide QSS styling.
     """
     theme_changed = Signal(dict)
+    staging_changed = Signal(dict)
     _instance: Optional["ThemeManager"] = None
 
     @classmethod
@@ -136,6 +138,11 @@ class ThemeManager(QObject):
         self.base_colors: Dict[str, str] = DEFAULT_BASE_COLORS.copy()
         self.sources: Dict[str, str] = DEFAULT_SOURCES.copy()
         self.brightness: Dict[str, int] = DEFAULT_BRIGHTNESS.copy()
+
+        self.committed_base_colors: Dict[str, str] = DEFAULT_BASE_COLORS.copy()
+        self.committed_sources: Dict[str, str] = DEFAULT_SOURCES.copy()
+        self.committed_brightness: Dict[str, int] = DEFAULT_BRIGHTNESS.copy()
+
         self.tokens: Dict[str, str] = {}
         self.current_tokens: Dict[str, str] = {}
         self.active_theme_name: str = "Neon Purple"
@@ -147,6 +154,9 @@ class ThemeManager(QObject):
 
         self._ensure_theme_directories()
         self._load_saved_theme()
+        self.committed_base_colors = self.base_colors.copy()
+        self.committed_sources = self.sources.copy()
+        self.committed_brightness = self.brightness.copy()
         self.recalculate_theme()
 
     def _on_save_timer_timeout(self) -> None:
@@ -173,13 +183,12 @@ class ThemeManager(QObject):
 
     def recalculate_theme(self) -> None:
         """
-        Calculates all derived tokens based on base_colors, sources, and brightness sliders.
-        Emits theme_changed signal instantly (0ms latency).
-        Schedules debounced disk persistence via _save_timer.
+        Calculates derived tokens based on live staging base_colors, sources, and brightness.
+        Emits staging_changed signal instantly for local Customization tab & preview panel (0ms latency).
         """
         tokens = dict(self.base_colors)
 
-        # 1. Widget Background (modulates selected source color by widget_brightness)
+        # 1. Widget Background
         wb_src = self.sources.get("widget_bg_source", "window_bg")
         base_wbg = self.base_colors.get(wb_src, self.base_colors.get("window_bg", "#0C0914FF"))
         tokens["widget_bg"] = self.adjust_brightness(
@@ -197,7 +206,7 @@ class ThemeManager(QObject):
         )
         tokens["graph_axis"] = self.adjust_brightness(
             tokens["graph_bg"],
-            -(self.brightness.get("graph_brightness", 0) / 100.0)
+            (self.brightness.get("graph_brightness", 0) / 100.0)
         )
 
         # 3. Outline Color
@@ -218,10 +227,55 @@ class ThemeManager(QObject):
 
         self.tokens = tokens
         self.current_tokens = tokens
-        self.theme_changed.emit(self.tokens.copy())
+        self.staging_changed.emit(self.tokens.copy())
 
         if hasattr(self, '_save_timer'):
             self._save_timer.start(300)
+
+    def commit_staging_theme(self, theme_name: Optional[str] = None) -> None:
+        """
+        Commits current staging tokens to app-wide committed state and emits theme_changed signal.
+        """
+        self.committed_base_colors = self.base_colors.copy()
+        self.committed_sources = self.sources.copy()
+        self.committed_brightness = self.brightness.copy()
+        if theme_name:
+            self.active_theme_name = theme_name
+
+        self._save_custom_theme()
+        self._sync_config_ini()
+        self.theme_changed.emit(self.tokens.copy())
+
+    def discard_staging_theme(self) -> None:
+        """Restores staging tokens back to match active committed theme."""
+        self.base_colors = self.committed_base_colors.copy()
+        self.sources = self.committed_sources.copy()
+        self.brightness = self.committed_brightness.copy()
+        self.recalculate_theme()
+
+    def theme_exists(self, name_or_file: str) -> tuple[bool, bool, str]:
+        """
+        Checks if a theme with specified display name or sanitized filename exists.
+        Returns Tuple[exists: bool, is_preset: bool, path: str].
+        """
+        if not name_or_file or not name_or_file.strip():
+            return False, False, ""
+
+        clean = name_or_file.strip()
+        sanitized = sanitize_filename(clean)
+        available = self.get_available_themes()
+
+        # Check by display name
+        if clean in available:
+            meta = available[clean]
+            return True, meta["is_preset"], meta["path"]
+
+        # Check by sanitized filename match
+        for display_name, meta in available.items():
+            if sanitize_filename(display_name) == sanitized or os.path.basename(meta["path"]) == f"{sanitized}.json":
+                return True, meta["is_preset"], meta["path"]
+
+        return False, False, ""
 
     def invalidate_theme_cache(self) -> None:
         """Invalidates theme discovery cache."""
@@ -372,8 +426,8 @@ class ThemeManager(QObject):
             self.base_colors = meta["base_colors"].copy()
             self.sources = meta["sources"].copy()
             self.brightness = meta["brightness"].copy()
-            self.active_theme_name = theme_name
             self.recalculate_theme()
+            self.commit_staging_theme(theme_name)
             self._sync_config_ini(custom_path=meta["path"])
             logger.info(f"Applied theme '{theme_name}'")
             return True
@@ -399,11 +453,10 @@ class ThemeManager(QObject):
         try:
             with open(fpath, "w", encoding="utf-8") as f:
                 json.dump(payload, f, indent=4)
-            self.active_theme_name = clean_name
             self.invalidate_theme_cache()
-            self._save_custom_theme()
+            self.recalculate_theme()
+            self.commit_staging_theme(clean_name)
             self._sync_config_ini(custom_path=fpath)
-            self.theme_changed.emit(self.tokens.copy())
             logger.info(f"Saved custom theme '{clean_name}' to {fpath}")
             return True
         except Exception as e:

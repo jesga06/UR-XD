@@ -33,6 +33,7 @@ class CustomizationView(QWidget):
     def __init__(self, theme_manager: Optional[ThemeManager] = None, parent=None):
         super().__init__(parent)
         self.theme_mgr = theme_manager or ThemeManager.get_instance()
+        self.theme_mgr.staging_changed.connect(self.on_theme_changed)
         self.theme_mgr.theme_changed.connect(self.on_theme_changed)
 
         self.preview_swatches: Dict[str, QFrame] = {}
@@ -85,12 +86,24 @@ class CustomizationView(QWidget):
         self.theme_dropdown.currentTextChanged.connect(self.on_theme_selected)
         toolbar_layout.addWidget(self.theme_dropdown)
 
-        # CRUD Toolbar Buttons
+        # CRUD & Sandbox Toolbar Buttons
         save_btn = QPushButton("💾 Save Theme")
-        save_btn.setToolTip("Save current base colors, toggles, and sliders as a new custom theme")
+        save_btn.setToolTip("Save current draft colors, toggles, and sliders as a custom theme")
         save_btn.setCursor(Qt.CursorShape.PointingHandCursor)
         save_btn.clicked.connect(self.save_theme_dialog)
         toolbar_layout.addWidget(save_btn)
+
+        apply_app_btn = QPushButton("⚡ Apply App-Wide")
+        apply_app_btn.setToolTip("Apply current draft colors across all application tabs without creating a new file")
+        apply_app_btn.setCursor(Qt.CursorShape.PointingHandCursor)
+        apply_app_btn.clicked.connect(self.apply_app_wide)
+        toolbar_layout.addWidget(apply_app_btn)
+
+        discard_btn = QPushButton("↩ Discard Edits")
+        discard_btn.setToolTip("Revert draft edits back to active saved theme")
+        discard_btn.setCursor(Qt.CursorShape.PointingHandCursor)
+        discard_btn.clicked.connect(self.discard_edits)
+        toolbar_layout.addWidget(discard_btn)
 
         rename_btn = QPushButton("✏️ Rename")
         rename_btn.setToolTip("Rename currently selected user theme")
@@ -337,6 +350,10 @@ class CustomizationView(QWidget):
         self.theme_dropdown.blockSignals(True)
         self.theme_dropdown.clear()
 
+        # Always add Custom Theme* at index 0
+        self.theme_dropdown.addItem("Custom Theme*", userData="Custom Theme")
+        self.theme_dropdown.insertSeparator(1)
+
         available = self.theme_mgr.get_available_themes()
 
         # Add System Presets
@@ -357,9 +374,18 @@ class CustomizationView(QWidget):
         idx = self.theme_dropdown.findData(current_name)
         if idx >= 0:
             self.theme_dropdown.setCurrentIndex(idx)
+        else:
+            self.theme_dropdown.setCurrentIndex(0)
 
         self.theme_dropdown.blockSignals(False)
         self._block_signals = False
+
+    def _mark_custom_theme_active(self):
+        """Sets active dropdown selection to Custom Theme* when staging tokens are edited."""
+        if not self._block_signals:
+            self.theme_dropdown.blockSignals(True)
+            self.theme_dropdown.setCurrentIndex(0)
+            self.theme_dropdown.blockSignals(False)
 
     def on_theme_selected(self, item_text: str):
         """Triggered when user selects a theme from the dropdown."""
@@ -368,15 +394,14 @@ class CustomizationView(QWidget):
 
         current_index = self.theme_dropdown.currentIndex()
         theme_name = self.theme_dropdown.itemData(current_index)
-        if theme_name:
+        if theme_name and theme_name != "Custom Theme":
             self.theme_mgr.apply_theme_by_name(theme_name)
 
     @Slot(dict)
     def on_theme_changed(self, tokens: dict):
-        """Callback invoked when theme tokens, sources, or brightness are modified."""
+        """Callback invoked when staging tokens, sources, or brightness are modified."""
         self.refresh_ui_from_theme(tokens)
         self.update_card_styles()
-        self.populate_theme_dropdown()
 
     def refresh_ui_from_theme(self, tokens: dict):
         """Updates color swatches, hex labels, source combos, and brightness sliders."""
@@ -451,17 +476,21 @@ class CustomizationView(QWidget):
         if out_val:
             self.theme_mgr.set_source("outline_source", out_val)
 
+        self._mark_custom_theme_active()
+
     def on_widget_brightness_changed(self, value: int):
         """Triggered when widget brightness slider moves."""
         self.widget_brightness_label.setText(f"{value}%")
         if not self._block_signals:
             self.theme_mgr.set_brightness("widget_brightness", value)
+            self._mark_custom_theme_active()
 
     def on_graph_brightness_changed(self, value: int):
         """Triggered when graph brightness slider moves."""
         self.graph_brightness_label.setText(f"{value}%")
         if not self._block_signals:
             self.theme_mgr.set_brightness("graph_brightness", value)
+            self._mark_custom_theme_active()
 
     def update_card_styles(self):
         """Applies dynamic QSS tokens to cards."""
@@ -514,49 +543,134 @@ class CustomizationView(QWidget):
             new_color = dialog.currentColor()
             hex_str = color_to_hex8(new_color)
             self.theme_mgr.set_token(token_key, hex_str)
+            self._mark_custom_theme_active()
+
+    def apply_app_wide(self):
+        """Applies current draft colors across all application tabs."""
+        self.theme_mgr.commit_staging_theme()
+        QMessageBox.information(self, "Theme Applied", "Draft theme colors applied across all application tabs.")
+
+    def discard_edits(self):
+        """Reverts draft edits back to active saved theme."""
+        self.theme_mgr.discard_staging_theme()
+        self.populate_theme_dropdown()
+
+    def _prompt_for_new_theme_name(self, default_text: str = "") -> Optional[str]:
+        """
+        Prompts user for a new custom theme name.
+        Enforces collision checks:
+        - Blocks overwriting pre-built system presets with a warning modal.
+        - Asks confirmation modal before overwriting an existing user custom theme.
+        """
+        from PySide6.QtWidgets import QInputDialog
+
+        current_prompt = default_text
+        while True:
+            name, ok = QInputDialog.getText(
+                self, "Save Custom Theme", "Enter a name for this custom theme:", text=current_prompt
+            )
+            if not ok or not name.strip():
+                return None
+
+            clean_name = name.strip()
+            exists, is_preset, path = self.theme_mgr.theme_exists(clean_name)
+
+            if exists:
+                if is_preset:
+                    QMessageBox.warning(
+                        self, "Preset Protection",
+                        f"A pre-built system preset named '{clean_name}' already exists and cannot be overwritten.\n"
+                        "Please choose a different custom theme name."
+                    )
+                    current_prompt = clean_name
+                    continue
+                else:
+                    confirm = QMessageBox.question(
+                        self, "Overwrite Custom Theme",
+                        f"A custom theme named '{clean_name}' already exists.\nDo you want to overwrite it?",
+                        QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No,
+                        QMessageBox.StandardButton.No
+                    )
+                    if confirm == QMessageBox.StandardButton.Yes:
+                        return clean_name
+                    else:
+                        current_prompt = clean_name
+                        continue
+            else:
+                return clean_name
 
     def save_theme_dialog(self):
-        """Prompts user for theme name and saves user custom theme."""
-        from PySide6.QtWidgets import QInputDialog
-        name, ok = QInputDialog.getText(self, "Save Custom Theme", "Enter a name for this custom theme:")
-        if ok and name.strip():
-            success = self.theme_mgr.save_user_theme(name.strip())
-            if success:
-                QMessageBox.information(self, "Theme Saved", f"Custom theme '{name.strip()}' saved successfully.")
-            else:
-                QMessageBox.warning(self, "Save Failed", "Could not save custom theme.")
-
-    def rename_theme_dialog(self):
-        """Prompts user to rename the currently selected custom theme."""
-        from PySide6.QtWidgets import QInputDialog
+        """Saves current draft theme with preset protection and overwrite choice modals."""
         current_index = self.theme_dropdown.currentIndex()
         current_name = self.theme_dropdown.itemData(current_index)
         available = self.theme_mgr.get_available_themes()
 
-        if not current_name or current_name not in available or available[current_name]["is_preset"]:
+        if not current_name or current_name == "Custom Theme" or current_name not in available or available[current_name]["is_preset"]:
+            target_name = self._prompt_for_new_theme_name()
+            if target_name:
+                if self.theme_mgr.save_user_theme(target_name):
+                    self.populate_theme_dropdown()
+                    QMessageBox.information(self, "Theme Saved", f"Custom theme '{target_name}' saved and applied app-wide.")
+                else:
+                    QMessageBox.warning(self, "Save Failed", "Could not save custom theme.")
+        else:
+            msg = QMessageBox(self)
+            msg.setWindowTitle("Save Custom Theme")
+            msg.setText(f"You are saving changes while custom theme '{current_name}' is selected.")
+            msg.setInformativeText("Would you like to overwrite the current custom theme or save as a new theme?")
+            btn_overwrite = msg.addButton(f"Overwrite '{current_name}'", QMessageBox.ButtonRole.AcceptRole)
+            btn_save_new = msg.addButton("Save as New Theme...", QMessageBox.ButtonRole.ActionRole)
+            btn_cancel = msg.addButton(QMessageBox.StandardButton.Cancel)
+
+            msg.exec()
+            clicked = msg.clickedButton()
+
+            if clicked == btn_overwrite:
+                if self.theme_mgr.save_user_theme(current_name):
+                    self.populate_theme_dropdown()
+                    QMessageBox.information(self, "Theme Overwritten", f"Theme '{current_name}' updated and applied app-wide.")
+                else:
+                    QMessageBox.warning(self, "Save Failed", "Could not update custom theme.")
+            elif clicked == btn_save_new:
+                target_name = self._prompt_for_new_theme_name(default_text=f"{current_name} (Copy)")
+                if target_name:
+                    if self.theme_mgr.save_user_theme(target_name):
+                        self.populate_theme_dropdown()
+                        QMessageBox.information(self, "Theme Saved", f"Custom theme '{target_name}' saved and applied app-wide.")
+                    else:
+                        QMessageBox.warning(self, "Save Failed", "Could not save custom theme.")
+
+    def rename_theme_dialog(self):
+        """Prompts user to rename the currently selected custom theme."""
+        current_index = self.theme_dropdown.currentIndex()
+        current_name = self.theme_dropdown.itemData(current_index)
+        available = self.theme_mgr.get_available_themes()
+
+        if not current_name or current_name == "Custom Theme" or current_name not in available or available[current_name]["is_preset"]:
             QMessageBox.warning(self, "Protected Theme", "Pre-built system presets cannot be renamed. Please save as a new theme first.")
             return
 
-        new_name, ok = QInputDialog.getText(self, "Rename Theme", f"Enter new name for '{current_name}':", text=current_name)
-        if ok and new_name.strip() and new_name.strip() != current_name:
-            success = self.theme_mgr.rename_user_theme(current_name, new_name.strip())
+        target_name = self._prompt_for_new_theme_name(default_text=current_name)
+        if target_name and target_name != current_name:
+            success = self.theme_mgr.rename_user_theme(current_name, target_name)
             if success:
-                QMessageBox.information(self, "Theme Renamed", f"Theme renamed to '{new_name.strip()}'.")
+                self.populate_theme_dropdown()
+                QMessageBox.information(self, "Theme Renamed", f"Theme renamed to '{target_name}'.")
             else:
                 QMessageBox.warning(self, "Rename Failed", "Could not rename selected theme.")
 
     def copy_theme_dialog(self):
         """Prompts user to duplicate the currently selected theme."""
-        from PySide6.QtWidgets import QInputDialog
         current_index = self.theme_dropdown.currentIndex()
         current_name = self.theme_dropdown.itemData(current_index) or "Theme"
         default_copy_name = f"{current_name} (Copy)"
 
-        new_name, ok = QInputDialog.getText(self, "Copy Theme", f"Enter name for the duplicate theme:", text=default_copy_name)
-        if ok and new_name.strip():
-            success = self.theme_mgr.copy_theme(current_name, new_name.strip())
+        target_name = self._prompt_for_new_theme_name(default_text=default_copy_name)
+        if target_name:
+            success = self.theme_mgr.copy_theme(current_name, target_name)
             if success:
-                QMessageBox.information(self, "Theme Copied", f"Theme duplicated as '{new_name.strip()}'.")
+                self.populate_theme_dropdown()
+                QMessageBox.information(self, "Theme Copied", f"Theme duplicated as '{target_name}'.")
             else:
                 QMessageBox.warning(self, "Copy Failed", "Could not copy selected theme.")
 
@@ -566,7 +680,7 @@ class CustomizationView(QWidget):
         current_name = self.theme_dropdown.itemData(current_index)
         available = self.theme_mgr.get_available_themes()
 
-        if not current_name or current_name not in available or available[current_name]["is_preset"]:
+        if not current_name or current_name == "Custom Theme" or current_name not in available or available[current_name]["is_preset"]:
             QMessageBox.warning(self, "Protected Theme", "Pre-built system presets cannot be deleted.")
             return
 
@@ -579,6 +693,7 @@ class CustomizationView(QWidget):
         if confirm == QMessageBox.StandardButton.Yes:
             success = self.theme_mgr.delete_user_theme(current_name)
             if success:
+                self.populate_theme_dropdown()
                 QMessageBox.information(self, "Theme Deleted", f"Custom theme '{current_name}' deleted.")
             else:
                 QMessageBox.warning(self, "Delete Failed", "Could not delete selected theme.")
@@ -591,6 +706,7 @@ class CustomizationView(QWidget):
         if file_path:
             success = self.theme_mgr.import_theme_json(file_path)
             if success:
+                self.populate_theme_dropdown()
                 QMessageBox.information(self, "Theme Imported", "Theme configuration was successfully applied.")
             else:
                 QMessageBox.warning(self, "Import Failed", "Could not import the selected theme file.")
@@ -617,3 +733,4 @@ class CustomizationView(QWidget):
         )
         if confirm == QMessageBox.StandardButton.Yes:
             self.theme_mgr.reset_defaults()
+            self.populate_theme_dropdown()

@@ -67,7 +67,38 @@ class TestCustomizationView(unittest.TestCase):
 
         tm.reset_defaults()
 
+    def test_sandbox_editing_and_collision_guards(self):
+        tm = ThemeManager.get_instance()
+        tm.reset_defaults()
+
+        view = CustomizationView(tm)
+
+        # 1. Edit a control and verify dropdown marks Custom Theme*
+        view.widget_brightness_slider.setValue(15)
+        self.assertEqual(view.theme_dropdown.currentIndex(), 0)
+        self.assertEqual(view.theme_dropdown.itemData(0), "Custom Theme")
+
+        # 2. Test Discard Edits
+        view.discard_edits()
+        self.assertEqual(tm.brightness["widget_brightness"], 0)
+
+        # 3. Test Apply App-Wide
+        view.widget_brightness_slider.setValue(10)
+        view.apply_app_wide()
+        self.assertEqual(tm.committed_brightness["widget_brightness"], 10)
+
+        # 4. Test theme_exists collision detector
+        exists, is_preset, path = tm.theme_exists("Neon Purple")
+        self.assertTrue(exists)
+        self.assertTrue(is_preset)
+
+        exists_user, is_preset_user, _ = tm.theme_exists("NonExistentThemeXYZ")
+        self.assertFalse(exists_user)
+
+        tm.reset_defaults()
+
 
 if __name__ == "__main__":
     unittest.main()
+
 

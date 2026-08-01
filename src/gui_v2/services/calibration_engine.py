@@ -16,11 +16,6 @@ from PySide6.QtCore import QObject, Signal
 from PySide6.QtWidgets import QApplication
 
 logger = logging.getLogger("CalibrationEngine")
-if not logger.handlers:
-    h = logging.StreamHandler(sys.stdout)
-    h.setFormatter(logging.Formatter("[%(asctime)s][CALIB-ENGINE][%(levelname)s] %(message)s"))
-    logger.addHandler(h)
-    logger.setLevel(logging.DEBUG)
 
 
 def get_layout_labels(layout_type: str) -> Dict[str, str]:

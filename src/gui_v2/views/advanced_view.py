@@ -181,7 +181,7 @@ class AdvancedView(QWidget):
         main_layout.addWidget(self.scroll_area)
 
     def check_backend_mode(self):
-        """Checks backend mode and locks hardware chords controls if not in XInput mode."""
+        """Checks backend mode and hides/locks hardware chords controls if not in XInput mode."""
         mode_str = "xinput"
         if self.config:
             if hasattr(self.config, "data") and isinstance(self.config.data, dict):
@@ -192,11 +192,11 @@ class AdvancedView(QWidget):
                 except Exception:
                     mode_str = "xinput"
 
-        is_xinput = (mode_str == "xinput")
+        is_xinput = (mode_str != "dinput")
 
         if not is_xinput:
             self.lbl_backend_notice.setText(
-                "⚠️ Hardware Chords are locked because the backend is not in XInput mode."
+                "⚠️ Hardware Chords are locked because the backend is in DInput mode."
             )
             self.lbl_backend_notice.setStyleSheet("color: #FF5555; font-weight: bold; font-size: 12px;")
             self.lbl_backend_notice.show()
@@ -204,12 +204,16 @@ class AdvancedView(QWidget):
                 self.hw_rows_container.setEnabled(False)
             if hasattr(self, "btn_add_hw"):
                 self.btn_add_hw.setEnabled(False)
+            if hasattr(self, "hw_card"):
+                self.hw_card.setVisible(False)
         else:
             self.lbl_backend_notice.hide()
             if hasattr(self, "hw_rows_container"):
                 self.hw_rows_container.setEnabled(True)
             if hasattr(self, "btn_add_hw"):
                 self.btn_add_hw.setEnabled(True)
+            if hasattr(self, "hw_card"):
+                self.hw_card.setVisible(True)
 
     def open_chords_guide(self):
         """Launches ChordsGuideDialog for Hardware Chords topic."""
@@ -417,6 +421,7 @@ class AdvancedView(QWidget):
     # -------------------------------------------------------------------
     def load_data(self):
         """Loads Hardware Chords and Macros from config and macros.json."""
+        self.check_backend_mode()
         # 1. Load Hardware Chords
         if self.config:
             hw_dict = {}

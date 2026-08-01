@@ -402,7 +402,8 @@ def main():
         mapper.virtual_pad = virtual_pad
         
         # Initialize Hardware Chord Engine
-        hardware_chord_engine = HardwareChordEngine(controller_config)
+        active_backend_mode = "dinput" if isinstance(backend, DInputBackend) else "xinput"
+        hardware_chord_engine = HardwareChordEngine(controller_config, backend_mode=active_backend_mode)
         
     except Exception as e:
         logger.error(f"Failed to initialize mapper or virtual pad: {e}", exc_info=True)
@@ -441,7 +442,8 @@ def main():
             config = load_config(config_file)
             controller_config.load()
             mapper.reload_config(controller_config)
-            hardware_chord_engine.reload_config(controller_config)
+            active_b_mode = "dinput" if isinstance(backend, DInputBackend) else "xinput"
+            hardware_chord_engine.reload_config(controller_config, backend_mode=active_b_mode)
             virtual_pad.reload_config(controller_config)
             macro_executor.load_macros()
             logger.info("Configuration reloaded live from config.ini and profiles/.")
@@ -520,7 +522,8 @@ def main():
                 if changed:
                     controller_config.load()
                     mapper.reload_config(controller_config)
-                    hardware_chord_engine.reload_config(controller_config)
+                    active_b_mode = "dinput" if isinstance(backend, DInputBackend) else "xinput"
+                    hardware_chord_engine.reload_config(controller_config, backend_mode=active_b_mode)
                     virtual_pad.reload_config(controller_config)
                     macro_executor.load_macros()
                     logger.info("Controller config reloaded live!")

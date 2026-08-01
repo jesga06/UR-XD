@@ -450,7 +450,7 @@ def main():
             hardware_chord_engine.reload_config(controller_config, backend_mode=active_b_mode)
             virtual_pad.reload_config(controller_config)
             macro_executor.load_macros()
-            logger.info("Configuration reloaded live from config.ini and profiles/.")
+            logger.debug("Configuration reloaded live from config.ini and profiles/.")
         except Exception as e:
             logger.error(f"Error reloading configuration: {e}", exc_info=True)
 
@@ -530,7 +530,7 @@ def main():
                     hardware_chord_engine.reload_config(controller_config, backend_mode=active_b_mode)
                     virtual_pad.reload_config(controller_config)
                     macro_executor.load_macros()
-                    logger.info("Controller config reloaded live!")
+                    logger.debug("Controller config reloaded live!")
             except Exception as e:
                 logger.error(f"Error reloading config: {e}", exc_info=True)
 

@@ -16,23 +16,35 @@ UR-XD source files reside primarily in `src/`, with utilities in `technical-stuf
 
 ```text
 src/
-├── calibration.py            # Guided CLI calibration tool & profiling wizard
-├── config.py                 # Configuration loader & config.ini manager
-├── controller.py             # Main gamepad mapping engine & vgamepad interface
-├── daemon.py                 # System tray wrapper & background process runner
-├── decoder.py                # Raw HID report decoding engine & BaseDecoder class
-├── device_detector.py        # USB/HID device discovery & endpoint scanner
-├── gui.py                    # PySide6 GUI interface
-├── hid_database.py           # Community HID profile downloader & GitHub API fetcher
-├── macro_engine.py           # Macro execution & anti-stuck key tracking
-├── mapper.py                 # Button remapping & pynput keyboard/mouse simulation
-├── profile_manager.py        # Profile JSON loader & schema validator
-└── tuning.py                 # Radial deadzone math, response curves & circularity
+├── main.py                   # Entry point & daemon orchestrator
+├── main_gui.py               # PySide6 GUI launcher
+├── tray_icon.py              # System tray icon & context menu
+├── calibration.py            # Guided calibration tool & profiling wizard
+├── config_manager.py         # Configuration loader & config.ini manager
+├── backend_base.py           # Abstract backend interface
+├── backend_dinput.py         # DirectInput / raw HID backend
+├── backend_xinput.py         # XInput ctypes backend
+├── decoder.py                # Raw HID report decoding engine
+├── hid_reader.py             # USB/HID device discovery & raw reading
+├── virtual_pad.py            # Virtual Xbox 360 gamepad emulation
+├── mapper.py                 # Button remapping & keyboard/mouse simulation
+├── hardware_chords.py        # Hardware chord detection & input suppression
+├── macro_executor.py         # Macro playback engine & anti-stuck key tracking
+├── math_utils.py             # Radial deadzone, response curve & circularity math
+├── curves.py                 # Response curve evaluation
+├── haptic_engine.py          # Haptic vibration pattern playback
+├── community_fetcher.py      # Community HID profile downloader
+├── profile_tools.py          # HID map validation & diff utilities
+├── utilities_backend.py      # Latency monitoring & UDP broadcast
+├── logger_setup.py           # Logging setup & severity level registration
+├── single_instance.py        # Singleton process guard
+└── gui_v2/                   # Modular PySide6 GUI package (views, dialogs, widgets, workers, services)
 ```
 
 Auxiliary directories:
 - **`profiles/`:** Device profile JSON files named by VID/PID.
-- **`technical-stuff/`:** Deep architectural timelines and the `interactive_layout_builder.py`.
+- **`technical-stuff/`:** Deep architectural timelines and proof-of-concept code.
+- **`diagnostics/`:** Standalone diagnostic scripts and report packager.
 - **`tests/`:** Unittest test suites.
 
 ## Contributing Guidelines

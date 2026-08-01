@@ -55,5 +55,5 @@ Macros can be assigned by typing `macro:MyMacro` (or simply `MyMacro`) into any 
 A major flaw in input simulation utilities occurs when a macro is interrupted or the application closes while a simulated key is held down—leaving Windows believing `SHIFT` or `CTRL` is stuck down forever.
 
 UR-XD eliminates this using an **active key tracker**:
-- Every simulated keypress is registered in an active key table (`macro_engine.py`).
+- Every simulated keypress is registered in an active key table (`macro_executor.py`).
 - If a macro loop terminates, a profile reloads, or the wrapper shuts down, UR-XD automatically releases all held keys.

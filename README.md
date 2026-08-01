@@ -38,7 +38,7 @@ UR-XD bypasses buggy driver descriptors, decodes raw HID payload data directly, 
 - **[ViGEmBus Driver](https://github.com/nefarius/ViGEmBus/releases)** installed on your system.
 
 ### 2. Install Dependencies
-Run the following command in PowerShell or Command Prompt (or via Option 5 in `tools_and_diagnostics.bat`):
+Run the following command in PowerShell or Command Prompt (or via Option 2 in `tools_and_diagnostics.bat`):
 ```powershell
 pip install -r requirements.txt
 ```

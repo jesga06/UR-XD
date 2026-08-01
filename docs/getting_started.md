@@ -14,7 +14,7 @@ Getting **UR-XD** up and running takes less than 5 minutes. This guide will walk
 Before installing UR-XD, ensure your system satisfies the following hardware and software requirements:
 
 - **Operating System:** Windows 10 or 11 (64-bit).
-- **Python:** [Python 3.13](https://www.python.org/downloads/) or higher (ensure "Add Python to PATH" is checked during installation).
+- **Python:** [Python 3.13 or 3.14](https://www.python.org/downloads/) (ensure "Add Python to PATH" is checked during installation).
 - **Virtual Gamepad Driver:** **[ViGEmBus](https://github.com/nefarius/ViGEmBus/releases)** driver installed. This driver allows UR-XD to create virtual Xbox 360 controllers on demand.
     - **Optional:** Install **[HidHide](https://github.com/nefarius/HidHide/releases)** to prevent double inputs in games.
 - **Physical Controller:** Connected via 2.4 GHz wireless dongle, USB cable, or Bluetooth in **DirectInput (DInput)** or **XInput** mode.
@@ -29,7 +29,7 @@ Before installing UR-XD, ensure your system satisfies the following hardware and
 pip install -r requirements.txt
 ```
 
-> 💡 **Tip:** You can also double-click `tools_and_diagnostics.bat` and select **Option 5** to install or repair all dependencies automatically.
+> 💡 **Tip:** You can also double-click `tools_and_diagnostics.bat` and select **Option 2** to install or repair all dependencies automatically.
 
 ## 3. First-Time Calibration
 

@@ -21,11 +21,9 @@ Calibration can be launched directly from the **Dashboard Tab** in the GUI or ex
 When launching UR-XD with a newly connected or unprofiled gamepad, the **Profile Decision Engine** automatically presents the native PySide6 Calibration Wizard dialog. You can also trigger full calibration manually at any time by clicking **"Calibrate Controller"** on the GUI Dashboard.
 
 1. **Device Selection & API Mode:**
-   - UR-XD enumerates connected USB HID interfaces automatically. Select your controller and choose between **XInput Mode** and **DInput Mode**.
+   - UR-XD enumerates connected USB HID interfaces automatically. Scroll down the list and select your device.
 2. **Visual Layout Selection:**
    - Choose your preferred button layout template (**Xbox**, **PlayStation**, or **Nintendo**). This preference is saved to your profile to customize visualizer prompts throughout the application.
-3. **Motion Sensor Query:**
-   - Indicate whether your controller streams continuous gyroscope telemetry so UR-XD can apply dynamic noise filtering during button baselining.
 
 ## Selective Input Calibration
 
@@ -55,5 +53,5 @@ If running without a graphical interface or in debug environments, launch calibr
 ```powershell
 .\calibrate.bat
 ```
-*(You can also double-click `tools_and_diagnostics.bat` and select Option 2).*
+*(You can also double-click `tools_and_diagnostics.bat` and select Option 3).*
 

@@ -14,7 +14,7 @@ Welcome to the **Universal Remapper & DInput Fixer (UR-XD)** documentation hub! 
 
 - **[Getting Started](getting_started.md):** System requirements, driver installation, launching the background wrapper, and system tray operations.
 - **[User Guide](user_guide.md):** Complete walkthrough of the visual configuration GUI (Dashboard, Remapping, Stick/Trigger Tuning, Circularity Calibrator, Macros Studio, Utilities, and System Tray controls).
-- **[Calibration Guide](calibration.md):** Guided CLI wizard, interface endpoint selection, button baselining, and the Interactive Layout Builder tool.
+- **[Calibration Guide](calibration.md):** Native GUI calibration wizard, selective input recalibration, guided step-by-step button/axis profiling, and CLI fallback via `calibrate.bat`.
 - **[HID Maps & Profiles](hid_maps.md):** Profile JSON structure (`profiles/*.json`), auto-downloading community profiles, and composite endpoint merging.
 - **[Macros Studio](macros.md):** Recording keyboard, mouse, and trigger macros, press/hold execution modes, loop delays, and anti-stuck key safeguards.
 - **[Hardware Chords](hardware_chords.md):** Origin story, architectural necessity, input suppression, output synthesis, and setting up hardware button combinations.
@@ -35,7 +35,6 @@ Welcome to the **Universal Remapper & DInput Fixer (UR-XD)** documentation hub! 
 | **Run Wrapper** | `.\run_wrapper.bat` |
 | **Calibrate Device** | `.\calibrate.bat` |
 | **Tools & Diagnostics Menu** | `.\tools_and_diagnostics.bat` |
-| **Interactive Layout Builder** | `python technical-stuff/interactive_layout_builder.py` |
 | **Run Diagnostics** | `.\generate_issue_report.bat` |
 | **Profile Storage** | `profiles/<controller_name>.json` |
 | **User Mappings** | `config.ini` |

@@ -51,7 +51,7 @@ class MockResponseCurveCanvas(QWidget):
 
         # 1. Background Card
         painter.setBrush(QColor(graph_bg.red(), graph_bg.green(), graph_bg.blue(), 230))
-        painter.setPen(QPen(QColor(graph_axis.red(), graph_axis.green(), graph_axis.blue(), 120), 1))
+        painter.setPen(QPen(graph_axis, 1))
         painter.drawRoundedRect(rect.adjusted(1, 1, -1, -1), 8, 8)
 
         # Title Overlay
@@ -74,7 +74,7 @@ class MockResponseCurveCanvas(QWidget):
         gh = h - margin_top - margin_bottom
 
         # Background grid & axes
-        grid_pen = QPen(QColor(graph_axis.red(), graph_axis.green(), graph_axis.blue(), 80), 1, Qt.PenStyle.DashLine)
+        grid_pen = QPen(graph_axis, 1, Qt.PenStyle.DashLine)
         painter.setPen(grid_pen)
 
         # Grid lines (2x2)
@@ -82,7 +82,7 @@ class MockResponseCurveCanvas(QWidget):
         painter.drawLine(gx, int(gy + gh * 0.5), gx + gw, int(gy + gh * 0.5))
 
         # Main Axes
-        axis_pen = QPen(QColor(graph_axis.red(), graph_axis.green(), graph_axis.blue(), 200), 1.5)
+        axis_pen = QPen(graph_axis, 1.5)
         painter.setPen(axis_pen)
         painter.drawLine(gx, gy + gh, gx + gw, gy + gh)  # X axis
         painter.drawLine(gx, gy, gx, gy + gh)            # Y axis
@@ -174,13 +174,13 @@ class MockStickRadarCanvas(QWidget):
         radius = min(w, h) / 2.8
 
         # 2. Axis Crosshairs
-        grid_pen = QPen(QColor(graph_axis.red(), graph_axis.green(), graph_axis.blue(), 90), 1, Qt.PenStyle.DashLine)
+        grid_pen = QPen(graph_axis, 1, Qt.PenStyle.DashLine)
         painter.setPen(grid_pen)
         painter.drawLine(int(cx - radius * 1.2), int(cy), int(cx + radius * 1.2), int(cy))
         painter.drawLine(int(cx), int(cy - radius * 1.2), int(cx), int(cy + radius * 1.2))
 
         # 3. Outer Circularity Ring (Unit Boundary)
-        ring_pen = QPen(QColor(graph_axis.red(), graph_axis.green(), graph_axis.blue(), 180), 1.2, Qt.PenStyle.SolidLine)
+        ring_pen = QPen(graph_axis, 1.2, Qt.PenStyle.SolidLine)
         painter.setPen(ring_pen)
         painter.setBrush(Qt.BrushStyle.NoBrush)
         painter.drawEllipse(QPointF(cx, cy), radius, radius)

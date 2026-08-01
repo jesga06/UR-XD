@@ -74,10 +74,26 @@ class TestThemeManager(unittest.TestCase):
         self.tm.set_source("button_color_source", "accent_2")
         self.assertEqual(self.tm.get_token("button_bg"), "#00F5A0FF")
 
-        # Test Brightness Sliders
+        # Test Graph Axis Source & Brightness (0% to 100%)
+        self.tm.set_source("graph_axis_source", "accent_2")
+        self.tm.set_brightness("graph_axis_brightness", 100)
+        tokens_axis = self.tm.get_all_tokens()
+        # At 100% brightness, graph_axis HSV value is 1.0 (pure accent_2 #00F5A0FF)
+        self.assertEqual(tokens_axis["graph_axis"], "#00F5A0FF")
+
+        self.tm.set_brightness("graph_axis_brightness", 0)
+        tokens_axis_dark = self.tm.get_all_tokens()
+        self.assertEqual(tokens_axis_dark["graph_axis"], "#000000FF")
+
+        # Test Absolute HSV Brightness for Widget Background
+        self.tm.set_source("widget_bg_source", "accent_1")
+        self.tm.set_brightness("widget_brightness", 0)
+        tokens_w0 = self.tm.get_all_tokens()
+        self.assertEqual(tokens_w0["widget_bg"], "#000000FF")  # Absolute 0% brightness is black
+
         self.tm.set_brightness("widget_brightness", 20)
-        tokens_new = self.tm.get_all_tokens()
-        self.assertNotEqual(tokens["widget_bg"], tokens_new["widget_bg"])
+        tokens_w20 = self.tm.get_all_tokens()
+        self.assertNotEqual(tokens_w20["widget_bg"], "#000000FF")
 
         self.tm.reset_defaults()
 

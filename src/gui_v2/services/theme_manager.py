@@ -28,12 +28,14 @@ DEFAULT_BASE_COLORS: Dict[str, str] = {
 DEFAULT_SOURCES: Dict[str, str] = {
     "button_color_source": "accent_1",   # accent_1 | accent_2
     "widget_bg_source": "window_bg",     # window_bg | accent_1 | accent_2
-    "outline_source": "accent_1"        # accent_1 | accent_2
+    "outline_source": "accent_1",        # accent_1 | accent_2
+    "graph_axis_source": "accent_1"      # window_bg | accent_1 | accent_2
 }
 
 DEFAULT_BRIGHTNESS: Dict[str, int] = {
-    "widget_brightness": 0,             # Percentage delta (0 to 20)
-    "graph_brightness": 0               # Percentage delta (0 to 20)
+    "widget_brightness": 0,             # Absolute HSV Value percentage (0 to 20)
+    "graph_brightness": 0,              # Absolute HSV Value percentage (0 to 20)
+    "graph_axis_brightness": 50         # Absolute HSV Value percentage (0 to 100)
 }
 
 CUSTOM_THEME_RELATIVE_PATH = os.path.join("themes", "custom_theme.json")
@@ -181,6 +183,18 @@ class ThemeManager(QObject):
         color.setHsvF(h, s, new_v, a)
         return color_to_hex8(color)
 
+    def set_hsv_value(self, color_hex: str, abs_value: float) -> str:
+        """
+        Sets the absolute HSV Value/brightness (0.0 to 1.0) of a color,
+        preserving its Hue, Saturation, and Alpha.
+        Returns 8-character Hex string (#RRGGBBAA).
+        """
+        color = hex8_to_color(color_hex)
+        h, s, v, a = color.getHsvF()
+        new_v = max(0.0, min(1.0, float(abs_value)))
+        color.setHsvF(h, s, new_v, a)
+        return color_to_hex8(color)
+
     def recalculate_theme(self) -> None:
         """
         Calculates derived tokens based on live staging base_colors, sources, and brightness.
@@ -188,40 +202,38 @@ class ThemeManager(QObject):
         """
         tokens = dict(self.base_colors)
 
-        # 1. Widget Background
+        # 1. Widget Background (Absolute HSV Value)
         wb_src = self.sources.get("widget_bg_source", "window_bg")
         base_wbg = self.base_colors.get(wb_src, self.base_colors.get("window_bg", "#0C0914FF"))
-        tokens["widget_bg"] = self.adjust_brightness(
-            base_wbg,
-            self.brightness.get("widget_brightness", 0) / 100.0
-        )
+        w_val = self.brightness.get("widget_brightness", 0) / 100.0
+        tokens["widget_bg"] = self.set_hsv_value(base_wbg, w_val)
 
         # Backward compatibility alias
         tokens["background"] = tokens["widget_bg"]
 
-        # 2. Graph Background & Axis
-        tokens["graph_bg"] = self.adjust_brightness(
-            tokens["widget_bg"],
-            self.brightness.get("graph_brightness", 0) / 100.0
-        )
-        tokens["graph_axis"] = self.adjust_brightness(
-            tokens["graph_bg"],
-            (self.brightness.get("graph_brightness", 0) / 100.0)
-        )
+        # 2. Graph Background (Absolute HSV Value)
+        g_val = self.brightness.get("graph_brightness", 0) / 100.0
+        tokens["graph_bg"] = self.set_hsv_value(tokens["widget_bg"], g_val)
 
-        # 3. Outline Color
+        # 3. Graph Axis (Absolute HSV Value from graph_axis_source, 0% to 100%)
+        axis_src_key = self.sources.get("graph_axis_source", "accent_1")
+        base_axis = self.base_colors.get(axis_src_key, self.base_colors.get("accent_1", "#A855F7FF"))
+        axis_val = self.brightness.get("graph_axis_brightness", 50) / 100.0
+        tokens["graph_axis"] = self.set_hsv_value(base_axis, axis_val)
+
+        # 4. Outline Color
         outline_src_key = self.sources.get("outline_source", "accent_1")
         base_outline = self.base_colors.get(outline_src_key, self.base_colors.get("accent_1", "#A855F7FF"))
-        tokens["outline"] = self.adjust_brightness(base_outline, 0.50)
+        tokens["outline"] = self.set_hsv_value(base_outline, 0.50)
 
-        # 4. Button Colors
+        # 5. Button Colors
         btn_src_key = self.sources.get("button_color_source", "accent_1")
         base_btn = self.base_colors.get(btn_src_key, self.base_colors.get("accent_1", "#A855F7FF"))
         tokens["button_bg"] = base_btn
         tokens["button_hover"] = self.adjust_brightness(base_btn, 0.15)
         tokens["button_pressed"] = self.adjust_brightness(base_btn, -0.15)
 
-        # 5. Tab Active & Inactive
+        # 6. Tab Active & Inactive
         tokens["tab_active"] = self.adjust_brightness(self.base_colors.get("accent_1", "#A855F7FF"), 0.20)
         tokens["tab_inactive"] = self.adjust_brightness(self.base_colors.get("window_bg", "#0C0914FF"), 0.05)
 

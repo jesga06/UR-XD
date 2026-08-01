@@ -72,59 +72,87 @@ class CustomizationView(QWidget):
         preset_title.setStyleSheet("font-weight: bold; font-size: 14px; color: #ffffff;")
         preset_layout.addWidget(preset_title)
 
-        toolbar_layout = QHBoxLayout()
-        toolbar_layout.setSpacing(10)
+        # Row 1: Active Theme Selection & Sandbox Actions
+        row1_layout = QHBoxLayout()
+        row1_layout.setSpacing(10)
 
         theme_lbl = QLabel("Active Theme:")
         theme_lbl.setStyleSheet("font-weight: bold; font-size: 12px; color: #ffffff;")
-        toolbar_layout.addWidget(theme_lbl)
+        row1_layout.addWidget(theme_lbl)
 
         # Theme Dropdown
         self.theme_dropdown = QComboBox()
-        self.theme_dropdown.setMinimumWidth(220)
+        self.theme_dropdown.setMinimumWidth(200)
         self.theme_dropdown.setCursor(Qt.CursorShape.PointingHandCursor)
         self.theme_dropdown.currentTextChanged.connect(self.on_theme_selected)
-        toolbar_layout.addWidget(self.theme_dropdown)
+        row1_layout.addWidget(self.theme_dropdown)
 
-        # CRUD & Sandbox Toolbar Buttons
         save_btn = QPushButton("💾 Save Theme")
         save_btn.setToolTip("Save current draft colors, toggles, and sliders as a custom theme")
         save_btn.setCursor(Qt.CursorShape.PointingHandCursor)
         save_btn.clicked.connect(self.save_theme_dialog)
-        toolbar_layout.addWidget(save_btn)
+        row1_layout.addWidget(save_btn)
 
         apply_app_btn = QPushButton("⚡ Apply App-Wide")
         apply_app_btn.setToolTip("Apply current draft colors across all application tabs without creating a new file")
         apply_app_btn.setCursor(Qt.CursorShape.PointingHandCursor)
         apply_app_btn.clicked.connect(self.apply_app_wide)
-        toolbar_layout.addWidget(apply_app_btn)
+        row1_layout.addWidget(apply_app_btn)
 
         discard_btn = QPushButton("↩ Discard Edits")
         discard_btn.setToolTip("Revert draft edits back to active saved theme")
         discard_btn.setCursor(Qt.CursorShape.PointingHandCursor)
         discard_btn.clicked.connect(self.discard_edits)
-        toolbar_layout.addWidget(discard_btn)
+        row1_layout.addWidget(discard_btn)
+
+        row1_layout.addStretch()
+        preset_layout.addLayout(row1_layout)
+
+        # Row 2: Theme Management & File Actions
+        row2_layout = QHBoxLayout()
+        row2_layout.setSpacing(10)
 
         rename_btn = QPushButton("✏️ Rename")
         rename_btn.setToolTip("Rename currently selected user theme")
         rename_btn.setCursor(Qt.CursorShape.PointingHandCursor)
         rename_btn.clicked.connect(self.rename_theme_dialog)
-        toolbar_layout.addWidget(rename_btn)
+        row2_layout.addWidget(rename_btn)
 
         copy_btn = QPushButton("📋 Copy")
         copy_btn.setToolTip("Duplicate currently selected theme")
         copy_btn.setCursor(Qt.CursorShape.PointingHandCursor)
         copy_btn.clicked.connect(self.copy_theme_dialog)
-        toolbar_layout.addWidget(copy_btn)
+        row2_layout.addWidget(copy_btn)
 
         delete_btn = QPushButton("🗑️ Delete")
         delete_btn.setToolTip("Delete currently selected user theme")
         delete_btn.setCursor(Qt.CursorShape.PointingHandCursor)
         delete_btn.clicked.connect(self.delete_theme_dialog)
-        toolbar_layout.addWidget(delete_btn)
+        row2_layout.addWidget(delete_btn)
 
-        toolbar_layout.addStretch()
-        preset_layout.addLayout(toolbar_layout)
+        # Divider element
+        row2_divider = QFrame()
+        row2_divider.setFrameShape(QFrame.Shape.VLine)
+        row2_divider.setStyleSheet("background-color: rgba(255, 255, 255, 0.2); max-width: 1px;")
+        row2_layout.addWidget(row2_divider)
+
+        import_btn = QPushButton("📥 Import Theme")
+        import_btn.setCursor(Qt.CursorShape.PointingHandCursor)
+        import_btn.clicked.connect(self.import_theme_dialog)
+        row2_layout.addWidget(import_btn)
+
+        export_btn = QPushButton("💾 Export Theme")
+        export_btn.setCursor(Qt.CursorShape.PointingHandCursor)
+        export_btn.clicked.connect(self.export_theme_dialog)
+        row2_layout.addWidget(export_btn)
+
+        reset_btn = QPushButton("🔄 Reset Defaults")
+        reset_btn.setCursor(Qt.CursorShape.PointingHandCursor)
+        reset_btn.clicked.connect(self.reset_default_theme)
+        row2_layout.addWidget(reset_btn)
+
+        row2_layout.addStretch()
+        preset_layout.addLayout(row2_layout)
         content_layout.addWidget(self.preset_card)
 
         # 2. EXPOSED BASE COLOR PICKERS CARD
@@ -250,6 +278,19 @@ class CustomizationView(QWidget):
         out_src_box.addWidget(self.out_src_combo)
         sources_layout.addLayout(out_src_box)
 
+        # Graph Axes Source
+        ga_src_box = QVBoxLayout()
+        ga_src_lbl = QLabel("Graph Axes Source:")
+        ga_src_lbl.setStyleSheet("font-weight: bold; font-size: 11px; color: #ffffff;")
+        self.ga_src_combo = QComboBox()
+        self.ga_src_combo.addItem("Window Background", "window_bg")
+        self.ga_src_combo.addItem("Accent #1", "accent_1")
+        self.ga_src_combo.addItem("Accent #2", "accent_2")
+        self.ga_src_combo.currentIndexChanged.connect(self.on_sources_changed)
+        ga_src_box.addWidget(ga_src_lbl)
+        ga_src_box.addWidget(self.ga_src_combo)
+        sources_layout.addLayout(ga_src_box)
+
         sources_layout.addStretch()
         behavior_layout.addLayout(sources_layout)
 
@@ -298,6 +339,24 @@ class CustomizationView(QWidget):
         g_slider_row.addWidget(self.graph_brightness_slider)
         g_slider_row.addWidget(self.graph_brightness_label)
         sliders_layout.addLayout(g_slider_row)
+
+        # Graph Axes Brightness Slider (0% to 100%)
+        ga_slider_row = QHBoxLayout()
+        ga_slider_title = QLabel("Graph Axes Brightness:")
+        ga_slider_title.setFixedWidth(160)
+        ga_slider_title.setStyleSheet("font-weight: bold; font-size: 11px; color: #ffffff;")
+        self.graph_axis_brightness_slider = QSlider(Qt.Orientation.Horizontal)
+        self.graph_axis_brightness_slider.setRange(0, 100)
+        self.graph_axis_brightness_slider.setValue(50)
+        self.graph_axis_brightness_slider.valueChanged.connect(self.on_graph_axis_brightness_changed)
+        self.graph_axis_brightness_label = QLabel("50%")
+        self.graph_axis_brightness_label.setFixedWidth(50)
+        self.graph_axis_brightness_label.setStyleSheet("font-weight: bold; font-size: 11px; color: #ffffff;")
+
+        ga_slider_row.addWidget(ga_slider_title)
+        ga_slider_row.addWidget(self.graph_axis_brightness_slider)
+        ga_slider_row.addWidget(self.graph_axis_brightness_label)
+        sliders_layout.addLayout(ga_slider_row)
 
         behavior_layout.addLayout(sliders_layout)
 
@@ -425,6 +484,7 @@ class CustomizationView(QWidget):
         btn_src = self.theme_mgr.sources.get("button_color_source", "accent_1")
         wbg_src = self.theme_mgr.sources.get("widget_bg_source", "window_bg")
         out_src = self.theme_mgr.sources.get("outline_source", "accent_1")
+        ga_src = self.theme_mgr.sources.get("graph_axis_source", "accent_1")
 
         self.btn_src_combo.blockSignals(True)
         btn_idx = self.btn_src_combo.findData(btn_src)
@@ -444,9 +504,16 @@ class CustomizationView(QWidget):
             self.out_src_combo.setCurrentIndex(out_idx)
         self.out_src_combo.blockSignals(False)
 
+        self.ga_src_combo.blockSignals(True)
+        ga_idx = self.ga_src_combo.findData(ga_src)
+        if ga_idx >= 0:
+            self.ga_src_combo.setCurrentIndex(ga_idx)
+        self.ga_src_combo.blockSignals(False)
+
         # Brightness Sliders
         w_val = self.theme_mgr.brightness.get("widget_brightness", 0)
         g_val = self.theme_mgr.brightness.get("graph_brightness", 0)
+        ga_val = self.theme_mgr.brightness.get("graph_axis_brightness", 50)
 
         self.widget_brightness_slider.blockSignals(True)
         self.widget_brightness_slider.setValue(w_val)
@@ -458,6 +525,11 @@ class CustomizationView(QWidget):
         self.graph_brightness_slider.blockSignals(False)
         self.graph_brightness_label.setText(f"{g_val}%")
 
+        self.graph_axis_brightness_slider.blockSignals(True)
+        self.graph_axis_brightness_slider.setValue(ga_val)
+        self.graph_axis_brightness_slider.blockSignals(False)
+        self.graph_axis_brightness_label.setText(f"{ga_val}%")
+
         self._block_signals = False
 
     def on_sources_changed(self):
@@ -468,6 +540,7 @@ class CustomizationView(QWidget):
         btn_val = self.btn_src_combo.currentData()
         wbg_val = self.wbg_src_combo.currentData()
         out_val = self.out_src_combo.currentData()
+        ga_val = self.ga_src_combo.currentData()
 
         if btn_val:
             self.theme_mgr.set_source("button_color_source", btn_val)
@@ -475,6 +548,8 @@ class CustomizationView(QWidget):
             self.theme_mgr.set_source("widget_bg_source", wbg_val)
         if out_val:
             self.theme_mgr.set_source("outline_source", out_val)
+        if ga_val:
+            self.theme_mgr.set_source("graph_axis_source", ga_val)
 
         self._mark_custom_theme_active()
 
@@ -490,6 +565,13 @@ class CustomizationView(QWidget):
         self.graph_brightness_label.setText(f"{value}%")
         if not self._block_signals:
             self.theme_mgr.set_brightness("graph_brightness", value)
+            self._mark_custom_theme_active()
+
+    def on_graph_axis_brightness_changed(self, value: int):
+        """Triggered when graph axes brightness slider moves (0% to 100%)."""
+        self.graph_axis_brightness_label.setText(f"{value}%")
+        if not self._block_signals:
+            self.theme_mgr.set_brightness("graph_axis_brightness", value)
             self._mark_custom_theme_active()
 
     def update_card_styles(self):

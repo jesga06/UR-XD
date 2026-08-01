@@ -60,10 +60,19 @@ class TestCustomizationView(unittest.TestCase):
         view.out_src_combo.setCurrentIndex(1)  # Accent #2
         self.assertEqual(tm.sources["outline_source"], "accent_2")
 
+        # Test Graph Axes Source Combo
+        view.ga_src_combo.setCurrentIndex(2)  # Accent #2
+        self.assertEqual(tm.sources["graph_axis_source"], "accent_2")
+
         # Test Widget Brightness Slider
         view.widget_brightness_slider.setValue(20)
         self.assertEqual(tm.brightness["widget_brightness"], 20)
         self.assertEqual(view.widget_brightness_label.text(), "20%")
+
+        # Test Graph Axes Brightness Slider (0% to 100%)
+        view.graph_axis_brightness_slider.setValue(80)
+        self.assertEqual(tm.brightness["graph_axis_brightness"], 80)
+        self.assertEqual(view.graph_axis_brightness_label.text(), "80%")
 
         tm.reset_defaults()
 

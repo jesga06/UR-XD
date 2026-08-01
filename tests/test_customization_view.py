@@ -51,6 +51,15 @@ class TestCustomizationView(unittest.TestCase):
         self.assertEqual(tm.sources["button_color_source"], "accent_2")
         self.assertEqual(tm.get_token("button_bg"), "#00F5A0FF")
 
+        # Test Widget Background Source Combo
+        view.wbg_src_combo.setCurrentIndex(1)  # Accent #1
+        self.assertEqual(tm.sources["widget_bg_source"], "accent_1")
+        self.assertNotEqual(tm.get_token("widget_bg"), tm.get_token("window_bg"))
+
+        # Test Outline Color Source Combo
+        view.out_src_combo.setCurrentIndex(1)  # Accent #2
+        self.assertEqual(tm.sources["outline_source"], "accent_2")
+
         # Test Widget Brightness Slider
         view.widget_brightness_slider.setValue(20)
         self.assertEqual(tm.brightness["widget_brightness"], 20)
@@ -61,3 +70,4 @@ class TestCustomizationView(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+

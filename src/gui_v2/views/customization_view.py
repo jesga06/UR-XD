@@ -334,6 +334,7 @@ class CustomizationView(QWidget):
     def populate_theme_dropdown(self):
         """Discovers presets and user themes and populates dropdown."""
         self._block_signals = True
+        self.theme_dropdown.blockSignals(True)
         self.theme_dropdown.clear()
 
         available = self.theme_mgr.get_available_themes()
@@ -351,17 +352,13 @@ class CustomizationView(QWidget):
                 if not meta["is_preset"]:
                     self.theme_dropdown.addItem(name, userData=name)
 
-        # Match current active theme name
+        # Match current active theme name using findData
         current_name = self.theme_mgr.active_theme_name
-        index = -1
-        for i in range(self.theme_dropdown.count()):
-            if self.theme_dropdown.itemData(i) == current_name:
-                index = i
-                break
+        idx = self.theme_dropdown.findData(current_name)
+        if idx >= 0:
+            self.theme_dropdown.setCurrentIndex(idx)
 
-        if index >= 0:
-            self.theme_dropdown.setCurrentIndex(index)
-
+        self.theme_dropdown.blockSignals(False)
         self._block_signals = False
 
     def on_theme_selected(self, item_text: str):
@@ -404,25 +401,36 @@ class CustomizationView(QWidget):
         wbg_src = self.theme_mgr.sources.get("widget_bg_source", "window_bg")
         out_src = self.theme_mgr.sources.get("outline_source", "accent_1")
 
-        self.btn_src_combo.setCurrentIndex(0 if btn_src == "accent_1" else 1)
-        
-        if wbg_src == "window_bg":
-            self.wbg_src_combo.setCurrentIndex(0)
-        elif wbg_src == "accent_1":
-            self.wbg_src_combo.setCurrentIndex(1)
-        else:
-            self.wbg_src_combo.setCurrentIndex(2)
+        self.btn_src_combo.blockSignals(True)
+        btn_idx = self.btn_src_combo.findData(btn_src)
+        if btn_idx >= 0:
+            self.btn_src_combo.setCurrentIndex(btn_idx)
+        self.btn_src_combo.blockSignals(False)
 
-        self.out_src_combo.setCurrentIndex(0 if out_src == "accent_1" else 1)
+        self.wbg_src_combo.blockSignals(True)
+        wbg_idx = self.wbg_src_combo.findData(wbg_src)
+        if wbg_idx >= 0:
+            self.wbg_src_combo.setCurrentIndex(wbg_idx)
+        self.wbg_src_combo.blockSignals(False)
+
+        self.out_src_combo.blockSignals(True)
+        out_idx = self.out_src_combo.findData(out_src)
+        if out_idx >= 0:
+            self.out_src_combo.setCurrentIndex(out_idx)
+        self.out_src_combo.blockSignals(False)
 
         # Brightness Sliders
         w_val = self.theme_mgr.brightness.get("widget_brightness", 0)
         g_val = self.theme_mgr.brightness.get("graph_brightness", 0)
 
+        self.widget_brightness_slider.blockSignals(True)
         self.widget_brightness_slider.setValue(w_val)
+        self.widget_brightness_slider.blockSignals(False)
         self.widget_brightness_label.setText(f"{w_val:+d}%")
 
+        self.graph_brightness_slider.blockSignals(True)
         self.graph_brightness_slider.setValue(g_val)
+        self.graph_brightness_slider.blockSignals(False)
         self.graph_brightness_label.setText(f"{g_val:+d}%")
 
         self._block_signals = False
@@ -432,9 +440,16 @@ class CustomizationView(QWidget):
         if self._block_signals:
             return
 
-        self.theme_mgr.set_source("button_color_source", self.btn_src_combo.currentData())
-        self.theme_mgr.set_source("widget_bg_source", self.wbg_src_combo.currentData())
-        self.theme_mgr.set_source("outline_source", self.out_src_combo.currentData())
+        btn_val = self.btn_src_combo.currentData()
+        wbg_val = self.wbg_src_combo.currentData()
+        out_val = self.out_src_combo.currentData()
+
+        if btn_val:
+            self.theme_mgr.set_source("button_color_source", btn_val)
+        if wbg_val:
+            self.theme_mgr.set_source("widget_bg_source", wbg_val)
+        if out_val:
+            self.theme_mgr.set_source("outline_source", out_val)
 
     def on_widget_brightness_changed(self, value: int):
         """Triggered when widget brightness slider moves."""

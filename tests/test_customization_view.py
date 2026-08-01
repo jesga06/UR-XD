@@ -63,7 +63,7 @@ class TestCustomizationView(unittest.TestCase):
         # Test Widget Brightness Slider
         view.widget_brightness_slider.setValue(20)
         self.assertEqual(tm.brightness["widget_brightness"], 20)
-        self.assertEqual(view.widget_brightness_label.text(), "+20%")
+        self.assertEqual(view.widget_brightness_label.text(), "20%")
 
         tm.reset_defaults()
 

@@ -32,8 +32,8 @@ DEFAULT_SOURCES: Dict[str, str] = {
 }
 
 DEFAULT_BRIGHTNESS: Dict[str, int] = {
-    "widget_brightness": 0,             # Percentage delta (-80 to +80)
-    "graph_brightness": 0               # Percentage delta (-80 to +80)
+    "widget_brightness": 0,             # Percentage delta (0 to 20)
+    "graph_brightness": 0               # Percentage delta (0 to 20)
 }
 
 CUSTOM_THEME_RELATIVE_PATH = os.path.join("themes", "custom_theme.json")

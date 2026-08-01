@@ -256,7 +256,7 @@ class CustomizationView(QWidget):
         w_slider_title.setFixedWidth(160)
         w_slider_title.setStyleSheet("font-weight: bold; font-size: 11px; color: #ffffff;")
         self.widget_brightness_slider = QSlider(Qt.Orientation.Horizontal)
-        self.widget_brightness_slider.setRange(-80, 80)
+        self.widget_brightness_slider.setRange(0, 20)
         self.widget_brightness_slider.setValue(0)
         self.widget_brightness_slider.valueChanged.connect(self.on_widget_brightness_changed)
         self.widget_brightness_label = QLabel("0%")
@@ -274,7 +274,7 @@ class CustomizationView(QWidget):
         g_slider_title.setFixedWidth(160)
         g_slider_title.setStyleSheet("font-weight: bold; font-size: 11px; color: #ffffff;")
         self.graph_brightness_slider = QSlider(Qt.Orientation.Horizontal)
-        self.graph_brightness_slider.setRange(-80, 80)
+        self.graph_brightness_slider.setRange(0, 20)
         self.graph_brightness_slider.setValue(0)
         self.graph_brightness_slider.valueChanged.connect(self.on_graph_brightness_changed)
         self.graph_brightness_label = QLabel("0%")
@@ -426,12 +426,12 @@ class CustomizationView(QWidget):
         self.widget_brightness_slider.blockSignals(True)
         self.widget_brightness_slider.setValue(w_val)
         self.widget_brightness_slider.blockSignals(False)
-        self.widget_brightness_label.setText(f"{w_val:+d}%")
+        self.widget_brightness_label.setText(f"{w_val}%")
 
         self.graph_brightness_slider.blockSignals(True)
         self.graph_brightness_slider.setValue(g_val)
         self.graph_brightness_slider.blockSignals(False)
-        self.graph_brightness_label.setText(f"{g_val:+d}%")
+        self.graph_brightness_label.setText(f"{g_val}%")
 
         self._block_signals = False
 
@@ -453,13 +453,13 @@ class CustomizationView(QWidget):
 
     def on_widget_brightness_changed(self, value: int):
         """Triggered when widget brightness slider moves."""
-        self.widget_brightness_label.setText(f"{value:+d}%")
+        self.widget_brightness_label.setText(f"{value}%")
         if not self._block_signals:
             self.theme_mgr.set_brightness("widget_brightness", value)
 
     def on_graph_brightness_changed(self, value: int):
         """Triggered when graph brightness slider moves."""
-        self.graph_brightness_label.setText(f"{value:+d}%")
+        self.graph_brightness_label.setText(f"{value}%")
         if not self._block_signals:
             self.theme_mgr.set_brightness("graph_brightness", value)
 

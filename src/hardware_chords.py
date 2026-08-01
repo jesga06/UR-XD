@@ -13,7 +13,7 @@ logger = logging.getLogger('hardware_chords')
 import collections
 
 class HardwareChordEngine:
-    def __init__(self, config=None):
+    def __init__(self, config=None, backend_mode: str = "auto"):
         self.chords = []
         self.pending_inputs = {}
         self.executed_chords = set()
@@ -21,20 +21,32 @@ class HardwareChordEngine:
         self.poll_intervals = collections.deque(maxlen=50)
         self.avg_poll_interval = 0.004 # Default 4ms (250Hz)
         self._current_pressed = set()
-        
+        self.enabled = True
+        self.backend_mode = backend_mode
         self.impossible_states = []
         
         if config:
-            self.reload_config(config)
+            self.reload_config(config, backend_mode=backend_mode)
 
-    def reload_config(self, config):
+    def reload_config(self, config, backend_mode: str = None):
         self.chords.clear()
         self.impossible_states.clear()
         self.pending_inputs.clear()
         self.executed_chords.clear()
         self._current_pressed.clear()
         
-        if config.has_section('hardware_chords'):
+        if backend_mode is not None:
+            self.backend_mode = str(backend_mode).lower()
+        elif config and hasattr(config, "data") and isinstance(config.data, dict):
+            self.backend_mode = str(config.data.get("backend", {}).get("mode", "auto")).lower()
+        elif config and hasattr(config, "has_section") and config.has_section("backend"):
+            self.backend_mode = str(config.get("backend", "mode", fallback="auto")).lower()
+
+        self.enabled = (self.backend_mode != "dinput")
+        if not self.enabled:
+            return
+
+        if config and hasattr(config, "has_section") and config.has_section('hardware_chords'):
             for key, val in config.items('hardware_chords'):
                 parts = dict(p.strip().split('=') for p in val.split(';') if '=' in p)
                 if 'chord' in parts and 'action' in parts:
@@ -94,6 +106,9 @@ class HardwareChordEngine:
         self.last_report_time = now
 
     def process(self, state: ControllerState) -> ControllerState:
+        if not self.enabled:
+            return state
+            
         now = time.time()
         
         # Reset all managed hardware chord action states to False before evaluating current frame state

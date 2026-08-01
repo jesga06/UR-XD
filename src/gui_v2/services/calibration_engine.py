@@ -151,7 +151,29 @@ class CalibrationEngine(QObject):
             ("rt", "triggers", f"Press the Right Trigger ({labels['rt']})"),
             ("dpad", "hat", "Press the D-Pad UP (Assuming standard Hat switch)")
         ]
-        for extra in self.extra_buttons:
+        extra_set = set(self.extra_buttons)
+        if existing_profile:
+            eb_dict = existing_profile.get("extra_buttons", {})
+            if isinstance(eb_dict, dict):
+                for k in eb_dict.keys():
+                    extra_set.add(str(k).strip().lower())
+            reports = existing_profile.get("reports", {})
+            if isinstance(reports, dict):
+                standard_keys = {
+                    'a', 'b', 'x', 'y', 'lb', 'rb', 'lt', 'rt',
+                    'select', 'start', 'home', 'l3', 'r3',
+                    'dpad', 'lx', 'ly', 'rx', 'ry'
+                }
+                for r in reports.values():
+                    inputs = r.get("inputs", {})
+                    if isinstance(inputs, dict):
+                        for in_name in inputs.keys():
+                            k = str(in_name).strip().lower()
+                            if k not in standard_keys:
+                                extra_set.add(k)
+
+        all_extra_buttons = sorted(list(extra_set))
+        for extra in all_extra_buttons:
             all_steps.append((extra, "buttons", f"Press the '{extra.upper()}' extra button"))
 
         if selected_keys is not None and len(selected_keys) > 0:

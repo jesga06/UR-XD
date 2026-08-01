@@ -622,6 +622,8 @@ class NativeCalibrationWizardDialog(QDialog):
             self.engine.reconfigure(self.layout_type, extra_names)
         elif idx == 2:
             self.engine.start()
+            self.back_btn.setEnabled(True)
+            return
 
         if idx < 5:
             idx += 1

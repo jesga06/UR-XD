@@ -148,27 +148,31 @@ class SelectiveCalibrationDialog(QDialog):
         main_layout.addLayout(btn_row)
 
     def _extract_existing_extra_buttons(self) -> List[str]:
-        extras: Set[str] = set()
-        eb_dict = self.existing_profile.get("extra_buttons", {})
-        if isinstance(eb_dict, dict):
-            for k in eb_dict.keys():
-                extras.add(str(k).strip().lower())
+        try:
+            from button_matrix import get_extra_button_actions
+            return get_extra_button_actions(self.existing_profile)
+        except Exception:
+            extras: Set[str] = set()
+            eb_dict = self.existing_profile.get("extra_buttons", {})
+            if isinstance(eb_dict, dict):
+                for k in eb_dict.keys():
+                    extras.add(str(k).strip().lower())
 
-        reports = self.existing_profile.get("reports", {})
-        standard_keys = {
-            'a', 'b', 'x', 'y', 'lb', 'rb', 'lt', 'rt',
-            'select', 'start', 'home', 'l3', 'r3',
-            'dpad', 'lx', 'ly', 'rx', 'ry'
-        }
-        if isinstance(reports, dict):
-            for r in reports.values():
-                inputs = r.get("inputs", {})
-                if isinstance(inputs, dict):
-                    for in_name in inputs.keys():
-                        k = str(in_name).strip().lower()
-                        if k not in standard_keys:
-                            extras.add(k)
-        return sorted(list(extras))
+            reports = self.existing_profile.get("reports", {})
+            standard_keys = {
+                'a', 'b', 'x', 'y', 'lb', 'rb', 'lt', 'rt',
+                'select', 'start', 'home', 'l3', 'r3',
+                'dpad', 'lx', 'ly', 'rx', 'ry'
+            }
+            if isinstance(reports, dict):
+                for r in reports.values():
+                    inputs = r.get("inputs", {})
+                    if isinstance(inputs, dict):
+                        for in_name in inputs.keys():
+                            k = str(in_name).strip().lower()
+                            if k not in standard_keys:
+                                extras.add(k)
+            return sorted(list(extras))
 
     def _select_all(self) -> None:
         for cb in self.checkboxes.values():
@@ -183,6 +187,15 @@ class SelectiveCalibrationDialog(QDialog):
         raw_extra = self.ent_new_extra_buttons.text().strip().lower()
         if raw_extra:
             self.new_extra_buttons = [x.strip() for x in raw_extra.split(",") if x.strip()]
+
+        standard_keys = {
+            'a', 'b', 'x', 'y', 'lb', 'rb', 'lt', 'rt',
+            'select', 'start', 'home', 'l3', 'r3',
+            'dpad', 'lx', 'ly', 'rx', 'ry', 'left_stick', 'right_stick'
+        }
+        for k in self.selected_inputs:
+            if k not in standard_keys and k not in self.new_extra_buttons:
+                self.new_extra_buttons.append(k)
 
         if not self.selected_inputs and not self.new_extra_buttons:
             from PySide6.QtWidgets import QMessageBox

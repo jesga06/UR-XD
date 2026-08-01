@@ -244,6 +244,14 @@ class StickCurveCanvas(QWidget):
         self.active_dot_idx: Optional[int] = None
         self.setMouseTracking(True)
 
+        try:
+            from gui_v2.services.theme_manager import ThemeManager
+            tm = ThemeManager.get_instance()
+            tm.staging_changed.connect(lambda _: self.update())
+            tm.theme_changed.connect(lambda _: self.update())
+        except Exception:
+            pass
+
     def update_params(
         self, dz: float, adz: float, rest_dz: float,
         curve_type: str, power: float, sens: float, custom_eq: str,
@@ -343,18 +351,20 @@ class StickCurveCanvas(QWidget):
             tm = ThemeManager.get_instance()
             accent_1 = tm.get_color("accent_1")
             accent_2 = tm.get_color("accent_2")
-            bg_color = tm.get_color("background")
+            graph_bg = tm.get_color("graph_bg")
+            graph_axis = tm.get_color("graph_axis")
         except Exception:
             accent_1 = QColor(168, 85, 247)
             accent_2 = QColor(0, 245, 160)
-            bg_color = QColor(22, 16, 36)
+            graph_bg = QColor(12, 9, 20)
+            graph_axis = QColor(168, 85, 247)
 
         w = self.width()
         h = self.height()
-        painter.fillRect(self.rect(), QColor(bg_color.red(), bg_color.green(), bg_color.blue(), 215))
+        painter.fillRect(self.rect(), QColor(graph_bg.red(), graph_bg.green(), graph_bg.blue(), 230))
 
         # Grid lines
-        painter.setPen(QPen(QColor(accent_1.red(), accent_1.green(), accent_1.blue(), 40), 1, Qt.DashLine))
+        painter.setPen(QPen(graph_axis, 1, Qt.DashLine))
         painter.drawLine(w // 2, 0, w // 2, h)
         painter.drawLine(0, h // 2, w, h // 2)
 

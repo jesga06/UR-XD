@@ -77,16 +77,19 @@ class StickRadar(QWidget):
         try:
             from gui_v2.services.theme_manager import ThemeManager
             tm = ThemeManager.get_instance()
+            tm.staging_changed.connect(self._update_theme_cache)
             tm.theme_changed.connect(self._update_theme_cache)
             self._update_theme_cache(tm.get_all_tokens())
         except Exception:
             self._fallback_theme_cache()
 
     def _fallback_theme_cache(self) -> None:
-        bg_color = QColor("#161024")
-        accent_1 = QColor("#a855f7")
-        accent_2 = QColor("#00f5a0")
-        self._rebuild_primitives(bg_color, accent_1, accent_2)
+        graph_bg = QColor("#0C0914")
+        graph_axis = QColor("#A855F7")
+        accent_1 = QColor("#A855F7")
+        accent_2 = QColor("#00F5A0")
+        outline = QColor("#A855F7")
+        self._rebuild_primitives(graph_bg, graph_axis, accent_1, accent_2, outline)
 
     @Slot(dict)
     def _update_theme_cache(self, tokens: dict) -> None:
@@ -94,29 +97,34 @@ class StickRadar(QWidget):
         try:
             from gui_v2.services.theme_manager import ThemeManager
             tm = ThemeManager.get_instance()
-            bg_color = tm.get_color("background")
+            graph_bg = tm.get_color("graph_bg")
+            graph_axis = tm.get_color("graph_axis")
             accent_1 = tm.get_color("accent_1")
             accent_2 = tm.get_color("accent_2")
-            self._rebuild_primitives(bg_color, accent_1, accent_2)
+            outline = tm.get_color("outline")
+            self._rebuild_primitives(graph_bg, graph_axis, accent_1, accent_2, outline)
             self.update()
         except Exception:
             self._fallback_theme_cache()
 
-    def _rebuild_primitives(self, bg_color: QColor, accent_1: QColor, accent_2: QColor) -> None:
-        card_bg = QColor(bg_color.red(), bg_color.green(), bg_color.blue(), 215)
+    def _rebuild_primitives(
+        self, graph_bg: QColor, graph_axis: QColor,
+        accent_1: QColor, accent_2: QColor, outline: QColor
+    ) -> None:
+        card_bg = QColor(graph_bg.red(), graph_bg.green(), graph_bg.blue(), 230)
         self._card_bg_brush.setStyle(Qt.BrushStyle.SolidPattern)
         self._card_bg_brush.setColor(card_bg)
 
-        self._border_pen.setColor(QColor(accent_1.red(), accent_1.green(), accent_1.blue(), 90))
+        self._border_pen.setColor(QColor(outline.red(), outline.green(), outline.blue(), 120))
         self._border_pen.setWidthF(1.5)
 
         self._title_pen.setColor(QColor(255, 255, 255, 220))
         self._coords_pen.setColor(QColor(accent_1.red(), accent_1.green(), accent_1.blue(), 200))
 
-        self._grid_pen.setColor(QColor(accent_1.red(), accent_1.green(), accent_1.blue(), 50))
+        self._grid_pen.setColor(graph_axis)
         self._grid_pen.setWidthF(1.0)
 
-        self._outer_pen.setColor(QColor(accent_1.red(), accent_1.green(), accent_1.blue(), 120))
+        self._outer_pen.setColor(graph_axis)
         self._outer_pen.setWidthF(1.5)
 
         self._poly_pen.setColor(QColor(accent_1.red(), accent_1.green(), accent_1.blue(), 200))

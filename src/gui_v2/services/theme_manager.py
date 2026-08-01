@@ -224,7 +224,7 @@ class ThemeManager(QObject):
         # 4. Outline Color
         outline_src_key = self.sources.get("outline_source", "accent_1")
         base_outline = self.base_colors.get(outline_src_key, self.base_colors.get("accent_1", "#A855F7FF"))
-        tokens["outline"] = self.set_hsv_value(base_outline, 0.50)
+        tokens["outline"] = base_outline
 
         # 5. Button Colors
         btn_src_key = self.sources.get("button_color_source", "accent_1")
@@ -766,35 +766,35 @@ QComboBox QAbstractItemView {{
 }}
 
 /* Interactive Buttons */
-QPushButton.accent-btn, QPushButton#action_btn {{
+QPushButton, QPushButton.accent-btn, QPushButton#action_btn {
     background-color: {btn_bg_rgba};
-    border: 1px solid {border_hover};
-    color: {text_hex};
-    border-radius: 6px;
-    padding: 8px 14px;
-    font-weight: bold;
-}}
-
-QPushButton.accent-btn:hover, QPushButton#action_btn:hover {{
-    background-color: {btn_hover_rgba};
     border: 1px solid {border_outline};
-}}
-
-QPushButton.accent-btn:pressed, QPushButton#action_btn:pressed {{
-    background-color: {btn_pressed_rgba};
-}}
-
-QPushButton.secondary-btn {{
-    background-color: rgba(255, 255, 255, 0.08);
-    border: 1px solid rgba(255, 255, 255, 0.20);
     color: {text_hex};
     border-radius: 6px;
     padding: 6px 12px;
-}}
+    font-weight: bold;
+}
 
-QPushButton.secondary-btn:hover {{
-    background-color: rgba(255, 255, 255, 0.15);
-}}
+QPushButton:hover, QPushButton.accent-btn:hover, QPushButton#action_btn:hover {
+    background-color: {btn_hover_rgba};
+    border: 1px solid #ffffff;
+}
+
+QPushButton:pressed, QPushButton.accent-btn:pressed, QPushButton#action_btn:pressed {
+    background-color: {btn_pressed_rgba};
+}
+
+QPushButton.secondary-btn {
+    background-color: rgba(255, 255, 255, 0.08);
+    border: 1px solid {border_outline};
+    color: {text_hex};
+    border-radius: 6px;
+    padding: 6px 12px;
+}
+
+QPushButton.secondary-btn:hover {
+    background-color: {btn_hover_rgba};
+}
 
 /* Checkboxes */
 QCheckBox {{

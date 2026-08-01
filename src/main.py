@@ -403,6 +403,7 @@ def main():
         macro_executor = MacroExecutor(mapper)
         mapper.macro_executor = macro_executor
         mapper.virtual_pad = virtual_pad
+        virtual_pad.mapper = mapper
         
         # Initialize Hardware Chord Engine
         active_backend_mode = "dinput" if isinstance(backend, DInputBackend) else "xinput"

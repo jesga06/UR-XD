@@ -322,14 +322,16 @@ class VirtualPad:
         if getattr(self, 'digital_rt', False):
             rt_val = 1.0 if rt_val > 0 else 0.0
 
-        if not paused and 'lt' in self.blocked_buttons:
+        is_lt_blocked = ('lt' in consumed) or ('lt' in active_layer_blocks)
+        if not paused and is_lt_blocked:
             self.gamepad.left_trigger_float(value_float=0.0)
         elif not paused and 'lt' in self.macro_pressed_buttons:
             self.gamepad.left_trigger_float(value_float=1.0)
         else:
             self.gamepad.left_trigger_float(value_float=lt_val)
 
-        if not paused and 'rt' in self.blocked_buttons:
+        is_rt_blocked = ('rt' in consumed) or ('rt' in active_layer_blocks)
+        if not paused and is_rt_blocked:
             self.gamepad.right_trigger_float(value_float=0.0)
         elif not paused and 'rt' in self.macro_pressed_buttons:
             self.gamepad.right_trigger_float(value_float=1.0)
@@ -341,7 +343,8 @@ class VirtualPad:
         ly_val = state.ly
         rx_val = state.rx
         ry_val = state.ry
-        if 'ls' in self.blocked_buttons:
+        is_ls_blocked = ('ls' in consumed) or ('ls' in active_layer_blocks)
+        if is_ls_blocked or ('ls' in self.blocked_buttons):
             lx_val, ly_val = 0.0, 0.0
         else:
             # 1. Apply Warped Stick Correction
@@ -357,7 +360,8 @@ class VirtualPad:
             else:
                 lx_val, ly_val = math_utils.process_analog_stick(lx_val, ly_val, self.ls_inner, self.ls_adz, self.ls_curve, self.ls_power, getattr(self, 'ls_rest_dz', 0.0), getattr(self, 'ls_sens', 1.0), getattr(self, 'ls_custom', ''))
 
-        if 'rs' in self.blocked_buttons:
+        is_rs_blocked = ('rs' in consumed) or ('rs' in active_layer_blocks)
+        if is_rs_blocked or ('rs' in self.blocked_buttons):
             rx_val, ry_val = 0.0, 0.0
         else:
             # 1. Apply Warped Stick Correction
@@ -381,12 +385,6 @@ class VirtualPad:
 
         self.gamepad.left_joystick(x_value=lx_int, y_value=ly_int)
         self.gamepad.right_joystick(x_value=rx_int, y_value=ry_int)
-
-        # Determine active layer blocks & consumed shift buttons
-        mapper_ref = getattr(self, 'mapper', None)
-        active_layer_id = getattr(mapper_ref, 'active_layer', 'layer_base') if mapper_ref else 'layer_base'
-        consumed = getattr(mapper_ref, 'consumed_shift_buttons', set()) if mapper_ref else set()
-        active_layer_blocks = getattr(self, 'layer_blocked_buttons', {}).get(active_layer_id, self.blocked_buttons)
 
         # Helper function for pressing or releasing standard buttons
         def handle_btn(btn_name, state_val, xusb_btn):

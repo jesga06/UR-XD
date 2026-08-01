@@ -1,4 +1,5 @@
 import unittest
+import sys
 import os
 import tempfile
 import json
@@ -89,8 +90,17 @@ class TestShiftLayersConfig(unittest.TestCase):
             if os.path.exists(temp_path):
                 os.remove(temp_path)
 
+from unittest.mock import patch, MagicMock
+
+if 'hid' not in sys.modules:
+    try:
+        import hid
+    except (ImportError, Exception):
+        sys.modules['hid'] = MagicMock()
+
 from src.mapper import Mapper
 from src.decoder import ControllerState
+from src.virtual_pad import VirtualPad
 import time
 
 class TestMapperShiftLayers(unittest.TestCase):

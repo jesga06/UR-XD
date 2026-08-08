@@ -231,11 +231,10 @@ class VirtualPad:
                     if key_lower == 'home' and val:
                         self.home_mapping = val.lower()
 
-                    if key_lower in valid_buttons:
-                        should_block = block_prefs.get(key_lower, True)
-                        if should_block:
-                            base_blocked.add(key_lower)
-                            self.blocked_buttons.add(key_lower)
+                    if key_lower in valid_buttons and key_lower not in block_prefs:
+                        # Default to block remapped inputs if no explicit block setting exists
+                        base_blocked.add(key_lower)
+                        self.blocked_buttons.add(key_lower)
 
         self.layer_blocked_buttons['layer_base'] = base_blocked
 
@@ -255,11 +254,13 @@ class VirtualPad:
             s_block = s_layer.get('block_xinput', {})
             s_blocked = set()
 
+            s_block_prefs = {}
             if isinstance(s_block, dict):
                 for key, val in s_block.items():
                     key_lower = key.lower()
                     if key_lower in valid_buttons:
                         b_val = val if isinstance(val, bool) else str(val).lower() != 'false'
+                        s_block_prefs[key_lower] = b_val
                         if b_val:
                             s_blocked.add(key_lower)
                             self.blocked_buttons.add(key_lower)
@@ -267,12 +268,9 @@ class VirtualPad:
             if isinstance(s_mappings, dict):
                 for key, val in s_mappings.items():
                     key_lower = key.lower()
-                    if key_lower in valid_buttons:
-                        should_b = s_block.get(key_lower, True)
-                        b_val = should_b if isinstance(should_b, bool) else str(should_b).lower() != 'false'
-                        if b_val:
-                            s_blocked.add(key_lower)
-                            self.blocked_buttons.add(key_lower)
+                    if key_lower in valid_buttons and key_lower not in s_block_prefs:
+                        s_blocked.add(key_lower)
+                        self.blocked_buttons.add(key_lower)
 
             self.layer_blocked_buttons[s_id] = s_blocked
 

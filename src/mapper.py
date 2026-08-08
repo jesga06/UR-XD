@@ -62,7 +62,10 @@ class Mapper:
         self.haptic_engine = engine
 
     def reload_config(self, config):
-        logger.debug(f"[MAPPER] reload_config() called — active_layer={self.active_layer}")
+        logger.debug(f"[MAPPER] reload_config() called — active_layer={getattr(self, 'active_layer', 'layer_base')}")
+        prev_active_layer = getattr(self, 'active_layer', 'layer_base')
+        prev_toggled = set(getattr(self, 'toggled_shift_layers', set()))
+
         self.mappings = {'layer_base': {}}
         self.chords = []
         self.shift_layers = []
@@ -144,6 +147,16 @@ class Mapper:
                     keys_to_remove.append(key)
             for k in keys_to_remove:
                 del self.mappings[layer][k]
+
+        # Restore active layer state if still valid
+        valid_layers = set(self.mappings.keys())
+        valid_shift_ids = {l.get('id') for l in self.shift_layers if isinstance(l, dict)}
+        if prev_active_layer in valid_layers or prev_active_layer in valid_shift_ids:
+            self.active_layer = prev_active_layer
+        else:
+            self.active_layer = 'layer_base'
+
+        self.toggled_shift_layers = {lid for lid in prev_toggled if lid in valid_shift_ids}
 
     def _mouse_interpolation_loop(self):
         # Runs at 250Hz for smooth mouse movement

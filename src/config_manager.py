@@ -50,6 +50,15 @@ class ControllerConfig:
             "shift_block_xinput": {},
             "shift_layers": [
                 {
+                    "id": "layer_base",
+                    "name": "Base Layer",
+                    "trigger_button": "",
+                    "modifier_button": "",
+                    "mode": "hold",
+                    "mappings": {},
+                    "block_xinput": {}
+                },
+                {
                     "id": "shift_1",
                     "name": "Shift Layer 1",
                     "trigger_button": "",

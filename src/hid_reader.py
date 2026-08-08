@@ -171,6 +171,14 @@ class HIDReader:
 
         print("Timeout reached, device not found.")
         logger.error("Timeout reached, device not found.")
+        try:
+            import json, tempfile, os
+            with tempfile.NamedTemporaryFile('w', dir='.', delete=False, encoding='utf-8') as tf:
+                json.dump({"status": "Disconnected", "device": "None"}, tf)
+                temp_name = tf.name
+            os.replace(temp_name, 'status.json')
+        except Exception as ex:
+            logger.error(f"Error updating status.json on disconnect timeout: {ex}")
         return False
 
     def stop(self):

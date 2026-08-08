@@ -27,14 +27,14 @@ DEFAULT_BASE_COLORS: Dict[str, str] = {
 
 DEFAULT_SOURCES: Dict[str, str] = {
     "button_color_source": "accent_1",   # accent_1 | accent_2
-    "widget_bg_source": "window_bg",     # window_bg | accent_1 | accent_2
-    "outline_source": "accent_1",        # accent_1 | accent_2
-    "graph_axis_source": "accent_1"      # window_bg | accent_1 | accent_2
+    "widget_bg_source": "accent_1",     # window_bg | accent_1 | accent_2
+    "outline_source": "accent_2",        # accent_1 | accent_2
+    "graph_axis_source": "accent_2"      # window_bg | accent_1 | accent_2
 }
 
 DEFAULT_BRIGHTNESS: Dict[str, int] = {
-    "widget_brightness": 0,             # Absolute HSV Value percentage (0 to 20)
-    "graph_brightness": 0,              # Absolute HSV Value percentage (0 to 20)
+    "widget_brightness": 15,            # Absolute HSV Value percentage (0 to 20)
+    "graph_brightness": 5,              # Absolute HSV Value percentage (0 to 20)
     "graph_axis_brightness": 50         # Absolute HSV Value percentage (0 to 100)
 }
 
@@ -338,12 +338,13 @@ class ThemeManager(QObject):
             self.recalculate_theme()
 
     def reset_defaults(self) -> None:
-        """Restores default system theme tokens, sources, and sliders."""
-        self.base_colors = DEFAULT_BASE_COLORS.copy()
-        self.sources = DEFAULT_SOURCES.copy()
-        self.brightness = DEFAULT_BRIGHTNESS.copy()
-        self.active_theme_name = "Neon Purple"
-        self.recalculate_theme()
+        """Switches active theme to Neon Purple preset."""
+        if not self.apply_theme_by_name("Neon Purple"):
+            self.base_colors = DEFAULT_BASE_COLORS.copy()
+            self.sources = DEFAULT_SOURCES.copy()
+            self.brightness = DEFAULT_BRIGHTNESS.copy()
+            self.active_theme_name = "Neon Purple"
+            self.recalculate_theme()
 
     def get_available_themes(self, invalidate_cache: bool = False) -> Dict[str, Dict[str, Any]]:
         """
@@ -766,35 +767,35 @@ QComboBox QAbstractItemView {{
 }}
 
 /* Interactive Buttons */
-QPushButton, QPushButton.accent-btn, QPushButton#action_btn {
+QPushButton, QPushButton.accent-btn, QPushButton#action_btn {{
     background-color: {btn_bg_rgba};
     border: 1px solid {border_outline};
     color: {text_hex};
     border-radius: 6px;
     padding: 6px 12px;
     font-weight: bold;
-}
+}}
 
-QPushButton:hover, QPushButton.accent-btn:hover, QPushButton#action_btn:hover {
+QPushButton:hover, QPushButton.accent-btn:hover, QPushButton#action_btn:hover {{
     background-color: {btn_hover_rgba};
     border: 1px solid #ffffff;
-}
+}}
 
-QPushButton:pressed, QPushButton.accent-btn:pressed, QPushButton#action_btn:pressed {
+QPushButton:pressed, QPushButton.accent-btn:pressed, QPushButton#action_btn:pressed {{
     background-color: {btn_pressed_rgba};
-}
+}}
 
-QPushButton.secondary-btn {
+QPushButton.secondary-btn {{
     background-color: rgba(255, 255, 255, 0.08);
     border: 1px solid {border_outline};
     color: {text_hex};
     border-radius: 6px;
     padding: 6px 12px;
-}
+}}
 
-QPushButton.secondary-btn:hover {
+QPushButton.secondary-btn:hover {{
     background-color: {btn_hover_rgba};
-}
+}}
 
 /* Checkboxes */
 QCheckBox {{

@@ -1,0 +1,20 @@
+{
+    "name": "Citric Green",
+    "base_colors": {
+        "window_bg": "#000000FF",
+        "accent_1": "#22C55EFF",
+        "accent_2": "#A855F7FF",
+        "text": "#FFFFFFFF"
+    },
+    "sources": {
+        "button_color_source": "accent_1",
+        "widget_bg_source": "accent_1",
+        "outline_source": "accent_2",
+        "graph_axis_source": "accent_2"
+    },
+    "brightness": {
+        "widget_brightness": 15,
+        "graph_brightness": 5,
+        "graph_axis_brightness": 50
+    }
+}

@@ -146,6 +146,11 @@ class CustomizationView(QWidget):
         export_btn.clicked.connect(self.export_theme_dialog)
         row2_layout.addWidget(export_btn)
 
+        invert_btn = QPushButton("🔀 Invert Accents")
+        invert_btn.setCursor(Qt.CursorShape.PointingHandCursor)
+        invert_btn.clicked.connect(self.invert_accents)
+        row2_layout.addWidget(invert_btn)
+
         reset_btn = QPushButton("🔄 Reset Defaults")
         reset_btn.setCursor(Qt.CursorShape.PointingHandCursor)
         reset_btn.clicked.connect(self.reset_default_theme)
@@ -807,6 +812,18 @@ class CustomizationView(QWidget):
                 QMessageBox.information(self, "Theme Exported", f"Theme saved to:\n{file_path}")
             else:
                 QMessageBox.warning(self, "Export Failed", "Could not export the theme file.")
+
+    def invert_accents(self):
+        """Swaps Accent #1 and Accent #2 base colors and recalculates theme."""
+        acc1 = self.theme_mgr.get_color("accent_1")
+        acc2 = self.theme_mgr.get_color("accent_2")
+        acc1_hex = color_to_hex8(acc1)
+        acc2_hex = color_to_hex8(acc2)
+        
+        self.theme_mgr.set_base_color("accent_1", acc2_hex)
+        self.theme_mgr.set_base_color("accent_2", acc1_hex)
+        self.sync_controls_from_theme_mgr()
+        self._mark_custom_theme_active()
 
     def reset_default_theme(self):
         """Restores factory default theme configuration."""

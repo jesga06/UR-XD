@@ -61,8 +61,60 @@ class VirtualPad:
             print(f"Warning: Could not register vgamepad notifications: {e}")
             logger.warning(f"Could not register vgamepad notifications: {e}", exc_info=True)
 
+        # Detect virtual pad XInput slot ID and register with XInputBackend
+        self.virtual_slot = self._detect_virtual_xinput_slot()
+        if self.virtual_slot >= 0:
+            try:
+                from backend_xinput import XInputBackend
+                XInputBackend.set_virtual_slot(self.virtual_slot)
+            except Exception:
+                pass
+
         # Always load default attributes (and apply config if provided)
         self.reload_config(config)
+
+    def _detect_virtual_xinput_slot(self) -> int:
+        """Determines the XInput slot index (0..3) assigned to this virtual gamepad."""
+        try:
+            import ctypes
+            import time
+            xinput = None
+            for dll in ("xinput1_4.dll", "xinput1_3.dll", "xinput9_1_0.dll"):
+                try:
+                    xinput = ctypes.windll.LoadLibrary(dll)
+                    break
+                except Exception:
+                    pass
+            if not xinput:
+                return -1
+
+            class XINPUT_GAMEPAD(ctypes.Structure):
+                _fields_ = [("wButtons", ctypes.c_ushort), ("bLT", ctypes.c_ubyte), ("bRT", ctypes.c_ubyte),
+                            ("sLX", ctypes.c_short), ("sLY", ctypes.c_short), ("sRX", ctypes.c_short), ("sRY", ctypes.c_short)]
+
+            class XINPUT_STATE(ctypes.Structure):
+                _fields_ = [("dwPacketNumber", ctypes.c_ulong), ("Gamepad", XINPUT_GAMEPAD)]
+
+            state = XINPUT_STATE()
+            self.gamepad.press_button(vg.XUSB_BUTTON.XUSB_GAMEPAD_BACK)
+            self.gamepad.press_button(vg.XUSB_BUTTON.XUSB_GAMEPAD_START)
+            self.gamepad.update()
+            time.sleep(0.02)
+
+            v_slot = -1
+            for i in range(4):
+                if getattr(xinput, "XInputGetState", lambda i, p: 1)(i, ctypes.byref(state)) == 0:
+                    if (state.Gamepad.wButtons & 0x0030) == 0x0030:
+                        v_slot = i
+                        break
+
+            self.gamepad.release_button(vg.XUSB_BUTTON.XUSB_GAMEPAD_BACK)
+            self.gamepad.release_button(vg.XUSB_BUTTON.XUSB_GAMEPAD_START)
+            self.gamepad.update()
+            return v_slot
+        except Exception as e:
+            logger.warning(f"Could not detect virtual pad slot: {e}")
+            return -1
 
     def set_rumble_callback(self, callback):
         """callback(left_motor: int, right_motor: int) -> 0-255"""

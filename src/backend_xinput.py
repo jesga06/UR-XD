@@ -54,6 +54,13 @@ XINPUT_GAMEPAD_Y                = 0x8000
 XINPUT_GAMEPAD_GUIDE            = 0x0400 # Undocumented, but usually works
 
 class XInputBackend(BaseInputBackend):
+    virtual_pad_slot: int = -1
+
+    @classmethod
+    def set_virtual_slot(cls, slot: int):
+        cls.virtual_pad_slot = slot
+        logger.info(f"XInputBackend registered virtual gamepad exclusion slot: {slot}")
+
     def __init__(self):
         super().__init__()
         self._load_xinput()
@@ -63,6 +70,10 @@ class XInputBackend(BaseInputBackend):
         self._thread = None
         self.poll_rate_hz = 500
         self.last_packet_number = -1
+        # HID presence cache — refreshed every 2s, never inside the 500Hz poll loop
+        self._physical_device_present: bool = True
+        self._physical_device_last_check: float = 0.0
+        self._PHYSICAL_CHECK_INTERVAL: float = 2.0
 
     def _load_xinput(self):
         self.xinput = None
@@ -104,57 +115,56 @@ class XInputBackend(BaseInputBackend):
             'extra_buttons': False # Hardware Chords synthesize them
         }
 
-    @staticmethod
-    def _has_physical_device() -> bool:
-        """Checks if any physical non-virtual controller is attached via HID enumeration."""
-        try:
-            import hid
-            devices = hid.enumerate()
-            for d in devices:
-                vid = d.get('vendor_id', 0)
-                pid = d.get('product_id', 0)
-                # Exclude virtual Xbox 360 controller created by ViGEmBus/vgamepad
-                if vid == 0x045E and pid == 0x028E:
-                    continue
-                prod = (d.get('product_string') or "").upper()
-                if any(kw in prod for kw in ("KEYBOARD", "MOUSE", "KB")):
-                    continue
-                return True
-        except Exception:
-            return True
-        return False
-
     def initialize(self) -> bool:
         if not self.xinput:
             return False
         
-        if not self._has_physical_device():
-            return False
-        
         state = XINPUT_STATE()
+        # If target_slot is the excluded virtual pad slot, clear it
+        if self.target_slot == XInputBackend.virtual_pad_slot:
+            self.target_slot = -1
+
         # If a target slot was previously established, check if physical controller reconnected to it
-        if self.target_slot >= 0:
+        if self.target_slot >= 0 and self.target_slot != XInputBackend.virtual_pad_slot:
             if self.XInputGetState(self.target_slot, ctypes.byref(state)) == 0:
                 self.connected_slot = self.target_slot
                 return True
 
-        # Scan slots 0-3
+        # Scan slots 0-3 excluding VirtualPad's slot
         for i in range(4):
+            if i == XInputBackend.virtual_pad_slot:
+                continue
             if self.XInputGetState(i, ctypes.byref(state)) == 0:
                 self.connected_slot = i
                 self.target_slot = i
-                logger.info(f"XInput controller found on slot {i}")
+                logger.info(f"XInput physical controller found on slot {i}")
                 return True
         return False
 
     def get_connection_state(self) -> bool:
         if self.connected_slot < 0 or not self.xinput:
             return False
-        if not self._has_physical_device():
-            return False
         state = XINPUT_STATE()
-        res = self.XInputGetState(self.connected_slot, ctypes.byref(state))
-        return res == 0
+        return self.XInputGetState(self.connected_slot, ctypes.byref(state)) == 0
+
+    def _refresh_physical_device_cache(self) -> None:
+        """Refreshes the HID physical-device presence flag (slow path, every 2s)."""
+        try:
+            import hid
+            devices = hid.enumerate()
+            for d in devices:
+                vid = d.get('vendor_id', 0)
+                pid = d.get('product_id', 0)
+                if vid == 0x045E and pid == 0x028E:
+                    continue
+                prod = (d.get('product_string') or "").upper()
+                if any(kw in prod for kw in ("KEYBOARD", "MOUSE", "KB")):
+                    continue
+                self._physical_device_present = True
+                return
+            self._physical_device_present = False
+        except Exception:
+            self._physical_device_present = True  # Fail open
 
     def shutdown(self):
         self.is_running = False
@@ -211,43 +221,51 @@ class XInputBackend(BaseInputBackend):
                 get_state_func = self.XInputGetState
                 res = get_state_func(self.connected_slot, ctypes.byref(state))
 
-            if res == 0 and self._has_physical_device():
-                consecutive_errors = 0
-                gp = state.Gamepad
-                
-                # Zero-allocation reuse of persistent ControllerState
-                if not hasattr(self, '_state_cache') or self._state_cache is None:
-                    self._state_cache = ControllerState()
-                cs = self._state_cache
-                
-                btns = gp.wButtons
-                cs.dpad_up = bool(btns & XINPUT_GAMEPAD_DPAD_UP)
-                cs.dpad_down = bool(btns & XINPUT_GAMEPAD_DPAD_DOWN)
-                cs.dpad_left = bool(btns & XINPUT_GAMEPAD_DPAD_LEFT)
-                cs.dpad_right = bool(btns & XINPUT_GAMEPAD_DPAD_RIGHT)
-                
-                cs.start = bool(btns & XINPUT_GAMEPAD_START)
-                cs.select = bool(btns & XINPUT_GAMEPAD_BACK)
-                cs.l3 = bool(btns & XINPUT_GAMEPAD_LEFT_THUMB)
-                cs.r3 = bool(btns & XINPUT_GAMEPAD_RIGHT_THUMB)
-                cs.lb = bool(btns & XINPUT_GAMEPAD_LEFT_SHOULDER)
-                cs.rb = bool(btns & XINPUT_GAMEPAD_RIGHT_SHOULDER)
-                cs.a = bool(btns & XINPUT_GAMEPAD_A)
-                cs.b = bool(btns & XINPUT_GAMEPAD_B)
-                cs.x = bool(btns & XINPUT_GAMEPAD_X)
-                cs.y = bool(btns & XINPUT_GAMEPAD_Y)
-                cs.home = bool(btns & XINPUT_GAMEPAD_GUIDE)
-                
-                cs.lt = gp.bLeftTrigger / 255.0
-                cs.rt = gp.bRightTrigger / 255.0
-                
-                cs.lx = self._normalize_axis(gp.sThumbLX)
-                cs.ly = self._normalize_axis(gp.sThumbLY)
-                cs.rx = self._normalize_axis(gp.sThumbRX)
-                cs.ry = self._normalize_axis(gp.sThumbRY)
-                
-                if self.callback:
-                    self.callback(cs)
+            if res == 0:
+                # Refresh physical-device HID cache on slow timer, never per-poll
+                now = time.time()
+                if now - self._physical_device_last_check >= self._PHYSICAL_CHECK_INTERVAL:
+                    self._physical_device_last_check = now
+                    self._refresh_physical_device_cache()
+                if not self._physical_device_present:
+                    consecutive_errors += 1
+                else:
+                    consecutive_errors = 0
+                    gp = state.Gamepad
+
+                    # Zero-allocation reuse of persistent ControllerState
+                    if not hasattr(self, '_state_cache') or self._state_cache is None:
+                        self._state_cache = ControllerState()
+                    cs = self._state_cache
+
+                    btns = gp.wButtons
+                    cs.dpad_up = bool(btns & XINPUT_GAMEPAD_DPAD_UP)
+                    cs.dpad_down = bool(btns & XINPUT_GAMEPAD_DPAD_DOWN)
+                    cs.dpad_left = bool(btns & XINPUT_GAMEPAD_DPAD_LEFT)
+                    cs.dpad_right = bool(btns & XINPUT_GAMEPAD_DPAD_RIGHT)
+
+                    cs.start = bool(btns & XINPUT_GAMEPAD_START)
+                    cs.select = bool(btns & XINPUT_GAMEPAD_BACK)
+                    cs.l3 = bool(btns & XINPUT_GAMEPAD_LEFT_THUMB)
+                    cs.r3 = bool(btns & XINPUT_GAMEPAD_RIGHT_THUMB)
+                    cs.lb = bool(btns & XINPUT_GAMEPAD_LEFT_SHOULDER)
+                    cs.rb = bool(btns & XINPUT_GAMEPAD_RIGHT_SHOULDER)
+                    cs.a = bool(btns & XINPUT_GAMEPAD_A)
+                    cs.b = bool(btns & XINPUT_GAMEPAD_B)
+                    cs.x = bool(btns & XINPUT_GAMEPAD_X)
+                    cs.y = bool(btns & XINPUT_GAMEPAD_Y)
+                    cs.home = bool(btns & XINPUT_GAMEPAD_GUIDE)
+
+                    cs.lt = gp.bLeftTrigger / 255.0
+                    cs.rt = gp.bRightTrigger / 255.0
+
+                    cs.lx = self._normalize_axis(gp.sThumbLX)
+                    cs.ly = self._normalize_axis(gp.sThumbLY)
+                    cs.rx = self._normalize_axis(gp.sThumbRX)
+                    cs.ry = self._normalize_axis(gp.sThumbRY)
+
+                    if self.callback:
+                        self.callback(cs)
             else:
                 consecutive_errors += 1
                 if consecutive_errors >= max_consecutive_errors:
@@ -266,9 +284,10 @@ class XInputBackend(BaseInputBackend):
                         os.replace(temp_name, 'status.json')
                     except Exception as se:
                         logger.error(f"Error updating status on disconnect: {se}")
-                
+
             elapsed = time.time() - start_t
             time.sleep(max(0, sleep_interval - elapsed))
+
 
     def start_polling_thread(self):
         self._thread = threading.Thread(target=self.poll, daemon=True)

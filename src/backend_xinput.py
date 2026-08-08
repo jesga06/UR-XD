@@ -104,8 +104,31 @@ class XInputBackend(BaseInputBackend):
             'extra_buttons': False # Hardware Chords synthesize them
         }
 
+    @staticmethod
+    def _has_physical_device() -> bool:
+        """Checks if any physical non-virtual controller is attached via HID enumeration."""
+        try:
+            import hid
+            devices = hid.enumerate()
+            for d in devices:
+                vid = d.get('vendor_id', 0)
+                pid = d.get('product_id', 0)
+                # Exclude virtual Xbox 360 controller created by ViGEmBus/vgamepad
+                if vid == 0x045E and pid == 0x028E:
+                    continue
+                prod = (d.get('product_string') or "").upper()
+                if any(kw in prod for kw in ("KEYBOARD", "MOUSE", "KB")):
+                    continue
+                return True
+        except Exception:
+            return True
+        return False
+
     def initialize(self) -> bool:
         if not self.xinput:
+            return False
+        
+        if not self._has_physical_device():
             return False
         
         state = XINPUT_STATE()
@@ -126,6 +149,8 @@ class XInputBackend(BaseInputBackend):
 
     def get_connection_state(self) -> bool:
         if self.connected_slot < 0 or not self.xinput:
+            return False
+        if not self._has_physical_device():
             return False
         state = XINPUT_STATE()
         res = self.XInputGetState(self.connected_slot, ctypes.byref(state))
@@ -186,7 +211,7 @@ class XInputBackend(BaseInputBackend):
                 get_state_func = self.XInputGetState
                 res = get_state_func(self.connected_slot, ctypes.byref(state))
 
-            if res == 0:
+            if res == 0 and self._has_physical_device():
                 consecutive_errors = 0
                 gp = state.Gamepad
                 
@@ -228,7 +253,19 @@ class XInputBackend(BaseInputBackend):
                 if consecutive_errors >= max_consecutive_errors:
                     logger.warning(f"XInput controller on slot {self.connected_slot} lost connection after {consecutive_errors} consecutive errors.")
                     self.connected_slot = -1
+                    self.target_slot = -1
                     consecutive_errors = 0
+                    try:
+                        import tempfile
+                        import os
+                        import json
+                        dir_name = os.path.dirname(os.path.abspath('status.json')) or '.'
+                        with tempfile.NamedTemporaryFile('w', dir=dir_name, delete=False, encoding='utf-8') as tf:
+                            json.dump({"status": "DISCONNECTED", "device": "No Controller Connected"}, tf)
+                            temp_name = tf.name
+                        os.replace(temp_name, 'status.json')
+                    except Exception as se:
+                        logger.error(f"Error updating status on disconnect: {se}")
                 
             elapsed = time.time() - start_t
             time.sleep(max(0, sleep_interval - elapsed))

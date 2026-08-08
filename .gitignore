@@ -13,8 +13,12 @@ balanced-prototype/
 diagnostics.json
 config.ini
 profiles/
-docs/gui-related-docs/
 themes/custom_theme.json
+themes/user
 .releaseignore
 bundle_release.py
-release_bundle.zip
+bundle_release.bat
+release_bundle.zip
+apm_modules/
+apm*
+.agents/architecture_cache.md

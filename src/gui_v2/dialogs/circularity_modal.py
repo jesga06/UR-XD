@@ -135,12 +135,13 @@ class CircularityPolarCanvas(QWidget):
         self._last_paint_time: float = 0.0
         self._frame_delay_sec: float = 1.0 / 60.0
 
-    def update_data(self, bounds: List[float], cx: float, cy: float, lx: float, ly: float) -> None:
+    def update_data(self, bounds: List[float], cx: float, cy: float, lx: float, ly: float, is_sweeping: bool = False) -> None:
         self.bounds_data = bounds
         self.center_x = cx
         self.center_y = cy
         self.live_x = lx
         self.live_y = ly
+        self.is_sweeping = is_sweeping
 
         import time
         now = time.perf_counter()
@@ -189,8 +190,8 @@ class CircularityPolarCanvas(QWidget):
         painter.drawLine(QPointF(cx - max_r - 5, cy), QPointF(cx + max_r + 5, cy))
         painter.drawLine(QPointF(cx, cy - max_r - 5), QPointF(cx, cy + max_r + 5))
 
-        # 3. Draw 360-degree Bounds Polygon (Accent #2)
-        if self.bounds_data and any(r > 0.05 for r in self.bounds_data):
+        # 3. Draw 360-degree Bounds Polygon (Accent #2) — rendered when not actively sweeping
+        if not getattr(self, 'is_sweeping', False) and self.bounds_data and any(r > 0.05 for r in self.bounds_data):
             poly = QPolygonF()
             for deg in range(360):
                 r_val = min(1.3, max(0.0, self.bounds_data[deg]))
@@ -442,8 +443,9 @@ class CircularityCalibrationModal(QDialog):
         elif self.calib_state == "DONE":
             pass
 
-        # Update Polar Canvas
-        self.canvas.update_data(self.bounds_data, self.center_x, self.center_y, lx, ly)
+        # Update Polar Canvas (skips polygon draw during active SWEEP for 60 FPS performance)
+        is_sweeping_active = (self.calib_state == "SWEEP")
+        self.canvas.update_data(self.bounds_data, self.center_x, self.center_y, lx, ly, is_sweeping=is_sweeping_active)
 
     def start_sweep(self) -> None:
         """Transitions state machine from WAIT_SWEEP to SWEEP."""

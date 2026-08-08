@@ -45,6 +45,9 @@ class DashboardView(QWidget):
         self.controller_config = controller_config
         self.last_active_chord: str = ""
         self._current_state: ConnectionState = ConnectionState.WAITING
+        # Cached parsed circularity bounds — updated on config load, read in 144Hz loop
+        self._ls_bounds_cache: object = None
+        self._rs_bounds_cache: object = None
 
         self.decision_engine = ProfileDecisionEngine(self)
         self.decision_engine.profile_resolved.connect(self._on_profile_resolved)
@@ -279,6 +282,30 @@ class DashboardView(QWidget):
         self.controller_config = controller_config
         self._sync_config()
 
+    def _parse_bounds(self, raw: str):
+        """Parses a comma-separated bounds string into a 360-float list, or None."""
+        if not raw:
+            return None
+        parts = raw.split(",")
+        if len(parts) != 360:
+            return None
+        try:
+            return [float(x) for x in parts]
+        except ValueError:
+            return None
+
+    def _cache_circularity_config(self) -> None:
+        """Pre-parses circularity_bounds strings once at config load time."""
+        if self.controller_config:
+            data = getattr(self.controller_config, 'data', {})
+            ls_str = str(data.get("analog_left", {}).get("circularity_bounds", ""))
+            rs_str = str(data.get("analog_right", {}).get("circularity_bounds", ""))
+            self._ls_bounds_cache = self._parse_bounds(ls_str)
+            self._rs_bounds_cache = self._parse_bounds(rs_str)
+        else:
+            self._ls_bounds_cache = None
+            self._rs_bounds_cache = None
+
     def _sync_config(self) -> None:
         if self.controller_config:
             if hasattr(self, 'button_matrix'):
@@ -289,6 +316,7 @@ class DashboardView(QWidget):
                 self.left_radar.set_deadzone(ls_dz)
             if hasattr(self, 'right_radar') and hasattr(self.right_radar, 'set_deadzone'):
                 self.right_radar.set_deadzone(rs_dz)
+        self._cache_circularity_config()
 
     def get_active_device_info(self) -> Optional[dict]:
         """
@@ -430,8 +458,8 @@ class DashboardView(QWidget):
             ls_circ_mode = str(cfg_ls.get("circularity_mode", "disabled")).lower()
             ls_cx = float(cfg_ls.get("circularity_center_x", 0.0))
             ls_cy = float(cfg_ls.get("circularity_center_y", 0.0))
-            ls_bounds_str = str(cfg_ls.get("circularity_bounds", ""))
-            ls_bounds = [float(x) for x in ls_bounds_str.split(",")] if ls_bounds_str and len(ls_bounds_str.split(",")) == 360 else None
+            # Use pre-parsed cache — never split/float-convert inside 144Hz loop
+            ls_bounds = self._ls_bounds_cache
 
             out_lx, out_ly = math_utils.apply_warped_stick_correction(lx, ly, ls_warp)
             if ls_circ_mode == "before":
@@ -458,8 +486,8 @@ class DashboardView(QWidget):
             rs_circ_mode = str(cfg_rs.get("circularity_mode", "disabled")).lower()
             rs_cx = float(cfg_rs.get("circularity_center_x", 0.0))
             rs_cy = float(cfg_rs.get("circularity_center_y", 0.0))
-            rs_bounds_str = str(cfg_rs.get("circularity_bounds", ""))
-            rs_bounds = [float(x) for x in rs_bounds_str.split(",")] if rs_bounds_str and len(rs_bounds_str.split(",")) == 360 else None
+            # Use pre-parsed cache — never split/float-convert inside 144Hz loop
+            rs_bounds = self._rs_bounds_cache
 
             out_rx, out_ry = math_utils.apply_warped_stick_correction(rx, ry, rs_warp)
             if rs_circ_mode == "before":

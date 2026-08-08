@@ -598,7 +598,11 @@ class TuningView(QWidget):
     def __init__(self, config_manager: Any = None, parent=None, controller_config: Any = None):
         super().__init__(parent)
         self.config = config_manager if config_manager is not None else controller_config
-
+        # Cached parsed circularity bounds — computed once, invalidated after sweep saves
+        # Sentinel value None means "not yet computed"; False means "no valid bounds"
+        self._ls_bounds_cache: object = None
+        self._rs_bounds_cache: object = None
+        self._bounds_cache_valid: bool = False
 
         # Debounced save timer (300ms)
         self.save_timer = QTimer(self)
@@ -1317,10 +1321,41 @@ class TuningView(QWidget):
         self.mark_config_dirty()
 
     # ------------------------------------------------------------------
+    # Circularity Bounds Cache
+    # ------------------------------------------------------------------
+    def _parse_bounds_str(self, raw: str):
+        """Parses a comma-separated bounds string into a 360-float list, or None."""
+        if not raw:
+            return None
+        parts = raw.split(",")
+        if len(parts) != 360:
+            return None
+        try:
+            return [float(x) for x in parts]
+        except ValueError:
+            return None
+
+    def _refresh_bounds_cache(self) -> None:
+        """Pre-parses both stick circularity_bounds strings and caches them."""
+        data = getattr(self.config, 'data', {}) if self.config else {}
+        self._ls_bounds_cache = self._parse_bounds_str(
+            str(data.get("analog_left", {}).get("circularity_bounds", ""))
+        )
+        self._rs_bounds_cache = self._parse_bounds_str(
+            str(data.get("analog_right", {}).get("circularity_bounds", ""))
+        )
+        self._bounds_cache_valid = True
+
+    def invalidate_bounds_cache(self) -> None:
+        """Call this after circularity sweep completes and bounds are saved to config."""
+        self._bounds_cache_valid = False
+
+    # ------------------------------------------------------------------
     # Telemetry Updates (~500Hz)
     # ------------------------------------------------------------------
     @Slot(dict)
     def update_telemetry(self, state_dict: dict) -> None:
+
         if not isinstance(state_dict, dict):
             return
 
@@ -1345,8 +1380,10 @@ class TuningView(QWidget):
         ls_circ_mode = str(cfg_ls.get("circularity_mode", "disabled")).lower()
         ls_cx = float(cfg_ls.get("circularity_center_x", 0.0))
         ls_cy = float(cfg_ls.get("circularity_center_y", 0.0))
-        ls_bounds_str = str(cfg_ls.get("circularity_bounds", ""))
-        ls_bounds = [float(x) for x in ls_bounds_str.split(",")] if ls_bounds_str and len(ls_bounds_str.split(",")) == 360 else None
+        # Use pre-parsed bounds cache to avoid 360-float list comprehension at 144Hz
+        if not self._bounds_cache_valid:
+            self._refresh_bounds_cache()
+        ls_bounds = self._ls_bounds_cache
 
         # Process Left Stick Output
         out_lx, out_ly = math_utils.apply_warped_stick_correction(raw_lx, raw_ly, ls_warp)
@@ -1380,8 +1417,7 @@ class TuningView(QWidget):
         rs_circ_mode = str(cfg_rs.get("circularity_mode", "disabled")).lower()
         rs_cx = float(cfg_rs.get("circularity_center_x", 0.0))
         rs_cy = float(cfg_rs.get("circularity_center_y", 0.0))
-        rs_bounds_str = str(cfg_rs.get("circularity_bounds", ""))
-        rs_bounds = [float(x) for x in rs_bounds_str.split(",")] if rs_bounds_str and len(rs_bounds_str.split(",")) == 360 else None
+        rs_bounds = self._rs_bounds_cache
 
         out_rx, out_ry = math_utils.apply_warped_stick_correction(raw_rx, raw_ry, rs_warp)
         if rs_circ_mode == "before":

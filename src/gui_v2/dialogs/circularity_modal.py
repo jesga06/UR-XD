@@ -132,6 +132,8 @@ class CircularityPolarCanvas(QWidget):
         self.center_y: float = 0.0
         self.live_x: float = 0.0
         self.live_y: float = 0.0
+        self._last_paint_time: float = 0.0
+        self._frame_delay_sec: float = 1.0 / 60.0
 
     def update_data(self, bounds: List[float], cx: float, cy: float, lx: float, ly: float) -> None:
         self.bounds_data = bounds
@@ -139,9 +141,19 @@ class CircularityPolarCanvas(QWidget):
         self.center_y = cy
         self.live_x = lx
         self.live_y = ly
-        self.update()
+
+        import time
+        now = time.perf_counter()
+        if (now - self._last_paint_time) >= self._frame_delay_sec:
+            self.update()
 
     def paintEvent(self, event) -> None:
+        import time
+        now = time.perf_counter()
+        if self._last_paint_time > 0 and (now - self._last_paint_time) < (self._frame_delay_sec * 0.85):
+            return
+        self._last_paint_time = now
+
         painter = QPainter(self)
         painter.setRenderHint(QPainter.Antialiasing, True)
 
@@ -150,12 +162,13 @@ class CircularityPolarCanvas(QWidget):
         h = rect.height()
 
         tm = ThemeManager.get_instance()
-        bg_col = tm.get_color("background")
+        bg_col = tm.get_color("graph_bg")
+        axis_col = tm.get_color("graph_axis")
         acc1_col = tm.get_color("accent_1")
         acc2_col = tm.get_color("accent_2")
 
-        # Canvas background (theme background token)
-        painter.fillRect(rect, QColor(bg_col.red(), bg_col.green(), bg_col.blue(), 215))
+        # Canvas background (theme graph_bg token)
+        painter.fillRect(rect, QColor(bg_col.red(), bg_col.green(), bg_col.blue(), 230))
 
         cx = w / 2.0
         cy = h / 2.0
@@ -165,14 +178,14 @@ class CircularityPolarCanvas(QWidget):
             painter.end()
             return
 
-        # 1. Draw Concentric Grid Circles (Accent #1, 60 alpha)
-        painter.setPen(QPen(QColor(acc1_col.red(), acc1_col.green(), acc1_col.blue(), 60), 1, Qt.DashLine))
+        # 1. Draw Concentric Grid Circles (graph_axis token)
+        painter.setPen(QPen(axis_col, 1, Qt.DashLine))
         for r_step in (0.25, 0.50, 0.75, 1.00):
             r_px = max_r * r_step
             painter.drawEllipse(QPointF(cx, cy), r_px, r_px)
 
-        # 2. Draw Crosshair Axes (Accent #1, 90 alpha)
-        painter.setPen(QPen(QColor(acc1_col.red(), acc1_col.green(), acc1_col.blue(), 90), 1.5))
+        # 2. Draw Crosshair Axes (graph_axis token)
+        painter.setPen(QPen(axis_col, 1.5))
         painter.drawLine(QPointF(cx - max_r - 5, cy), QPointF(cx + max_r + 5, cy))
         painter.drawLine(QPointF(cx, cy - max_r - 5), QPointF(cx, cy + max_r + 5))
 

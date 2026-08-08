@@ -74,45 +74,52 @@ class TriggerBar(QWidget):
         except Exception:
             self._fallback_theme_cache()
 
-    def _fallback_theme_cache(self) -> None:
-        bg_color = QColor("#161024")
-        accent_1 = QColor("#a855f7")
-        accent_2 = QColor("#00f5a0")
-        self._rebuild_primitives(bg_color, accent_1, accent_2)
-
     @Slot(dict)
     def _update_theme_cache(self, tokens: dict) -> None:
         """Cache all QPen and QBrush objects from theme tokens to eliminate hot-loop allocations."""
         try:
             from gui_v2.services.theme_manager import ThemeManager
             tm = ThemeManager.get_instance()
-            bg_color = tm.get_color("background")
+            graph_bg = tm.get_color("graph_bg")
+            graph_axis = tm.get_color("graph_axis")
             accent_1 = tm.get_color("accent_1")
             accent_2 = tm.get_color("accent_2")
-            self._rebuild_primitives(bg_color, accent_1, accent_2)
+            outline = tm.get_color("outline")
+            self._rebuild_primitives(graph_bg, graph_axis, accent_1, accent_2, outline)
             self.update()
         except Exception:
             self._fallback_theme_cache()
 
-    def _rebuild_primitives(self, bg_color: QColor, accent_1: QColor, accent_2: QColor) -> None:
+    def _fallback_theme_cache(self) -> None:
+        graph_bg = QColor("#0C0914")
+        graph_axis = QColor("#A855F7")
+        accent_1 = QColor("#A855F7")
+        accent_2 = QColor("#00F5A0")
+        outline = QColor("#A855F7")
+        self._rebuild_primitives(graph_bg, graph_axis, accent_1, accent_2, outline)
+
+    def _rebuild_primitives(
+        self, graph_bg: QColor, graph_axis: QColor,
+        accent_1: QColor, accent_2: QColor, outline: QColor
+    ) -> None:
         self._accent_1 = accent_1
         self._accent_2 = accent_2
 
-        card_bg = QColor(bg_color.red(), bg_color.green(), bg_color.blue(), 215)
+        card_bg = QColor(graph_bg.red(), graph_bg.green(), graph_bg.blue(), 230)
         self._card_bg_brush.setStyle(Qt.BrushStyle.SolidPattern)
         self._card_bg_brush.setColor(card_bg)
 
-        self._border_pen.setColor(QColor(accent_1.red(), accent_1.green(), accent_1.blue(), 90))
+        self._border_pen.setColor(graph_axis)
         self._border_pen.setWidthF(1.5)
 
         self._title_pen.setColor(QColor(255, 255, 255, 220))
         self._digital_mode_pen.setColor(QColor("#f59e0b"))
 
-        track_bg = QColor(bg_color.red() // 2, bg_color.green() // 2, bg_color.blue() // 2, 240)
+        track_bg = QColor(graph_bg.red() // 2, graph_bg.green() // 2, graph_bg.blue() // 2, 240)
         self._track_bg_brush.setStyle(Qt.BrushStyle.SolidPattern)
         self._track_bg_brush.setColor(track_bg)
 
-        self._digital_thresh_pen.setColor(QColor("#f59e0b"))
+        self._digital_thresh_pen.setColor(graph_axis)
         self._digital_thresh_pen.setWidth(2)
 
         self._pct_pen.setColor(QColor("#ffffff"))

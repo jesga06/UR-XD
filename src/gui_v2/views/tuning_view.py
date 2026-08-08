@@ -247,9 +247,15 @@ class StickCurveCanvas(QWidget):
         try:
             from gui_v2.services.theme_manager import ThemeManager
             tm = ThemeManager.get_instance()
-            tm.staging_changed.connect(lambda _: self.update())
-            tm.theme_changed.connect(lambda _: self.update())
+            tm.staging_changed.connect(self._safe_theme_update)
+            tm.theme_changed.connect(self._safe_theme_update)
         except Exception:
+            pass
+
+    def _safe_theme_update(self, _=None):
+        try:
+            self.update()
+        except RuntimeError:
             pass
 
     def update_params(
@@ -406,12 +412,12 @@ class StickCurveCanvas(QWidget):
                 painter.setBrush(QBrush(accent_1 if is_active else QColor(accent_1.red(), accent_1.green(), accent_1.blue(), 180)))
                 painter.drawEllipse(QPointF(px, py), 6.0, 6.0)
 
-        # Live Cursor Dot (Output Accent #2 Color)
+        # Live Cursor Dot (Input Accent #1 Color)
         if self.live_raw_mag > 0.0:
             cx = self.live_raw_mag * w
             cy = h - (self.live_out_mag * h)
             painter.setPen(Qt.NoPen)
-            painter.setBrush(QBrush(accent_2))
+            painter.setBrush(QBrush(accent_1))
             painter.drawEllipse(QPointF(cx, cy), 6.0, 6.0)
 
         painter.end()
@@ -464,16 +470,18 @@ class DualStickRadarWidget(QWidget):
             tm = ThemeManager.get_instance()
             accent_1 = tm.get_color("accent_1")
             accent_2 = tm.get_color("accent_2")
-            bg_color = tm.get_color("background")
+            bg_color = tm.get_color("graph_bg")
+            axis_color = tm.get_color("graph_axis")
         except Exception:
             accent_1 = QColor(168, 85, 247)
             accent_2 = QColor(0, 245, 160)
-            bg_color = QColor(22, 16, 36)
+            bg_color = QColor(12, 9, 20)
+            axis_color = QColor(168, 85, 247)
 
-        painter.fillRect(self.rect(), QColor(bg_color.red(), bg_color.green(), bg_color.blue(), 215))
+        painter.fillRect(self.rect(), QColor(bg_color.red(), bg_color.green(), bg_color.blue(), 230))
 
-        # Grid lines
-        painter.setPen(QPen(QColor(accent_1.red(), accent_1.green(), accent_1.blue(), 50), 1, Qt.DashLine))
+        # Grid lines (graph_axis token)
+        painter.setPen(QPen(axis_color, 1, Qt.DashLine))
         painter.drawEllipse(QPointF(cx, cy), max_r, max_r)
         painter.drawLine(QPointF(cx, 0), QPointF(cx, h))
         painter.drawLine(QPointF(0, cy), QPointF(w, cy))

@@ -209,7 +209,7 @@ class UtilitiesView(QWidget):
 
         comm_layout.addLayout(comm_action_lay)
         self.container_layout.addWidget(self.comm_card)
-
+        self.container_layout.addStretch()
         self.scroll_area.setWidget(self.container_widget)
         main_layout.addWidget(self.scroll_area)
 
@@ -228,15 +228,26 @@ class UtilitiesView(QWidget):
         self.lbl_max_val.setText(f"{max_ms:.3f} ms")
 
     def _poll_diagnostics_file(self):
-        """Polls diagnostics.json every 500ms (2Hz)."""
+        """Polls diagnostics.json or live backend monitor stats every 500ms (2Hz)."""
+        found = False
         if os.path.exists("diagnostics.json"):
             try:
                 with open("diagnostics.json", "r", encoding="utf-8") as f:
                     stats = json.load(f)
-                if isinstance(stats, dict):
+                if isinstance(stats, dict) and stats:
                     self.update_diagnostics_telemetry(stats)
+                    found = True
             except Exception as e:
                 logger.debug(f"Diagnostics file poll exception: {e}")
+
+        if not found:
+            try:
+                from utilities_backend import monitor
+                stats = monitor.get_snapshot()
+                if stats:
+                    self.update_diagnostics_telemetry(stats)
+            except Exception:
+                pass
 
     # -------------------------------------------------------------------
     # BENCHMARK ENGINE

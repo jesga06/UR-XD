@@ -93,9 +93,11 @@ class DashboardView(QWidget):
         main_layout.setContentsMargins(12, 12, 12, 12)
         main_layout.setSpacing(12)
 
-        # 1. Header Banner & Connection Status Card
+        # 1. Header Banner & Connection Status Card (Fixed vertical height per Issue #13)
         self.header_card = QFrame()
         self.header_card.setObjectName("glass_card")
+        self.header_card.setMaximumHeight(65)
+        self.header_card.setSizePolicy(QSizePolicy.Policy.Preferred, QSizePolicy.Policy.Maximum)
         header_layout = QHBoxLayout(self.header_card)
         header_layout.setContentsMargins(14, 10, 14, 10)
 

@@ -214,6 +214,8 @@ class MainWindow(QMainWindow):
         self.showNormal()
         self.activateWindow()
         self.raise_()
+        if hasattr(self, 'telemetry_worker') and self.telemetry_worker and not self.telemetry_worker.isRunning():
+            self.telemetry_worker.start()
 
     def changeEvent(self, event):
         """Intercepts minimize events to minimize to tray without blocking."""
@@ -224,14 +226,20 @@ class MainWindow(QMainWindow):
             super().changeEvent(event)
 
     def closeEvent(self, event):
-        """Ensures worker thread is cleanly shut down before exiting."""
-        if self.telemetry_worker and self.telemetry_worker.isRunning():
-            self.telemetry_worker.stop()
-        self.debounced_saver.flush()
-        self.tray_icon.hide()
-        super().closeEvent(event)
+        """Intercepts window close event to hide to system tray unless quitting."""
+        if getattr(self, '_is_quitting', False):
+            if self.telemetry_worker and self.telemetry_worker.isRunning():
+                self.telemetry_worker.stop()
+            self.debounced_saver.flush()
+            if self.tray_icon:
+                self.tray_icon.hide()
+            super().closeEvent(event)
+        else:
+            event.ignore()
+            self.hide()
 
     def quit_application(self):
         """Full application quit action."""
+        self._is_quitting = True
         self.close()
         QApplication.quit()

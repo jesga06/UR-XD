@@ -177,6 +177,7 @@ class AdvancedView(QWidget):
 
         self.container_layout.addLayout(save_layout)
 
+        self.container_layout.addStretch()
         self.scroll_area.setWidget(self.container_widget)
         main_layout.addWidget(self.scroll_area)
 

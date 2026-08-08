@@ -120,6 +120,17 @@ class DeviceCard(QFrame):
         self.card_clicked.emit(self.device_info)
 
 
+class DeviceEnumWorker(QThread):
+    devices_found = Signal(list)
+
+    def run(self):
+        try:
+            devices = HIDReader.get_all_devices()
+        except Exception:
+            devices = []
+        self.devices_found.emit(devices)
+
+
 class DevicePickerWidget(QWidget):
     """
     State A View Widget: Displays waiting banner and real-time grid of all detected USB HID devices.
@@ -128,6 +139,8 @@ class DevicePickerWidget(QWidget):
 
     def __init__(self, parent: Optional[QWidget] = None):
         super().__init__(parent)
+        self._last_devices_fingerprint = ""
+        self._enum_worker: Optional[DeviceEnumWorker] = None
         self.setup_ui()
         self._setup_theme_sync()
 
@@ -144,11 +157,13 @@ class DevicePickerWidget(QWidget):
         main_layout.setContentsMargins(16, 16, 16, 16)
         main_layout.setSpacing(16)
 
-        # Header Status Card
+        # Header Status Card (Capped vertical height per Issue #13)
         self.header_card = QFrame()
         self.header_card.setObjectName("header_card")
+        self.header_card.setMaximumHeight(85)
+        self.header_card.setSizePolicy(QSizePolicy.Policy.Preferred, QSizePolicy.Policy.Maximum)
         header_layout = QVBoxLayout(self.header_card)
-        header_layout.setContentsMargins(20, 18, 20, 18)
+        header_layout.setContentsMargins(20, 14, 20, 14)
 
         self.title = QLabel("No compatible controller connected. Waiting for a controller...")
         self.title.setFont(QFont("Segoe UI", 14, QFont.Weight.Bold))
@@ -207,17 +222,26 @@ class DevicePickerWidget(QWidget):
             pass
 
     def refresh_devices(self) -> None:
-        """Query hidapi for all system USB HID devices and update grid UI."""
+        """Triggers asynchronous non-blocking background HID device enumeration."""
+        if self._enum_worker and self._enum_worker.isRunning():
+            return
+        self._enum_worker = DeviceEnumWorker(self)
+        self._enum_worker.devices_found.connect(self._on_devices_enumerated)
+        self._enum_worker.start()
+
+    @Slot(list)
+    def _on_devices_enumerated(self, devices: list) -> None:
+        """Processes enumerated HID devices and updates grid UI on the main thread."""
+        fingerprint = str([(d.get("vendor_id"), d.get("product_id"), d.get("path")) for d in devices if isinstance(d, dict)])
+        if fingerprint == self._last_devices_fingerprint:
+            return
+        self._last_devices_fingerprint = fingerprint
+
         # Clear existing grid items
         while self.grid_layout.count():
             item = self.grid_layout.takeAt(0)
             if item.widget():
                 item.widget().deleteLater()
-
-        try:
-            devices = HIDReader.get_all_devices()
-        except Exception:
-            devices = []
 
         filtered_devices = []
         for d in devices:

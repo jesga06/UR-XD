@@ -13,7 +13,7 @@ from PySide6.QtWidgets import (
     QScrollArea, QPushButton, QGridLayout
 )
 from PySide6.QtGui import QFont, QCursor
-from PySide6.QtCore import Qt, Signal, QTimer, Slot
+from PySide6.QtCore import Qt, Signal, QTimer, Slot, QThread
 
 sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "..")))
 from hid_reader import HIDReader

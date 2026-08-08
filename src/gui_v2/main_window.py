@@ -214,8 +214,15 @@ class MainWindow(QMainWindow):
         self.showNormal()
         self.activateWindow()
         self.raise_()
-        if hasattr(self, 'telemetry_worker') and self.telemetry_worker and not self.telemetry_worker.isRunning():
-            self.telemetry_worker.start()
+        if hasattr(self, 'telemetry_worker') and self.telemetry_worker:
+            if not self.telemetry_worker.isRunning():
+                self.telemetry_worker.start()
+            else:
+                snapshot = self.telemetry_worker.get_latest_snapshot()
+                if snapshot and hasattr(self, 'dashboard_view') and self.dashboard_view:
+                    self.dashboard_view.update_telemetry(snapshot)
+        if hasattr(self, 'dashboard_view') and self.dashboard_view and hasattr(self.dashboard_view, '_check_status_file'):
+            self.dashboard_view._check_status_file()
 
     def changeEvent(self, event):
         """Intercepts minimize events to minimize to tray without blocking."""

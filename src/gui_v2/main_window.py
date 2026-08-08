@@ -6,6 +6,7 @@ non-blocking IPC telemetry worker integration, and debounced configuration savin
 
 import sys
 import ctypes
+import json
 import os
 from typing import Optional
 
@@ -75,6 +76,27 @@ class MainWindow(QMainWindow):
 
         # Start background telemetry thread
         self.telemetry_worker.start()
+
+        # 1-Second status.json poller
+        from PySide6.QtCore import QTimer
+        self.status_poller = QTimer(self)
+        self.status_poller.setInterval(1000)
+        self.status_poller.timeout.connect(self._poll_status_file)
+        self.status_poller.start()
+        self._poll_status_file()
+
+    def _poll_status_file(self) -> None:
+        """Reads status.json written by wrapper daemon and updates Dashboard & Advanced views."""
+        try:
+            if os.path.exists("status.json"):
+                with open("status.json", "r", encoding="utf-8") as f:
+                    data = json.load(f)
+                if hasattr(self, "dashboard_view") and self.dashboard_view:
+                    self.dashboard_view.update_status(data)
+                if hasattr(self, "advanced_view") and self.advanced_view and hasattr(self.advanced_view, "update_backend_ui"):
+                    self.advanced_view.update_backend_ui()
+        except Exception:
+            pass
 
     def setup_tray_icon(self):
         """Initializes QSystemTrayIcon with restore, console recovery, and exit actions."""
@@ -221,8 +243,7 @@ class MainWindow(QMainWindow):
                 snapshot = self.telemetry_worker.get_latest_snapshot()
                 if snapshot and hasattr(self, 'dashboard_view') and self.dashboard_view:
                     self.dashboard_view.update_telemetry(snapshot)
-        if hasattr(self, 'dashboard_view') and self.dashboard_view and hasattr(self.dashboard_view, '_check_status_file'):
-            self.dashboard_view._check_status_file()
+        self._poll_status_file()
 
     def changeEvent(self, event):
         """Intercepts minimize events to minimize to tray without blocking."""

@@ -14,7 +14,7 @@ from typing import Dict, Any, Optional
 
 from PySide6.QtWidgets import (
     QWidget, QApplication, QVBoxLayout, QHBoxLayout, QLabel, QFrame, QScrollArea, QStackedWidget,
-    QPushButton, QDialog
+    QPushButton, QDialog, QSizePolicy
 )
 from PySide6.QtGui import QFont
 from PySide6.QtCore import Qt, Slot

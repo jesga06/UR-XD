@@ -52,11 +52,12 @@ class ButtonPill(QFrame):
 
 
     def _setup_theme_sync(self) -> None:
-        """Connects to ThemeManager.theme_changed signal for live color token updates."""
+        """Connects to ThemeManager.theme_changed and staging_changed signals for live color token updates."""
         try:
             from gui_v2.services.theme_manager import ThemeManager
             tm = ThemeManager.get_instance()
             tm.theme_changed.connect(self._safe_theme_update)
+            tm.staging_changed.connect(self._safe_theme_update)
             self._update_qss_cache()
         except Exception:
             self._fallback_qss_cache()

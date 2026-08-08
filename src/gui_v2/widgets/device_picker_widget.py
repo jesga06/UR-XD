@@ -10,7 +10,7 @@ from typing import List, Dict, Any, Optional
 
 from PySide6.QtWidgets import (
     QWidget, QVBoxLayout, QHBoxLayout, QLabel, QFrame,
-    QScrollArea, QPushButton, QGridLayout
+    QScrollArea, QPushButton, QGridLayout, QSizePolicy
 )
 from PySide6.QtGui import QFont, QCursor
 from PySide6.QtCore import Qt, Signal, QTimer, Slot, QThread

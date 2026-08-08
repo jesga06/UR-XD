@@ -55,9 +55,9 @@ class TestThemeManager(unittest.TestCase):
         self.assertNotEqual(color_hex, darker)
 
     def test_derived_color_pipeline(self):
-        self.assertEqual(self.tm.get_token("accent_1"), "#A855F7FF")
-        self.assertEqual(self.tm.get_token("accent_2"), "#00F5A0FF")
-        self.assertEqual(self.tm.get_token("window_bg"), "#0C0914FF")
+        self.assertEqual(self.tm.get_token("accent_1"), "#8000FFFF")
+        self.assertEqual(self.tm.get_token("accent_2"), "#80FF00FF")
+        self.assertEqual(self.tm.get_token("window_bg"), "#000000FF")
         self.assertEqual(self.tm.get_token("text"), "#FFFFFFFF")
 
         # Test Derived Tokens Presence
@@ -72,14 +72,14 @@ class TestThemeManager(unittest.TestCase):
 
         # Test Button Color Source switch
         self.tm.set_source("button_color_source", "accent_2")
-        self.assertEqual(self.tm.get_token("button_bg"), "#00F5A0FF")
+        self.assertEqual(self.tm.get_token("button_bg"), "#80FF00FF")
 
         # Test Graph Axis Source & Brightness (0% to 100%)
         self.tm.set_source("graph_axis_source", "accent_2")
         self.tm.set_brightness("graph_axis_brightness", 100)
         tokens_axis = self.tm.get_all_tokens()
-        # At 100% brightness, graph_axis HSV value is 1.0 (#00FFA7FF)
-        self.assertEqual(tokens_axis["graph_axis"], "#00FFA7FF")
+        # At 100% brightness, graph_axis HSV value is 1.0 (#80FF00FF)
+        self.assertEqual(tokens_axis["graph_axis"], "#80FF00FF")
 
         self.tm.set_brightness("graph_axis_brightness", 0)
         tokens_axis_dark = self.tm.get_all_tokens()
@@ -148,7 +148,7 @@ class TestThemeManager(unittest.TestCase):
             self.assertTrue(self.tm.export_theme_json(temp_path))
 
             self.tm.reset_defaults()
-            self.assertEqual(self.tm.get_token("accent_1"), "#A855F7FF")
+            self.assertEqual(self.tm.get_token("accent_1"), "#8000FFFF")
 
             self.assertTrue(self.tm.import_theme_json(temp_path))
             self.assertEqual(self.tm.get_token("accent_1"), "#FFAA00FF")

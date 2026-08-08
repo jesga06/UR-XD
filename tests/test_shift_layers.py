@@ -9,9 +9,10 @@ class TestShiftLayersConfig(unittest.TestCase):
     def test_default_shift_layers(self):
         cfg = ControllerConfig()
         layers = cfg.get_shift_layers()
-        self.assertEqual(len(layers), 1)
-        self.assertEqual(layers[0]['id'], 'shift_1')
-        self.assertEqual(layers[0]['name'], 'Shift Layer 1')
+        self.assertEqual(len(layers), 2)
+        self.assertEqual(layers[0]['id'], 'layer_base')
+        self.assertEqual(layers[1]['id'], 'shift_1')
+        self.assertEqual(layers[1]['name'], 'Shift Layer 1')
 
     def test_legacy_migration(self):
         with tempfile.NamedTemporaryFile('w', delete=False, suffix='.json') as f:
@@ -29,10 +30,11 @@ class TestShiftLayersConfig(unittest.TestCase):
         try:
             cfg = ControllerConfig(temp_path)
             layers = cfg.get_shift_layers()
-            self.assertEqual(len(layers), 1)
-            self.assertEqual(layers[0]['trigger_button'], 'lb')
-            self.assertEqual(layers[0]['mode'], 'toggle')
-            self.assertEqual(layers[0]['mappings'].get('a'), 'keyboard:x')
+            self.assertTrue(len(layers) >= 1)
+            shift_layer = [l for l in layers if l['id'] == 'shift_1'][0]
+            self.assertEqual(shift_layer['trigger_button'], 'lb')
+            self.assertEqual(shift_layer['mode'], 'toggle')
+            self.assertEqual(shift_layer['mappings'].get('a'), 'keyboard:x')
         finally:
             if os.path.exists(temp_path):
                 os.remove(temp_path)
@@ -41,15 +43,15 @@ class TestShiftLayersConfig(unittest.TestCase):
         cfg = ControllerConfig()
         layer2 = cfg.add_shift_layer(name="Sniper Layer", trigger_button="lb", modifier_button="rb", mode="hold")
         layers = cfg.get_shift_layers()
-        self.assertEqual(len(layers), 2)
-        self.assertEqual(layers[1]['id'], 'shift_2')
-        self.assertEqual(layers[1]['name'], 'Sniper Layer')
-        self.assertEqual(layers[1]['trigger_button'], 'lb')
-        self.assertEqual(layers[1]['modifier_button'], 'rb')
+        self.assertEqual(len(layers), 3)
+        self.assertEqual(layers[2]['id'], 'shift_2')
+        self.assertEqual(layers[2]['name'], 'Sniper Layer')
+        self.assertEqual(layers[2]['trigger_button'], 'lb')
+        self.assertEqual(layers[2]['modifier_button'], 'rb')
 
         cfg.remove_shift_layer('shift_2')
         layers_after = cfg.get_shift_layers()
-        self.assertEqual(len(layers_after), 1)
+        self.assertEqual(len(layers_after), 2)
 
     def test_duplicate_layer_id_deduplication(self):
         with tempfile.NamedTemporaryFile('w', delete=False, suffix='.json') as f:

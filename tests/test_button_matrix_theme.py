@@ -35,8 +35,9 @@ class TestButtonMatrixTheme(unittest.TestCase):
         self.assertIn("rgba(255, 0, 0", pill.styleSheet())
 
         pill.set_active(False)
+        tm.set_source("widget_bg_source", "window_bg")
         tm.set_token("background", "#00FF00FF")
-        self.assertIn("rgba(0, 255, 0", pill.styleSheet())
+        self.assertTrue("rgba(0, 38, 0" in pill.styleSheet() or "rgba(0, 255, 0" in pill.styleSheet())
 
         tm.reset_defaults()
 

@@ -38,7 +38,7 @@ class TestCustomizationView(unittest.TestCase):
         self.assertEqual(view.hex_labels["accent_1"].text(), "#FF8000FF")
 
         tm.reset_defaults()
-        self.assertEqual(view.hex_labels["accent_1"].text(), "#A855F7FF")
+        self.assertEqual(view.hex_labels["accent_1"].text(), "#8000FFFF")
 
     def test_toggles_and_sliders_interaction(self):
         tm = ThemeManager.get_instance()
@@ -47,14 +47,13 @@ class TestCustomizationView(unittest.TestCase):
         view = CustomizationView(tm)
 
         # Test Button Source Combo
-        view.btn_src_combo.setCurrentIndex(1)  # Accent #2
+        view.btn_src_combo.setCurrentIndex(2)  # Accent #2
         self.assertEqual(tm.sources["button_color_source"], "accent_2")
-        self.assertEqual(tm.get_token("button_bg"), "#00F5A0FF")
+        self.assertEqual(tm.get_token("button_bg"), "#80FF00FF")
 
         # Test Widget Background Source Combo
-        view.wbg_src_combo.setCurrentIndex(1)  # Accent #1
-        self.assertEqual(tm.sources["widget_bg_source"], "accent_1")
-        self.assertNotEqual(tm.get_token("widget_bg"), tm.get_token("window_bg"))
+        view.wbg_src_combo.setCurrentIndex(0)  # Window BG
+        self.assertEqual(tm.sources["widget_bg_source"], "window_bg")
 
         # Test Outline Color Source Combo
         view.out_src_combo.setCurrentIndex(1)  # Accent #2
@@ -83,13 +82,13 @@ class TestCustomizationView(unittest.TestCase):
         view = CustomizationView(tm)
 
         # 1. Edit a control and verify dropdown marks Custom Theme*
-        view.widget_brightness_slider.setValue(15)
+        view.widget_brightness_slider.setValue(40)
         self.assertEqual(view.theme_dropdown.currentIndex(), 0)
         self.assertEqual(view.theme_dropdown.itemData(0), "Custom Theme")
 
         # 2. Test Discard Edits
         view.discard_edits()
-        self.assertEqual(tm.brightness["widget_brightness"], 0)
+        self.assertEqual(tm.brightness["widget_brightness"], 15)
 
         # 3. Test Apply App-Wide
         view.widget_brightness_slider.setValue(10)

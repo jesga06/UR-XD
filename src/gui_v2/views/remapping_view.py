@@ -109,13 +109,14 @@ class RemappingView(QWidget):
             bg_color = tm.get_color("background")
             accent_1 = tm.get_color("accent_1")
             accent_2 = tm.get_color("accent_2")
+            outline = tm.get_color("outline")
 
             bg_glass = color_to_rgba_str(bg_color, alpha_override=0.85)
             bg_inner = color_to_rgba_str(bg_color, alpha_override=0.60)
-            border_glass = color_to_rgba_str(accent_1, alpha_override=0.35)
+            border_glass = color_to_rgba_str(outline, alpha_override=0.35)
             accent_1_hex = color_to_hex6(accent_1)
             accent_1_subtle = color_to_rgba_str(accent_1, alpha_override=0.20)
-            accent_1_border = color_to_rgba_str(accent_1, alpha_override=0.50)
+            accent_1_border = color_to_rgba_str(outline, alpha_override=0.50)
 
             card_qss = f"""
             QGroupBox {{

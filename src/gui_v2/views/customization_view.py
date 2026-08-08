@@ -820,8 +820,8 @@ class CustomizationView(QWidget):
         acc1_hex = color_to_hex8(acc1)
         acc2_hex = color_to_hex8(acc2)
         
-        self.theme_mgr.set_base_color("accent_1", acc2_hex)
-        self.theme_mgr.set_base_color("accent_2", acc1_hex)
+        self.theme_mgr.set_token("accent_1", acc2_hex)
+        self.theme_mgr.set_token("accent_2", acc1_hex)
         self.sync_controls_from_theme_mgr()
         self._mark_custom_theme_active()
 

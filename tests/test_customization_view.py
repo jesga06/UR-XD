@@ -105,6 +105,20 @@ class TestCustomizationView(unittest.TestCase):
 
         tm.reset_defaults()
 
+    def test_invert_accents(self):
+        tm = ThemeManager.get_instance()
+        tm.reset_defaults()
+        view = CustomizationView(tm)
+        
+        orig_acc1 = tm.get_token("accent_1")
+        orig_acc2 = tm.get_token("accent_2")
+        
+        view.invert_accents()
+        
+        self.assertEqual(tm.get_token("accent_1"), orig_acc2)
+        self.assertEqual(tm.get_token("accent_2"), orig_acc1)
+        tm.reset_defaults()
+
 
 if __name__ == "__main__":
     unittest.main()

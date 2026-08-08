@@ -815,14 +815,12 @@ class CustomizationView(QWidget):
 
     def invert_accents(self):
         """Swaps Accent #1 and Accent #2 base colors and recalculates theme."""
-        acc1 = self.theme_mgr.get_color("accent_1")
-        acc2 = self.theme_mgr.get_color("accent_2")
-        acc1_hex = color_to_hex8(acc1)
-        acc2_hex = color_to_hex8(acc2)
+        acc1_hex = self.theme_mgr.get_token("accent_1")
+        acc2_hex = self.theme_mgr.get_token("accent_2")
         
         self.theme_mgr.set_token("accent_1", acc2_hex)
         self.theme_mgr.set_token("accent_2", acc1_hex)
-        self.sync_controls_from_theme_mgr()
+        self.refresh_ui_from_theme(self.theme_mgr.get_all_tokens())
         self._mark_custom_theme_active()
 
     def reset_default_theme(self):

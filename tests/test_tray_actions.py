@@ -50,6 +50,21 @@ class TestTrayActions(unittest.TestCase):
         vpad.gamepad.reset.assert_called_once()
         vpad.gamepad.update.assert_called()
 
+    @patch('gui_v2.main_window.ensure_single_instance')
+    def test_main_window_restore_telemetry_snapshot(self, mock_single_instance):
+        from gui_v2.main_window import MainWindow
+        mock_single_instance.return_value = MagicMock()
+        window = MainWindow()
+        window.dashboard_view = MagicMock()
+        window.telemetry_worker = MagicMock()
+        window.telemetry_worker.isRunning.return_value = True
+        window.telemetry_worker.get_latest_snapshot.return_value = {"lx": 0.5, "ly": -0.5}
+
+        window.restore_window()
+
+        window.dashboard_view.update_telemetry.assert_called_with({"lx": 0.5, "ly": -0.5})
+        window.close()
+
 
 if __name__ == '__main__':
     unittest.main()

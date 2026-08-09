@@ -71,15 +71,47 @@ def set_global_cloak(active: bool) -> tuple[bool, str]:
         return False, stderr or f"Error code {code}"
 
 
+def get_connected_controller_vids() -> list[str]:
+    """Scans connected HID devices and returns a list of active controller Vendor IDs (e.g. ['2DC8'])."""
+    try:
+        from hid_reader import HIDReader
+        devices = HIDReader.get_all_devices()
+        vids = set()
+        for d in devices:
+            usage_page = d.get('usage_page', 0)
+            usage = d.get('usage', 0)
+            prod = (d.get('product_string') or '').lower()
+            vid = d.get('vendor_id', 0)
+            if vid <= 0:
+                continue
+
+            # Check HID Gamepad Usage (Page 0x01, Usage 0x05 = Gamepad, Usage 0x04 = Joystick)
+            is_gamepad_usage = (usage_page == 0x01 and usage in (0x04, 0x05))
+            is_gamepad_name = any(kw in prod for kw in ("controller", "gamepad", "8bitdo", "xbox", "dualshock", "dualsense", "switch", "wireless", "pad"))
+
+            if is_gamepad_usage or is_gamepad_name:
+                vids.add(f"{vid:04X}")
+
+        return list(vids)
+    except Exception as e:
+        logger.debug("Error querying connected controller VIDs: %s", e)
+        return []
+
+
 def get_pnp_instance_ids(vendor_id: str = "") -> list[str]:
     """
-    Uses PowerShell Get-PnpDevice to query all Device Instance IDs associated
-    with the given Vendor ID (or all USB/HID controllers if empty).
-    Returns both root USB parent IDs and child HID interface IDs.
+    Uses PowerShell Get-PnpDevice to query active (Status == 'OK') Device Instance IDs
+    associated exclusively with connected gamepads/controllers.
+    Returns both root USB parent IDs and child HID interface IDs for the active controller.
     """
-    filter_pattern = f"*VID_{vendor_id.upper()}*" if vendor_id else "*VID_*"
+    vids_to_check = [vendor_id.upper()] if vendor_id else get_connected_controller_vids()
+    if not vids_to_check:
+        logger.info("No connected controller VIDs found to query PnP instance IDs.")
+        return []
+
+    vid_conditions = " -or ".join([f'$_.InstanceId -like "*VID_{v}*"' for v in vids_to_check])
     cmd = (
-        f'Get-PnpDevice | Where-Object {{ $_.InstanceId -like "{filter_pattern}" }} '
+        f'Get-PnpDevice | Where-Object {{ ($_.Status -eq "OK") -and ({vid_conditions}) }} '
         f'| Select-Object InstanceId, FriendlyName, Status | ConvertTo-Json'
     )
 

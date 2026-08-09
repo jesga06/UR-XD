@@ -173,9 +173,10 @@ def get_connected_controller_vids() -> list[str]:
 
 def get_pnp_instance_ids(vendor_id: str = "") -> list[str]:
     """
-    Uses PowerShell Get-PnpDevice to query active (Status == 'OK') Device Instance IDs
-    associated exclusively with connected gamepads/controllers.
-    Returns both root USB parent IDs and child HID interface IDs for the active controller.
+    Queries active (Status == 'OK') PnP Device Instance IDs for connected gamepads.
+    Filters out redundant sub-collection noise (&COL01, &COL02) and extracts the clean,
+    optimal target IDs (base interface prefixes like HID\\VID_...&IG_01, USB\\VID_...&MI_00,
+    and USB instance paths) matching HidHide CLI best practices.
     """
     vids_to_check = [vendor_id.upper()] if vendor_id else get_connected_controller_vids()
     if not vids_to_check:
@@ -200,13 +201,32 @@ def get_pnp_instance_ids(vendor_id: str = "") -> list[str]:
 
         data = json.loads(res.stdout)
         items = data if isinstance(data, list) else [data]
-        instance_ids = []
+        
+        raw_ids = []
         for item in items:
             iid = item.get("InstanceId", "").strip()
             if iid and (iid.startswith("USB\\") or iid.startswith("HID\\")):
-                instance_ids.append(iid)
+                raw_ids.append(iid)
 
-        return instance_ids
+        # Filter and format into clean, optimal HidHide target IDs
+        clean_targets = set()
+        for iid in raw_ids:
+            # Ignore sub-collection child nodes (&COL01, &COL02, etc.)
+            if "&COL" in iid.upper():
+                continue
+
+            # Add primary USB/HID instance paths
+            clean_targets.add(iid)
+
+            # Extract base interface prefix (e.g. HID\VID_2DC8&PID_310A&IG_01 or USB\VID_2DC8&PID_310A&MI_00)
+            parts = iid.split("\\")
+            if len(parts) >= 2:
+                base_node = parts[1]
+                if "IG_" in base_node.upper() or "MI_00" in base_node.upper() or "REV_" in base_node.upper():
+                    prefix = f"{parts[0]}\\{base_node}"
+                    clean_targets.add(prefix)
+
+        return sorted(list(clean_targets))
     except Exception as e:
         logger.error("Error querying PnP device instance IDs: %s", e)
         return []

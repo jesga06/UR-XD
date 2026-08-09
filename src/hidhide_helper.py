@@ -42,10 +42,36 @@ def _run_cli(args: list) -> tuple[int, str, str]:
         return -1, "", str(e)
 
 
+def get_running_python_process_paths() -> list[str]:
+    """
+    Queries WMI / PowerShell for all currently running python*.exe process executable paths.
+    """
+    cmd = 'Get-CimInstance Win32_Process | Where-Object { $_.Name -like "python*.exe" } | Select-Object ExecutablePath | ConvertTo-Json'
+    try:
+        res = subprocess.run(
+            ["powershell", "-NoProfile", "-Command", cmd],
+            capture_output=True,
+            text=True,
+            timeout=5
+        )
+        if res.returncode == 0 and res.stdout.strip():
+            data = json.loads(res.stdout)
+            items = data if isinstance(data, list) else [data]
+            paths = []
+            for item in items:
+                epath = item.get("ExecutablePath")
+                if epath and os.path.exists(epath):
+                    paths.append(os.path.abspath(epath))
+            return paths
+    except Exception as e:
+        logger.debug("Error querying running python process paths: %s", e)
+    return []
+
+
 def get_all_python_executables() -> list[str]:
     """
     Collects all candidate Python interpreter paths for this system & environment
-    (sys.executable, venv interpreter, base Python interpreter, system PATH python).
+    (sys.executable, venv interpreter, base Python interpreter, system PATH python, and running processes).
     """
     candidates = set()
 
@@ -70,6 +96,10 @@ def get_all_python_executables() -> list[str]:
     sys_python = shutil.which("python")
     if sys_python and os.path.exists(sys_python):
         candidates.add(os.path.abspath(sys_python))
+
+    # 5. Running python processes in Task Manager / WMI
+    for proc_path in get_running_python_process_paths():
+        candidates.add(proc_path)
 
     return list(candidates)
 

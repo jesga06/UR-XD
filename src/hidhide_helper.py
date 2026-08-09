@@ -42,19 +42,62 @@ def _run_cli(args: list) -> tuple[int, str, str]:
         return -1, "", str(e)
 
 
+def get_all_python_executables() -> list[str]:
+    """
+    Collects all candidate Python interpreter paths for this system & environment
+    (sys.executable, venv interpreter, base Python interpreter, system PATH python).
+    """
+    candidates = set()
+
+    # 1. Current sys.executable
+    if sys.executable and os.path.exists(sys.executable):
+        candidates.add(os.path.abspath(sys.executable))
+
+    # 2. Base prefix interpreter (e.g. C:\...\AppData\Local\Programs\Python\Python313\python.exe)
+    if hasattr(sys, 'base_prefix') and sys.base_prefix:
+        base_exe = os.path.join(sys.base_prefix, 'python.exe')
+        if os.path.exists(base_exe):
+            candidates.add(os.path.abspath(base_exe))
+
+    # 3. venv/Scripts/python.exe relative to project root
+    project_root = os.path.abspath(os.path.join(os.path.dirname(__file__), ".."))
+    venv_exe = os.path.join(project_root, 'venv', 'Scripts', 'python.exe')
+    if os.path.exists(venv_exe):
+        candidates.add(os.path.abspath(venv_exe))
+
+    # 4. System PATH python.exe
+    import shutil
+    sys_python = shutil.which("python")
+    if sys_python and os.path.exists(sys_python):
+        candidates.add(os.path.abspath(sys_python))
+
+    return list(candidates)
+
+
 def register_app_whitelist() -> tuple[bool, str]:
     """
-    Registers the currently executing Python interpreter (sys.executable)
+    Registers ALL detected Python interpreter paths (sys.executable, venv, base Python, system PATH)
     into the HidHide whitelist (--app-reg).
     """
-    python_exe = os.path.abspath(sys.executable)
-    code, stdout, stderr = _run_cli(["--app-reg", python_exe])
-    if code == 0:
-        logger.info("Successfully registered app whitelist for: %s", python_exe)
-        return True, f"Registered: {python_exe}"
+    executables = get_all_python_executables()
+    if not executables:
+        return False, "No Python executables found"
+
+    registered = []
+    failed = []
+
+    for exe in executables:
+        code, stdout, stderr = _run_cli(["--app-reg", exe])
+        if code == 0:
+            registered.append(exe)
+            logger.info("Successfully registered app whitelist for: %s", exe)
+        else:
+            failed.append(f"{exe} ({stderr or f'code {code}'})")
+
+    if registered:
+        return True, f"Registered {len(registered)} interpreter(s):\n" + "\n".join(registered)
     else:
-        logger.warning("Failed to register app whitelist (code=%d): %s", code, stderr)
-        return False, stderr or f"Error code {code}"
+        return False, f"Failed to register interpreters:\n" + "\n".join(failed)
 
 
 def set_global_cloak(active: bool) -> tuple[bool, str]:
@@ -207,17 +250,17 @@ def get_hidhide_status() -> dict:
     """
     Queries HidHide CLI for current system status:
     - installed: bool
-    - app_registered: bool (whether sys.executable is in --app-get)
+    - app_registered: bool (whether candidate python executables are in --app-get)
     - cloak_active: bool
     - dev_list: list of blocked instance IDs
     """
-    python_exe = os.path.abspath(sys.executable).lower()
+    executables = [exe.lower() for exe in get_all_python_executables()]
     status = {
         "installed": is_hidhide_installed(),
         "app_registered": False,
         "cloak_active": False,
         "dev_list": [],
-        "python_exe": python_exe
+        "python_exe": ", ".join(executables)
     }
 
     if not status["installed"]:
@@ -227,7 +270,8 @@ def get_hidhide_status() -> dict:
     code_app, stdout_app, _ = _run_cli(["--app-get"])
     if code_app == 0 and stdout_app:
         registered_apps = [line.strip().lower() for line in stdout_app.splitlines() if line.strip()]
-        status["app_registered"] = python_exe in registered_apps
+        # Returns True if at least one candidate interpreter is registered
+        status["app_registered"] = any(exe in registered_apps for exe in executables)
 
     # Query --dev-get
     code_dev, stdout_dev, _ = _run_cli(["--dev-get"])

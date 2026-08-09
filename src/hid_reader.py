@@ -71,6 +71,16 @@ class HIDReader:
                 self._last_product_name = "Unknown Device"
                 
             self._connected_time = time.time()
+            
+            # Attempt automated HidHide cloaking if installed
+            try:
+                from hidhide_manager import HidHideManager
+                manager = HidHideManager.instance()
+                if manager.is_installed():
+                    manager.cloak_device(self.device_path)
+            except Exception as ex:
+                logger.debug("HidHide auto-cloak attempt skipped: %s", ex)
+
             return True
         except Exception as e:
             self.device = None
@@ -183,6 +193,14 @@ class HIDReader:
 
     def stop(self):
         self._running = False
+        if self.device_path:
+            try:
+                from hidhide_manager import HidHideManager
+                manager = HidHideManager.instance()
+                if manager.is_installed():
+                    manager.uncloak_device(self.device_path)
+            except Exception as ex:
+                logger.debug("HidHide auto-uncloak attempt skipped: %s", ex)
         if self.device:
             self.device.close()
             self.device = None

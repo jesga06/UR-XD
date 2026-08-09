@@ -40,6 +40,11 @@ class ControllerConfig:
                 "digital_lt": "false",
                 "digital_rt": "false"
             },
+            "hidhide": {
+                "enabled": True,
+                "auto_cloak": True,
+                "cli_path": ""
+            },
             "extra_buttons": {},
             "block_xinput": {},
             "shift_layer": {

@@ -7,7 +7,11 @@ echo Starting UR-XD...
 net session >nul 2>&1
 if %ERRORLEVEL% NEQ 0 (
     echo [INFO] Requesting Administrator privileges for HidHide driver access...
-    powershell -Command "Start-Process '%~f0' -ArgumentList '%*' -Verb RunAs"
+    if "%~1"=="" (
+        powershell -NoProfile -Command "Start-Process '%~f0' -Verb RunAs"
+    ) else (
+        powershell -NoProfile -Command "Start-Process '%~f0' -ArgumentList '%*' -Verb RunAs"
+    )
     exit /b 0
 )
 

@@ -86,17 +86,23 @@ class MainWindow(QMainWindow):
         self._poll_status_file()
 
     def _poll_status_file(self) -> None:
-        """Reads status.json written by wrapper daemon and updates Dashboard & Advanced views."""
+        """Reads status.json written by wrapper daemon using absolute project root path."""
         try:
-            if os.path.exists("status.json"):
-                with open("status.json", "r", encoding="utf-8") as f:
+            project_root = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+            status_path = os.path.join(project_root, "status.json")
+            if os.path.exists(status_path):
+                with open(status_path, "r", encoding="utf-8") as f:
                     data = json.load(f)
                 if hasattr(self, "dashboard_view") and self.dashboard_view:
                     self.dashboard_view.update_status(data)
                 if hasattr(self, "advanced_view") and self.advanced_view and hasattr(self.advanced_view, "update_backend_ui"):
                     self.advanced_view.update_backend_ui()
-        except Exception:
-            pass
+        except (OSError, json.JSONDecodeError, PermissionError) as e:
+            import logging
+            logging.getLogger("main_window").debug(f"Status file poll skipped: {e}")
+        except Exception as e:
+            import logging
+            logging.getLogger("main_window").debug(f"Unexpected status file poll error: {e}")
 
     def setup_tray_icon(self):
         """Initializes QSystemTrayIcon with restore, console recovery, and exit actions."""

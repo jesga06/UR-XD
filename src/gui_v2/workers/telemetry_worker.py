@@ -21,12 +21,13 @@ class UDPTelemetryWorker(QThread):
     telemetry_updated = Signal(dict)
     telemetry_stale = Signal(bool)
 
-    def __init__(self, port: int = 9999, target_fps: float = 144.0, parent=None):
+    def __init__(self, port: int = 9999, target_fps: float = 240.0, parent=None):
         super().__init__(parent)
         self.port: int = port
         self._atomic_state: Dict[str, Any] = {}
         self._lock: QMutex = QMutex()
-        self.frame_interval_ms: int = int(1000 / target_fps)
+        self.target_fps: float = max(30.0, float(target_fps))
+        self.frame_interval_sec: float = 1.0 / self.target_fps
         self.sock: Optional[socket.socket] = None
         self._is_stale: bool = True
 
@@ -41,8 +42,8 @@ class UDPTelemetryWorker(QThread):
 
     def set_target_fps(self, target_fps: float) -> None:
         """Dynamically updates rendering frame rate target."""
-        fps = max(30.0, float(target_fps))
-        self.frame_interval_ms = int(1000 / fps)
+        self.target_fps = max(30.0, float(target_fps))
+        self.frame_interval_sec = 1.0 / self.target_fps
 
     def run(self) -> None:
         """
@@ -62,7 +63,7 @@ class UDPTelemetryWorker(QThread):
         last_emit_time = 0.0
 
         while not self.isInterruptionRequested():
-            frame_interval_sec = self.frame_interval_ms / 1000.0
+            frame_interval_sec = self.frame_interval_sec
             try:
                 data, _ = self.sock.recvfrom(2048)
                 current_time = time.perf_counter()

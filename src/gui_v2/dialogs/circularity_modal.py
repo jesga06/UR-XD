@@ -260,6 +260,7 @@ class CircularityCalibrationModal(QDialog):
 
         self.live_x: float = 0.0
         self.live_y: float = 0.0
+        self._sampled_count: int = 0
 
         self.setup_ui()
 
@@ -388,8 +389,8 @@ class CircularityCalibrationModal(QDialog):
     @Slot(dict)
     def update_telemetry(self, state_dict: dict) -> None:
         """
-        Receives live telemetry signals from UDPTelemetryWorker (~500Hz).
-        Updates internal live_x and live_y coordinates.
+        Receives live telemetry signals from UDPTelemetryWorker (up to 1000Hz).
+        Updates internal live_x and live_y coordinates and records sweep samples.
         """
         if not isinstance(state_dict, dict):
             return
@@ -402,9 +403,35 @@ class CircularityCalibrationModal(QDialog):
             self.live_x = float(state_dict.get("lx", 0.0))
             self.live_y = float(state_dict.get("ly", 0.0))
 
+        if self.calib_state == "SWEEP":
+            self._record_sweep_sample(self.live_x, self.live_y)
+
+    def _record_sweep_sample(self, lx: float, ly: float) -> None:
+        """High-frequency (up to 1000Hz) sweep sample ingestion for 360 degree polar bounds."""
+        dx = lx - self.center_x
+        dy = ly - self.center_y
+        r = math.sqrt(dx * dx + dy * dy)
+        if r < 0.05:
+            return  # Ignore near-center noise
+
+        deg = int(math.degrees(math.atan2(dy, dx)) % 360)
+        was_unsampled = (self.bounds_data[deg] <= 0.1)
+
+        if r > self.bounds_data[deg]:
+            self.bounds_data[deg] = r
+
+        if was_unsampled and self.bounds_data[deg] > 0.1:
+            self._sampled_count += 1
+
+        pct = (self._sampled_count / 360.0) * 100.0
+        self._set_status(f"Status: Sweeping outer boundary… Coverage: {pct:.1f}% ({self._sampled_count}/360 deg)")
+
+        if self._sampled_count >= 350:
+            self.finish_sweep()
+
     def update_loop(self) -> None:
         """
-        Main 60Hz state machine update and rendering loop.
+        Main 60Hz state machine rendering and status update loop.
         """
         lx = self.live_x
         ly = self.live_y
@@ -425,19 +452,7 @@ class CircularityCalibrationModal(QDialog):
             pass
 
         elif self.calib_state == "SWEEP":
-            dx = lx - self.center_x
-            dy = ly - self.center_y
-            r = math.sqrt(dx * dx + dy * dy)
-            deg = int(math.degrees(math.atan2(dy, dx)) % 360)
-
-            # Record max polar radius for this degree
-            self.bounds_data[deg] = max(self.bounds_data[deg], r)
-
-            sampled_count = sum(1 for radius in self.bounds_data if radius > 0.3)
-            pct = (sampled_count / 360.0) * 100.0
-            self._set_status(f"Status: Sweeping outer boundary… Coverage: {pct:.1f}% ({sampled_count}/360 deg)")
-
-            if sampled_count >= 350:
+            if self._sampled_count >= 350 or sum(1 for r in self.bounds_data if r > 0.1) >= 350:
                 self.finish_sweep()
 
         elif self.calib_state == "DONE":
@@ -450,6 +465,7 @@ class CircularityCalibrationModal(QDialog):
     def start_sweep(self) -> None:
         """Transitions state machine from WAIT_SWEEP to SWEEP."""
         self.calib_state = "SWEEP"
+        self._sampled_count = 0
         self.btn_sweep.setText("Finish Sweep")
         try:
             self.btn_sweep.clicked.disconnect()

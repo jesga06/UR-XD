@@ -29,7 +29,7 @@ def normalize_device_path(path: str) -> str:
     """
     Normalizes a hidapi device path or raw OS path into a standard Windows Device Instance ID.
     Example:
-      Input:  \\\\?\\hid#vid_045e&pid_028e&mi_00#7&37190c10&0&0000#{4d1e55b2-f16f-11cf-88cb-001111000030}
+      Input:  \\\\?\\hid#vid_045e&pid_028e&mi_00#7&37190c10&0&0000#{4d1e55b2-f16f-11cf-88cb-001111000030}\\kbd
       Output: HID\\VID_045E&PID_028E&MI_00\\7&37190C10&0&0000
     """
     if not path:
@@ -38,13 +38,44 @@ def normalize_device_path(path: str) -> str:
     cleaned = path.strip()
     # Strip leading \\?\ or \\.\
     cleaned = re.sub(r'^\\\\[\?\.]\\', '', cleaned)
-    # Strip trailing GUID block e.g. #{4d1e55b2-f16f-11cf-88cb-001111000030}
-    cleaned = re.sub(r'#\{[a-fA-F0-9\-]+\}$', '', cleaned)
+    # Strip #{GUID} and anything following it (e.g. \KBD or \0000)
+    cleaned = re.sub(r'#\{[a-fA-F0-9\-]+\}.*$', '', cleaned, flags=re.IGNORECASE)
     # Convert remaining '#' separators to '\'
     cleaned = cleaned.replace('#', '\\')
 
     # Convert to uppercase for canonical Windows Device Instance ID matching
     return cleaned.upper()
+
+
+def get_all_device_instances_for_controller(raw_path: str) -> List[str]:
+    """
+    Given a raw hidapi path, extracts VID and PID, enumerates all connected HID interfaces,
+    and returns a list of normalized Device Instance IDs for the physical controller.
+    """
+    instances = set()
+    norm_main = normalize_device_path(raw_path)
+    if norm_main:
+        instances.add(norm_main)
+
+    try:
+        import hid
+        match = re.search(r'VID_([0-9A-F]{4})&PID_([0-9A-F]{4})', raw_path, re.IGNORECASE)
+        if match:
+            vid_hex, pid_hex = match.group(1).lower(), match.group(2).lower()
+            vid_int, pid_int = int(vid_hex, 16), int(pid_hex, 16)
+
+            for d in hid.enumerate():
+                if d.get('vendor_id') == vid_int and d.get('product_id') == pid_int:
+                    p = d.get('path', '')
+                    if isinstance(p, bytes):
+                        p = p.decode('utf-8', errors='ignore')
+                    norm = normalize_device_path(p)
+                    if norm:
+                        instances.add(norm)
+    except Exception as e:
+        logger.debug("Failed resolving all HID device instances: %s", e)
+
+    return sorted(list(instances))
 
 
 class HidHideManager:
@@ -165,52 +196,56 @@ class HidHideManager:
 
     def cloak_device(self, raw_device_path: str) -> bool:
         """
-        Cloaks (hides) a physical HID device from Windows applications.
-        Normalizes device path, adds it to HidHide blocked list, and enables global cloaking.
+        Cloaks (hides) a physical HID device and all its composite interfaces from Windows applications.
+        Normalizes device paths, adds all interface instance IDs to HidHide blocked list, and enables global cloaking.
         """
         if not self.is_installed():
             return False
 
-        instance_id = normalize_device_path(raw_device_path)
-        if not instance_id:
-            logger.error("Cannot cloak empty device instance ID for path: %s", raw_device_path)
+        instance_ids = get_all_device_instances_for_controller(raw_device_path)
+        if not instance_ids:
+            logger.error("Cannot cloak empty device instance list for path: %s", raw_device_path)
             return False
 
-        # 1. Add device instance ID to blocked list
-        code, stdout, stderr = self._run_cli(["--dev-hide", instance_id])
-        if code != 0:
-            logger.warning("HidHide --dev-hide failed for %s (code=%d): %s", instance_id, code, stderr)
-            return False
+        success_count = 0
+        for instance_id in instance_ids:
+            code, stdout, stderr = self._run_cli(["--dev-hide", instance_id])
+            if code == 0:
+                self._active_cloaks.add(instance_id)
+                success_count += 1
+            else:
+                logger.warning("HidHide --dev-hide failed for %s (code=%d): %s", instance_id, code, stderr)
 
-        # 2. Enable global cloaking
-        code_cloak, _, _ = self._run_cli(["--cloak-on"])
-        if code_cloak != 0:
-            logger.warning("HidHide --cloak-on failed")
+        if success_count > 0:
+            # Enable global cloaking
+            code_cloak, _, _ = self._run_cli(["--cloak-on"])
+            if code_cloak != 0:
+                logger.warning("HidHide --cloak-on failed")
 
-        self._active_cloaks.add(instance_id)
-        self._save_state()
-        self._register_cleanup_hooks()
-        logger.info("Successfully cloaked physical controller: %s", instance_id)
-        return True
+            self._save_state()
+            self._register_cleanup_hooks()
+            logger.info("Successfully cloaked %d physical controller interface(s) for %s", success_count, raw_device_path)
+            return True
+
+        return False
 
     def uncloak_device(self, raw_device_path: str) -> bool:
-        """Unhides a physical HID device, making it visible to Windows again."""
+        """Unhides all composite interface instances of a physical HID device."""
         if not self.is_installed():
             return False
 
-        instance_id = normalize_device_path(raw_device_path)
-        if not instance_id:
+        instance_ids = get_all_device_instances_for_controller(raw_device_path)
+        if not instance_ids:
             return False
 
-        code, stdout, stderr = self._run_cli(["--dev-unhide", instance_id])
-        if instance_id in self._active_cloaks:
-            self._active_cloaks.remove(instance_id)
-            self._save_state()
+        for instance_id in instance_ids:
+            code, stdout, stderr = self._run_cli(["--dev-unhide", instance_id])
+            if instance_id in self._active_cloaks:
+                self._active_cloaks.remove(instance_id)
 
-        if code == 0:
-            logger.info("Successfully uncloaked physical controller: %s", instance_id)
-            return True
-        return False
+        self._save_state()
+        logger.info("Successfully uncloaked physical controller interfaces for: %s", raw_device_path)
+        return True
 
     def set_cloaking_active(self, active: bool) -> bool:
         """Toggles global HidHide cloaking state ON or OFF."""

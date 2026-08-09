@@ -80,17 +80,18 @@ def open_config(icon, item):
     if logger:
         logger.debug(f"[ENTER] open_config called with args: icon={icon}, item={item}")
     
-    # Check if an existing GUI process is running
-    for p in list(gui_processes):
+    # Check if an existing GUI process is running and prune terminated ones
+    active_procs = []
+    for p in gui_processes:
         if p.poll() is None:
-            gui_opened = True
-            if logger:
-                logger.debug("GUI instance is already running; skipping launch.")
-            return
+            active_procs.append(p)
+    gui_processes.clear()
+    gui_processes.extend(active_procs)
 
-    if gui_opened:
+    if gui_processes:
+        gui_opened = True
         if logger:
-            logger.debug("GUI already opened in this session; skipping launch.")
+            logger.debug("GUI instance is already running; skipping launch.")
         return
 
     try:

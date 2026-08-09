@@ -48,10 +48,14 @@ class MainWindow(QMainWindow):
     decoupled 1000Hz IPC telemetry handling, and debounced disk saving.
     """
 
+    restore_requested = Signal()
+
     def __init__(self, config_manager=None, theme_manager=None, parent=None):
         super().__init__(parent)
         # Ensure single instance GUI guard
-        ensure_single_instance("UR-XD-GUI", PORT_GUI)
+        self.gui_socket = ensure_single_instance("UR-XD-GUI", PORT_GUI)
+        self.restore_requested.connect(self.restore_window)
+        self._start_restore_listener()
 
         self.config = config_manager
         self.theme_mgr = theme_manager
@@ -68,7 +72,7 @@ class MainWindow(QMainWindow):
         )
 
         # 1000Hz Decoupled Telemetry Worker
-        self.telemetry_worker = UDPTelemetryWorker(port=9999, target_fps=144.0, parent=self)
+        self.telemetry_worker = UDPTelemetryWorker(port=9999, target_fps=240.0, parent=self)
 
         self.setup_tray_icon()
         self.setup_ui()
@@ -84,6 +88,24 @@ class MainWindow(QMainWindow):
         self.status_poller.timeout.connect(self._poll_status_file)
         self.status_poller.start()
         self._poll_status_file()
+
+    def _start_restore_listener(self) -> None:
+        """Starts background socket listener thread on PORT_GUI to receive restore signals."""
+        import threading
+        def _listen():
+            while not getattr(self, '_is_quitting', False):
+                try:
+                    if self.gui_socket:
+                        client, _ = self.gui_socket.accept()
+                        client.settimeout(0.5)
+                        data = client.recv(1024)
+                        client.close()
+                        if b"RESTORE" in data:
+                            self.restore_requested.emit()
+                except Exception:
+                    pass
+        t = threading.Thread(target=_listen, daemon=True)
+        t.start()
 
     def _poll_status_file(self) -> None:
         """Reads status.json written by wrapper daemon using absolute project root path."""
@@ -245,10 +267,12 @@ class MainWindow(QMainWindow):
         if hasattr(self, 'telemetry_worker') and self.telemetry_worker:
             if not self.telemetry_worker.isRunning():
                 self.telemetry_worker.start()
-            else:
-                snapshot = self.telemetry_worker.get_latest_snapshot()
-                if snapshot and hasattr(self, 'dashboard_view') and self.dashboard_view:
+            snapshot = self.telemetry_worker.get_latest_snapshot()
+            if snapshot:
+                if hasattr(self, 'dashboard_view') and self.dashboard_view:
                     self.dashboard_view.update_telemetry(snapshot)
+                if hasattr(self, 'tuning_view') and self.tuning_view and hasattr(self.tuning_view, 'update_telemetry'):
+                    self.tuning_view.update_telemetry(snapshot)
         self._poll_status_file()
 
     def changeEvent(self, event):

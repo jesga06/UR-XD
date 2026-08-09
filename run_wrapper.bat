@@ -3,6 +3,14 @@ cd /d "%~dp0"
 title "Universal Remapper & XInput from DInput Wrapper"
 echo Starting UR-XD...
 
+:: Check for Administrator privileges (required for HidHide driver cloaking)
+net session >nul 2>&1
+if %ERRORLEVEL% NEQ 0 (
+    echo [INFO] Requesting Administrator privileges for HidHide driver access...
+    powershell -Command "Start-Process '%~f0' -ArgumentList '%*' -Verb RunAs"
+    exit /b 0
+)
+
 set PYTHON_CMD=python
 if exist "venv\Scripts\python.exe" set PYTHON_CMD=venv\Scripts\python.exe
 
@@ -13,4 +21,4 @@ if %ERRORLEVEL% NEQ 0 (
     exit /b 1
 )
 
-"%PYTHON_CMD%" src\main.py %*
+"%PYTHON_CMD%" src\main.py %*

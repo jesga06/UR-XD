@@ -108,6 +108,9 @@ class HidHideManager:
             logger.warning("HidHideCLI.exe is not installed or path is invalid.")
             return -1, "", "HidHideCLI not found"
 
+        if not self.is_admin():
+            logger.warning("HidHide CLI requires Administrator privileges. Launch UR-XD as Administrator (or via run_wrapper.bat) to allow driver handle access.")
+
         cmd = [self._cli_path] + args
         try:
             # Hide console window on Windows
@@ -143,7 +146,7 @@ class HidHideManager:
             return False
 
         target_app = os.path.abspath(app_path or sys.executable)
-        code, stdout, stderr = self._run_cli(["--app-reg", f'"{target_app}"'])
+        code, stdout, stderr = self._run_cli(["--app-reg", target_app])
         if code == 0:
             logger.info("Successfully whitelisted app in HidHide: %s", target_app)
             return True
@@ -157,7 +160,7 @@ class HidHideManager:
             return False
 
         target_app = os.path.abspath(app_path or sys.executable)
-        code, stdout, stderr = self._run_cli(["--app-unreg", f'"{target_app}"'])
+        code, stdout, stderr = self._run_cli(["--app-unreg", target_app])
         return code == 0
 
     def cloak_device(self, raw_device_path: str) -> bool:
@@ -174,7 +177,7 @@ class HidHideManager:
             return False
 
         # 1. Add device instance ID to blocked list
-        code, stdout, stderr = self._run_cli(["--dev-hide", f'"{instance_id}"'])
+        code, stdout, stderr = self._run_cli(["--dev-hide", instance_id])
         if code != 0:
             logger.warning("HidHide --dev-hide failed for %s (code=%d): %s", instance_id, code, stderr)
             return False
@@ -199,7 +202,7 @@ class HidHideManager:
         if not instance_id:
             return False
 
-        code, stdout, stderr = self._run_cli(["--dev-unhide", f'"{instance_id}"'])
+        code, stdout, stderr = self._run_cli(["--dev-unhide", instance_id])
         if instance_id in self._active_cloaks:
             self._active_cloaks.remove(instance_id)
             self._save_state()
@@ -229,7 +232,7 @@ class HidHideManager:
         logger.info("Executing HidHide emergency uncloak for %d devices...", len(self._active_cloaks))
         cloaks_to_clear = list(self._active_cloaks)
         for instance_id in cloaks_to_clear:
-            self._run_cli(["--dev-unhide", f'"{instance_id}"'])
+            self._run_cli(["--dev-unhide", instance_id])
 
         self._active_cloaks.clear()
         self._save_state()
@@ -250,7 +253,7 @@ class HidHideManager:
                 if orphans and self.is_installed():
                     logger.warning("Found %d orphaned HidHide device cloaks from prior crash. Restoring...", len(orphans))
                     for inst in orphans:
-                        self._run_cli(["--dev-unhide", f'"{inst}"'])
+                        self._run_cli(["--dev-unhide", inst])
                     self._run_cli(["--cloak-off"])
         except Exception as e:
             logger.error("Failed reading HidHide recovery file: %s", e)

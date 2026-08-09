@@ -68,12 +68,13 @@ class XInputBackend(BaseInputBackend):
         self.target_slot = -1
         self.is_running = False
         self._thread = None
-        self.poll_rate_hz = 500
+        self.poll_rate_hz = 1000
         self.last_packet_number = -1
-        # HID presence cache — refreshed every 2s, never inside the 500Hz poll loop
+        # HID presence cache — refreshed on background thread every 2s, never inside poll loop
         self._physical_device_present: bool = True
-        self._physical_device_last_check: float = 0.0
-        self._PHYSICAL_CHECK_INTERVAL: float = 2.0
+        self._hid_lock: threading.Lock = threading.Lock()
+        self._hid_monitor_thread: Optional[threading.Thread] = None
+        self._stop_event: threading.Event = threading.Event()
 
     def _load_xinput(self):
         self.xinput = None
@@ -147,11 +148,34 @@ class XInputBackend(BaseInputBackend):
         state = XINPUT_STATE()
         return self.XInputGetState(self.connected_slot, ctypes.byref(state)) == 0
 
+    @property
+    def is_physical_device_present(self) -> bool:
+        with self._hid_lock:
+            return self._physical_device_present
+
+    def _start_hid_monitor(self) -> None:
+        """Spawns dedicated background daemon thread for 2s HID enumeration."""
+        if self._hid_monitor_thread is None or not self._hid_monitor_thread.is_alive():
+            self._stop_event.clear()
+            self._hid_monitor_thread = threading.Thread(target=self._hid_monitor_loop, daemon=True)
+            self._hid_monitor_thread.start()
+
+    def _hid_monitor_loop(self) -> None:
+        """Background loop performing 2.0s periodic HID enumeration scans off the hot poll path."""
+        while not self._stop_event.is_set():
+            self._refresh_physical_device_cache()
+            for _ in range(20):
+                if self._stop_event.is_set():
+                    break
+                time.sleep(0.1)
+
     def _refresh_physical_device_cache(self) -> None:
-        """Refreshes the HID physical-device presence flag (slow path, every 2s)."""
+        """Refreshes the HID physical-device presence flag (slow background path, every 2s)."""
+        present = True
         try:
             import hid
             devices = hid.enumerate()
+            found = False
             for d in devices:
                 vid = d.get('vendor_id', 0)
                 pid = d.get('product_id', 0)
@@ -160,14 +184,20 @@ class XInputBackend(BaseInputBackend):
                 prod = (d.get('product_string') or "").upper()
                 if any(kw in prod for kw in ("KEYBOARD", "MOUSE", "KB")):
                     continue
-                self._physical_device_present = True
-                return
-            self._physical_device_present = False
+                found = True
+                break
+            present = found
         except Exception:
-            self._physical_device_present = True  # Fail open
+            present = True  # Fail open
+
+        with self._hid_lock:
+            self._physical_device_present = present
 
     def shutdown(self):
         self.is_running = False
+        self._stop_event.set()
+        if self._hid_monitor_thread:
+            self._hid_monitor_thread.join(timeout=1.0)
         if self._thread:
             self._thread.join(timeout=1.0)
         self.set_vibration(0.0, 0.0)
@@ -193,6 +223,7 @@ class XInputBackend(BaseInputBackend):
             logger.debug("[ENTER] backend_xinput poll loop started")
             
         self.is_running = True
+        self._start_hid_monitor()
         sleep_interval = 1.0 / self.poll_rate_hz
         state = XINPUT_STATE()
         
@@ -222,12 +253,7 @@ class XInputBackend(BaseInputBackend):
                 res = get_state_func(self.connected_slot, ctypes.byref(state))
 
             if res == 0:
-                # Refresh physical-device HID cache on slow timer, never per-poll
-                now = time.time()
-                if now - self._physical_device_last_check >= self._PHYSICAL_CHECK_INTERVAL:
-                    self._physical_device_last_check = now
-                    self._refresh_physical_device_cache()
-                if not self._physical_device_present:
+                if not self.is_physical_device_present:
                     consecutive_errors += 1
                 else:
                     consecutive_errors = 0

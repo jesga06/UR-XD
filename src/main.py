@@ -410,16 +410,6 @@ def main():
         active_backend_mode = "dinput" if isinstance(backend, DInputBackend) else "xinput"
         hardware_chord_engine = HardwareChordEngine(controller_config, backend_mode=active_backend_mode)
         
-        # Initialize HidHide Manager & startup crash recovery
-        try:
-            from hidhide_manager import HidHideManager
-            hidhide_mgr = HidHideManager.instance()
-            if hidhide_mgr.is_installed():
-                hidhide_mgr.recover_orphaned_cloaks()
-                hidhide_mgr.ensure_app_whitelisted()
-        except Exception as ex:
-            logger.debug("HidHide initialization skipped: %s", ex)
-
     except Exception as e:
         logger.error(f"Failed to initialize mapper or virtual pad: {e}", exc_info=True)
         logger.info("Please ensure ViGEmBus is installed.")
@@ -467,11 +457,6 @@ def main():
 
     def quit_app(icon, item):
         logger.info("Exiting application from system tray...")
-        try:
-            from hidhide_manager import HidHideManager
-            HidHideManager.instance().emergency_uncloak_all()
-        except Exception:
-            pass
         try:
             virtual_pad.destroy()
         except Exception as e:
@@ -567,11 +552,6 @@ def main():
     except KeyboardInterrupt:
         pass
     finally:
-        try:
-            from hidhide_manager import HidHideManager
-            HidHideManager.instance().emergency_uncloak_all()
-        except Exception:
-            pass
         backend.shutdown()
         write_status("Disconnected")
         for p in gui_processes:

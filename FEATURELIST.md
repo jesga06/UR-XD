@@ -1,9 +1,7 @@
-## 🛡️ HidHide Integration — Double Input Prevention (`src/hidhide_manager.py`, `diagnostics/07_hidhide_audit.py`)
-* **Automated Physical Gamepad Cloaking:** Interoperates with Nefarius HidHide to hide physical USB HID gamepads from Windows games while UR-XD is active, preventing double input.
-* **Process Executable Whitelisting:** Automatically registers UR-XD (`sys.executable`) to HidHide's whitelist (`--app-reg`) so the daemon maintains full access to physical reports.
-* **Device Instance ID Normalization:** Normalizes raw `hidapi` OS paths (`\\?\hid#vid_...`) into Windows Device Instance IDs (`HID\VID_...`) for precise driver blocking.
-* **Crash-Recovery Safeguards:** Tracks active cloaks in a local state file (`.hidhide_active_cloaks.json`). Automatically clears orphaned cloaks on daemon startup or exit (`atexit`, signal traps) to prevent controllers from being left hidden.
-* **System Environment Diagnostic Scanner:** Includes `diagnostics/07_hidhide_audit.py` to audit driver installation, CLI path resolution, Administrator elevation status, and device normalization.
+## 🛡️ HidHide Support — Double Input Prevention (`docs/troubleshooting.md`)
+* **User-Guided OS-Level Cloaking:** Compatible with Nefarius HidHide filter driver for OS-level double input prevention.
+* **Simple One-Time Configuration:** Users can open Nefarius' official GUI (`HidHideClient.exe`), add `python.exe` / `run_wrapper.bat` to the Applications tab (Whitelist), and check their physical gamepad in the Devices tab.
+* **Zero Administrative Overhead:** UR-XD runs safely as a standard user process without needing UAC elevation or managing dynamic driver state changes on startup/exit.
 
 ---
 

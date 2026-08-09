@@ -47,9 +47,12 @@ Got an issue? Don't panic. Controller drivers on Windows can be notoriously fini
 - **Symptom:** Pressing 'A' in a game jumps twice, or opening a menu causes it to scroll two items at once.
 - **Cause:** The game is receiving inputs from BOTH your physical controller and UR-XD's virtual controller at the same time.
 - **Fix:**
-  1. Verify **"Block XInput"** is checked in the GUI **Remapping** tab for remapped buttons. UR-XD automatically blocks physical buttons from reaching the virtual controller when checked.
-  2. Install **[HidHide](https://github.com/nefarius/HidHide)**. UR-XD automatically detects HidHide, whitelists itself (`python.exe`), cloaks your physical gamepad on connect, and uncloaks it on exit.
-  3. Run `diagnostics/07_hidhide_audit.py` to verify your local HidHide driver installation, process elevation status, and device instance path resolution.
+  1. Verify **"Block XInput"** is checked in the GUI **Remapping** tab for remapped buttons.
+  2. If a game reads physical gamepads directly, install **[HidHide](https://github.com/nefarius/HidHide)**.
+  3. Open **`HidHideClient.exe`** (the official GUI included with HidHide):
+     - **Applications Tab**: Click **+** and add `venv\Scripts\python.exe` (or your Python executable path).
+     - **Devices Tab**: Check the lock checkbox next to your physical controller model.
+     - **Enable Cloaking**: Ensure the **"Enable cloaking"** checkbox at the bottom is checked.
 
 ## Calibration & Axis Quirks
 

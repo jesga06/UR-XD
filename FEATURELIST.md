@@ -1,3 +1,12 @@
+## 🛡️ HidHide Integration — Double Input Prevention (`src/hidhide_manager.py`, `diagnostics/07_hidhide_audit.py`)
+* **Automated Physical Gamepad Cloaking:** Interoperates with Nefarius HidHide to hide physical USB HID gamepads from Windows games while UR-XD is active, preventing double input.
+* **Process Executable Whitelisting:** Automatically registers UR-XD (`sys.executable`) to HidHide's whitelist (`--app-reg`) so the daemon maintains full access to physical reports.
+* **Device Instance ID Normalization:** Normalizes raw `hidapi` OS paths (`\\?\hid#vid_...`) into Windows Device Instance IDs (`HID\VID_...`) for precise driver blocking.
+* **Crash-Recovery Safeguards:** Tracks active cloaks in a local state file (`.hidhide_active_cloaks.json`). Automatically clears orphaned cloaks on daemon startup or exit (`atexit`, signal traps) to prevent controllers from being left hidden.
+* **System Environment Diagnostic Scanner:** Includes `diagnostics/07_hidhide_audit.py` to audit driver installation, CLI path resolution, Administrator elevation status, and device normalization.
+
+---
+
 ## 🎨 Advanced Dynamic Theme Engine (`src/gui_v2/services/theme_manager.py`, `src/gui_v2/views/customization_view.py`)
 * **4 Base Color Pickers:** Choose custom colors (with transparency support) for Window Background, Accent #1 (hardware input highlights), Accent #2 (virtual output highlights), and Text Color.
 * **Auto-Derived Color Palette:** Automatically generates coordinated shades and tones for all UI surfaces — widgets, graphs, graph axes, outlines, buttons, and tab states — from your 4 chosen base colors.

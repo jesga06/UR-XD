@@ -48,7 +48,8 @@ Got an issue? Don't panic. Controller drivers on Windows can be notoriously fini
 - **Cause:** The game is receiving inputs from BOTH your physical controller and UR-XD's virtual controller at the same time.
 - **Fix:**
   1. Verify **"Block XInput"** is checked in the GUI **Remapping** tab for remapped buttons. UR-XD automatically blocks physical buttons from reaching the virtual controller when checked.
-  2. If the game still reads your physical controller directly, use **[HidHide](https://github.com/nefarius/HidHide)** to hide the physical controller from games while allowing UR-XD to read it.
+  2. Install **[HidHide](https://github.com/nefarius/HidHide)**. UR-XD automatically detects HidHide, whitelists itself (`python.exe`), cloaks your physical gamepad on connect, and uncloaks it on exit.
+  3. Run `diagnostics/07_hidhide_audit.py` to verify your local HidHide driver installation, process elevation status, and device instance path resolution.
 
 ## Calibration & Axis Quirks
 

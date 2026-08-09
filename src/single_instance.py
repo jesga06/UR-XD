@@ -28,7 +28,13 @@ def ensure_single_instance(app_name: str, port: int) -> socket.socket:
         socket.socket: Bound socket object (must remain open for process lifetime).
     """
     s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-    s.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
+    if sys.platform == "win32":
+        # SO_EXCLUSIVEADDRUSE (0x2000 / socket.SO_EXCLUSIVEADDRUSE) prevents socket hijacking on Windows
+        SO_EXCLUSIVEADDRUSE = getattr(socket, 'SO_EXCLUSIVEADDRUSE', 0x2000)
+        s.setsockopt(socket.SOL_SOCKET, SO_EXCLUSIVEADDRUSE, 1)
+    else:
+        s.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
+
     try:
         s.bind(('127.0.0.1', port))
         s.listen(1)
@@ -36,13 +42,5 @@ def ensure_single_instance(app_name: str, port: int) -> socket.socket:
         _instance_sockets[app_name] = s
         return s
     except (socket.error, OSError):
-        try:
-            sender = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-            sender.settimeout(0.5)
-            sender.connect(('127.0.0.1', port))
-            sender.sendall(b"RESTORE\n")
-            sender.close()
-        except Exception:
-            pass
-        print(f"[{app_name}] Another instance of {app_name} is already running. Sent restore signal and exiting.")
+        print(f"[{app_name}] Another instance of {app_name} is already running. Exiting.")
         sys.exit(0)

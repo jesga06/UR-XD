@@ -284,17 +284,18 @@ class MainWindow(QMainWindow):
             super().changeEvent(event)
 
     def closeEvent(self, event):
-        """Intercepts window close event to hide to system tray unless quitting."""
-        if getattr(self, '_is_quitting', False):
-            if self.telemetry_worker and self.telemetry_worker.isRunning():
-                self.telemetry_worker.stop()
+        """Cleanly stops workers and flushes config on window close."""
+        self._is_quitting = True
+        if hasattr(self, 'telemetry_worker') and self.telemetry_worker and self.telemetry_worker.isRunning():
+            self.telemetry_worker.stop()
+        if hasattr(self, 'debounced_saver') and self.debounced_saver:
             self.debounced_saver.flush()
-            if self.tray_icon:
-                self.tray_icon.hide()
-            super().closeEvent(event)
-        else:
-            event.ignore()
-            self.hide()
+        if hasattr(self, 'status_poller') and self.status_poller:
+            self.status_poller.stop()
+        if hasattr(self, 'tray_icon') and self.tray_icon:
+            self.tray_icon.hide()
+        super().closeEvent(event)
+        QApplication.quit()
 
     def quit_application(self):
         """Full application quit action."""

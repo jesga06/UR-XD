@@ -35,11 +35,8 @@ def main():
     # Create the application
     app = QApplication(sys.argv)
 
-    # Enable quitting on last window closed?
-    # No, we want the system tray to keep it alive even if window is closed,
-    # but the prompt implies hiding it toggles visibility.
-    # So we don't quit on last window closed.
-    app.setQuitOnLastWindowClosed(False)
+    # Enable quitting on last window closed
+    app.setQuitOnLastWindowClosed(True)
 
     # Apply global QSS glassmorphic deep space theme
     app.setStyleSheet(GLOBAL_QSS)

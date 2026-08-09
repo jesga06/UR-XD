@@ -80,6 +80,11 @@ class UtilitiesView(QWidget):
         self.container_layout.addWidget(title_lbl)
 
         # -------------------------------------------------------------------
+        # 0. HIDHIDE ASSISTANT (DOUBLE-INPUT PREVENTION)
+        # -------------------------------------------------------------------
+        self.setup_hidhide_section()
+
+        # -------------------------------------------------------------------
         # 1. LIVE TELEMETRY COUNTER PANEL
         # -------------------------------------------------------------------
         self.telemetry_card = QGroupBox("Live Latency & Telemetry Monitor", self.container_widget)
@@ -212,6 +217,161 @@ class UtilitiesView(QWidget):
         self.container_layout.addStretch()
         self.scroll_area.setWidget(self.container_widget)
         main_layout.addWidget(self.scroll_area)
+
+        # Initial HidHide status check
+        self._refresh_hidhide_status()
+
+    # -------------------------------------------------------------------
+    # HIDHIDE ASSISTANT SECTION & SLOTS
+    # -------------------------------------------------------------------
+    def setup_hidhide_section(self):
+        self.hidhide_card = QGroupBox("🛡️ Double-Input Prevention (HidHide Assistant)", self.container_widget)
+        hh_layout = QVBoxLayout(self.hidhide_card)
+        hh_layout.setContentsMargins(16, 16, 16, 16)
+        hh_layout.setSpacing(12)
+
+        # Status indicators row
+        status_row = QHBoxLayout()
+        self.lbl_hh_driver = QLabel("Driver: Checking...", self.hidhide_card)
+        self.lbl_hh_whitelist = QLabel("Whitelist: Checking...", self.hidhide_card)
+        self.lbl_hh_cloak = QLabel("Cloak: Checking...", self.hidhide_card)
+        for lbl in (self.lbl_hh_driver, self.lbl_hh_whitelist, self.lbl_hh_cloak):
+            lbl.setStyleSheet("font-size: 11px; padding: 4px 8px; border-radius: 4px; background: rgba(255,255,255,0.05);")
+            status_row.addWidget(lbl)
+        status_row.addStretch()
+        hh_layout.addLayout(status_row)
+
+        # Action buttons row
+        btn_row = QHBoxLayout()
+        self.btn_hh_whitelist = QPushButton("⚡ Whitelist App", self.hidhide_card)
+        self.btn_hh_cloak = QPushButton("🛡️ Enable Cloak", self.hidhide_card)
+        self.btn_hh_uncloak = QPushButton("🔓 Disable Cloak", self.hidhide_card)
+        self.btn_hh_replug = QPushButton("🔄 Software Re-Plug", self.hidhide_card)
+
+        self.btn_hh_whitelist.clicked.connect(self._on_hh_whitelist_clicked)
+        self.btn_hh_cloak.clicked.connect(self._on_hh_cloak_clicked)
+        self.btn_hh_uncloak.clicked.connect(self._on_hh_uncloak_clicked)
+        self.btn_hh_replug.clicked.connect(self._on_hh_replug_clicked)
+
+        for btn in (self.btn_hh_whitelist, self.btn_hh_cloak, self.btn_hh_uncloak, self.btn_hh_replug):
+            btn.setMinimumHeight(32)
+            btn_row.addWidget(btn)
+
+        hh_layout.addLayout(btn_row)
+
+        # Plain language warning note
+        note_lbl = QLabel("Note: If the button doesn't work, unplug your controller and plug it back in.", self.hidhide_card)
+        note_lbl.setStyleSheet("font-size: 11px; color: #FFC107; font-style: italic;")
+        hh_layout.addWidget(note_lbl)
+
+        self.container_layout.addWidget(self.hidhide_card)
+
+    def _refresh_hidhide_status(self):
+        """Refreshes HidHide status labels based on current system state."""
+        try:
+            import hidhide_helper
+            st = hidhide_helper.get_hidhide_status()
+
+            if not st["installed"]:
+                self.lbl_hh_driver.setText("Driver: 🔴 Not Found")
+                self.lbl_hh_whitelist.setText("Whitelist: --")
+                self.lbl_hh_cloak.setText("Cloak: --")
+                for btn in (self.btn_hh_whitelist, self.btn_hh_cloak, self.btn_hh_uncloak, self.btn_hh_replug):
+                    btn.setEnabled(False)
+                return
+
+            for btn in (self.btn_hh_whitelist, self.btn_hh_cloak, self.btn_hh_uncloak, self.btn_hh_replug):
+                btn.setEnabled(True)
+
+            self.lbl_hh_driver.setText("Driver: 🟢 Installed")
+            if st["app_registered"]:
+                self.lbl_hh_whitelist.setText("Whitelist: 🟢 sys.executable Registered")
+            else:
+                self.lbl_hh_whitelist.setText("Whitelist: 🟡 Not Registered")
+
+            if st["cloak_active"]:
+                self.lbl_hh_cloak.setText("Cloak: 🟢 Active")
+            else:
+                self.lbl_hh_cloak.setText("Cloak: 🔴 Inactive")
+        except Exception as e:
+            logger.debug(f"Error refreshing HidHide status: {e}")
+
+    def _on_hh_whitelist_clicked(self):
+        """Registers sys.executable into HidHide whitelist."""
+        try:
+            import hidhide_helper
+            ok, msg = hidhide_helper.register_app_whitelist()
+            self._refresh_hidhide_status()
+            if ok:
+                QMessageBox.information(self, "HidHide Whitelist", f"Successfully registered app:\n{msg}")
+            else:
+                QMessageBox.warning(self, "HidHide Whitelist Error", f"Could not register whitelist:\n{msg}")
+        except Exception as e:
+            QMessageBox.critical(self, "Error", str(e))
+
+    def _on_hh_cloak_clicked(self):
+        """Queries PnP instance IDs, adds them to blocklist, and enables global cloak."""
+        try:
+            import hidhide_helper
+            ids = hidhide_helper.get_pnp_instance_ids()
+            added_count = 0
+            for iid in ids:
+                ok, _ = hidhide_helper.add_device_to_blocklist(iid)
+                if ok:
+                    added_count += 1
+
+            ok_cloak, msg = hidhide_helper.set_global_cloak(True)
+            self._refresh_hidhide_status()
+            if ok_cloak:
+                QMessageBox.information(
+                    self, "HidHide Cloaking Enabled",
+                    f"Global cloaking is now ON.\nAdded {added_count} device node(s) to blocklist.\n\n"
+                    "Note: If the button doesn't work, unplug your controller and plug it back in."
+                )
+            else:
+                QMessageBox.warning(self, "HidHide Error", f"Could not enable global cloaking:\n{msg}")
+        except Exception as e:
+            QMessageBox.critical(self, "Error", str(e))
+
+    def _on_hh_uncloak_clicked(self):
+        """Toggles global cloaking OFF via --cloak-off."""
+        try:
+            import hidhide_helper
+            ok, msg = hidhide_helper.set_global_cloak(False)
+            self._refresh_hidhide_status()
+            if ok:
+                QMessageBox.information(self, "HidHide Cloaking Disabled", "Global cloaking is now OFF.")
+            else:
+                QMessageBox.warning(self, "HidHide Error", f"Could not disable global cloaking:\n{msg}")
+        except Exception as e:
+            QMessageBox.critical(self, "Error", str(e))
+
+    def _on_hh_replug_clicked(self):
+        """Executes a software PnP device restart on detected controller nodes."""
+        try:
+            import hidhide_helper
+            ids = hidhide_helper.get_pnp_instance_ids()
+            if not ids:
+                QMessageBox.warning(
+                    self, "No Controller Found",
+                    "No connected HID/USB controller PnP instance IDs detected.\n\n"
+                    "Note: If the button doesn't work, unplug your controller and plug it back in."
+                )
+                return
+
+            restart_count = 0
+            for iid in ids:
+                ok, _ = hidhide_helper.restart_pnp_device(iid)
+                if ok:
+                    restart_count += 1
+
+            QMessageBox.information(
+                self, "Software Re-Plug Completed",
+                f"Restarted {restart_count} PnP device node(s).\n\n"
+                "Note: If the button doesn't work, unplug your controller and plug it back in."
+            )
+        except Exception as e:
+            QMessageBox.critical(self, "Error", str(e))
 
     # -------------------------------------------------------------------
     # TELEMETRY & DIAGNOSTICS SLOTS
